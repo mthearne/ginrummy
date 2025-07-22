@@ -1,5 +1,22 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "apps/web/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
   "installCommand": "corepack enable && pnpm install",
-  "buildCommand": "pnpm --filter web build",
-  "outputDirectory": "apps/web/dist"
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
