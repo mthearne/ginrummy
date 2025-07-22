@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Game created successfully',
+      id: game.id,
       game
     });
 
