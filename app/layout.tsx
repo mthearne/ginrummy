@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import '../src/index.css';
 import Header from '../src/components/layout/Header';
+import AuthProvider from '../src/components/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Gin Rummy',
@@ -15,10 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-gray-50">
-        <Header />
-        <main>
-          {children}
-        </main>
+        <AuthProvider>
+          <Header />
+          <main>
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );
