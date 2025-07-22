@@ -16,36 +16,51 @@ class SocketService {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
   connect(token: string) {
-    const API_URL = import.meta.env.VITE_API_URL || (
-      typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-        ? '' 
-        : 'http://localhost:3001'
-    );
+    // In Next.js (especially on Vercel), Socket.io doesn't work reliably
+    // So we'll primarily use REST API with optional Socket.io enhancement
+    console.log('Socket service initialized - using REST API mode');
     
+    // Mark as "connected" since we'll use REST API fallback
+    useGameStore.getState().setConnected(true);
+    
+    // Optionally try Socket.io for real-time features (won't work on Vercel)
+    this.trySocketConnection(token);
+    
+    return this.socket;
+  }
+
+  private trySocketConnection(token: string) {
+    // Only try socket.io in development or if explicitly available
+    if (typeof window === 'undefined') return;
+    
+    const isLocalhost = window.location.hostname === 'localhost';
+    if (!isLocalhost) {
+      console.log('Skipping Socket.io on production - using REST API only');
+      return;
+    }
+
     try {
+      // Try to connect to socket.io server (development only)
+      const API_URL = 'http://localhost:3001';
+      
       this.socket = io(API_URL, {
         auth: { token },
         transports: ['websocket', 'polling'],
-        timeout: 5000,
+        timeout: 2000,
         autoConnect: true,
       });
 
       this.setupEventListeners();
       
-      // Set a timeout to consider connection failed if not connected within 3 seconds
       setTimeout(() => {
         if (!this.socket?.connected) {
-          console.log('Socket.io connection timeout, will use REST API fallback');
-          useGameStore.getState().setConnected(false);
+          console.log('Socket.io not available, using REST API only');
         }
-      }, 3000);
+      }, 2000);
       
     } catch (error) {
-      console.error('Failed to initialize Socket.io:', error);
-      useGameStore.getState().setConnected(false);
+      console.log('Socket.io not available:', error.message);
     }
-    
-    return this.socket;
   }
 
   disconnect() {
@@ -199,21 +214,13 @@ class SocketService {
   joinGame(gameId: string) {
     console.log(`Attempting to join game: ${gameId}`);
     
-    // If Socket.io is connected, use it
+    // Always use REST API as primary method (works reliably in Next.js/Vercel)
+    this.joinGameViaAPI(gameId);
+    
+    // Optionally emit to Socket.io if available (development enhancement)
     if (this.socket?.connected) {
+      console.log('Also notifying Socket.io server');
       this.socket.emit('join_game', { gameId });
-    } else {
-      // Fallback to REST API immediately
-      console.log('Socket.io not available, using REST API fallback');
-      this.joinGameViaAPI(gameId);
-      
-      // Also try again after a short delay in case Socket.io connects later
-      setTimeout(() => {
-        if (this.socket?.connected && !useGameStore.getState().gameState) {
-          console.log('Retrying with Socket.io');
-          this.socket.emit('join_game', { gameId });
-        }
-      }, 2000);
     }
   }
 
@@ -270,7 +277,8 @@ class SocketService {
 
   // Connection status
   isConnected(): boolean {
-    return this.socket?.connected || false;
+    // In Next.js mode, we're always "connected" via REST API
+    return true;
   }
 
   // Getters
