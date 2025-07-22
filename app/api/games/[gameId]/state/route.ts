@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
+import { GinRummyGame } from '@gin-rummy/common';
 
 export async function GET(
   request: NextRequest,
@@ -70,56 +71,28 @@ export async function GET(
       );
     }
 
-    // For AI games, activate the game if it's still waiting
+    // For AI games, initialize the game engine if it's still waiting
     if (game.vsAI && game.status === 'WAITING') {
-      // Update game to active status (keep player2Id as null for AI)
-      const updatedGame = await prisma.game.update({
+      // Initialize the game engine with proper cards and game logic
+      const gameEngine = new GinRummyGame(gameId, game.player1Id, 'ai-player', true);
+      const initialState = gameEngine.getState();
+      
+      // Set player names from database
+      initialState.players[0].username = game.player1!.username;
+      initialState.players[1].username = 'AI Opponent';
+      
+      // Update game to active status in database
+      await prisma.game.update({
         where: { id: gameId },
         data: {
           status: 'ACTIVE'
-        },
-        include: {
-          player1: {
-            select: {
-              id: true,
-              username: true,
-              email: true,
-              elo: true,
-            }
-          }
         }
       });
 
-      // Return initial AI game state
+      // Store the initialized game state (in a real system, this would go to Redis/memory store)
+      // For now, we'll return the initialized state
       return NextResponse.json({
-        gameState: {
-          id: updatedGame.id,
-          status: updatedGame.status,
-          vsAI: updatedGame.vsAI,
-          players: [
-            {
-              id: updatedGame.player1!.id,
-              username: updatedGame.player1!.username,
-              elo: updatedGame.player1!.elo,
-              hand: [], // Empty for now
-              score: updatedGame.player1Score,
-              deadwood: 0,
-            },
-            {
-              id: 'ai-player',
-              username: 'AI Opponent',
-              elo: 1200,
-              hand: [],
-              score: updatedGame.player2Score,
-              deadwood: 0,
-            }
-          ],
-          currentPlayerId: updatedGame.player1!.id,
-          phase: 'draw',
-          turnTimer: 30,
-          stockPileCount: 31, // 52 - 10 - 10 - 1 (upcard)
-          discardPile: [],
-        }
+        gameState: initialState
       });
     }
 
