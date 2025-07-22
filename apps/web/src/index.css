@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+  
+  button:focus {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+  }
+  
+  input:focus,
+  textarea:focus {
+    @apply outline-none ring-2 ring-primary-500 border-transparent;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  .btn-success {
+    @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+  
+  .btn-disabled {
+    @apply bg-gray-300 text-gray-500 cursor-not-allowed;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-200;
+  }
+  
+  .card-body {
+    @apply p-6;
+  }
+  
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm placeholder-gray-400;
+  }
+  
+  .playing-card {
+    @apply relative bg-white border-2 border-gray-300 rounded-lg shadow-sm transition-all duration-200;
+    aspect-ratio: 2.5 / 3.5;
+    width: 80px;
+  }
+  
+  .playing-card.red {
+    @apply text-red-600;
+  }
+  
+  .playing-card.black {
+    @apply text-gray-900;
+  }
+  
+  .playing-card.back {
+    @apply border-blue-800;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%) !important;
+    background-image: 
+      radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 2px, transparent 2px),
+      radial-gradient(circle at 70% 70%, rgba(255,255,255,0.1) 1px, transparent 1px);
+    background-size: 20px 20px, 14px 14px;
+  }
+  
+  .playing-card.selected {
+    @apply ring-2 ring-primary-500 transform -translate-y-2;
+  }
+  
+  .playing-card.dragging {
+    @apply transform rotate-12 scale-110 z-50;
+  }
+  
+  .game-area {
+    @apply bg-gradient-to-br from-green-100 to-green-200 min-h-screen p-4;
+    background-image: 
+      radial-gradient(circle at 25px 25px, rgba(255,255,255,0.3) 2px, transparent 0),
+      radial-gradient(circle at 75px 75px, rgba(255,255,255,0.3) 2px, transparent 0);
+    background-size: 100px 100px;
+  }
+  
+  .chat-message {
+    @apply mb-2 p-2 rounded-lg text-sm;
+  }
+  
+  .chat-message.own {
+    @apply bg-primary-600 text-white ml-auto max-w-xs;
+  }
+  
+  .chat-message.other {
+    @apply bg-white text-gray-900 mr-auto max-w-xs;
+  }
+  
+  .notification {
+    @apply fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 max-w-sm;
+  }
+  
+  .notification.success {
+    @apply bg-green-600 text-white;
+  }
+  
+  .notification.error {
+    @apply bg-red-600 text-white;
+  }
+  
+  .notification.info {
+    @apply bg-blue-600 text-white;
+  }
+  
+  .notification.warning {
+    @apply bg-yellow-600 text-white;
+  }
+  
+  .loading {
+    @apply inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .playing-card {
+    width: 60px;
+  }
+  
+  .btn {
+    @apply text-sm px-3 py-1.5;
+  }
+  
+  .card-body {
+    @apply p-4;
+  }
+}
+
+/* Prevent text selection on game elements */
+.game-area,
+.playing-card,
+.btn {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}

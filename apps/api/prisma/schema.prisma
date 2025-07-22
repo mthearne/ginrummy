@@ -1,0 +1,171 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  username    String   @unique
+  password    String
+  elo         Int      @default(1200)
+  gamesPlayed Int      @default(0) @map("games_played")
+  gamesWon    Int      @default(0) @map("games_won")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  refreshTokens     RefreshToken[]
+  player1Games      Game[]         @relation("Player1")
+  player2Games      Game[]         @relation("Player2")
+  wonGames          Game[]         @relation("Winner")
+  gameEvents        GameEvent[]
+  eloHistory        EloHistory[]
+  
+  // Friend system relations
+  sentFriendRequests     Friendship[] @relation("FriendshipRequester")
+  receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
+  
+  // Invitation system relations
+  sentInvitations     GameInvitation[] @relation("InvitationSender")
+  receivedInvitations GameInvitation[] @relation("InvitationReceiver")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Game {
+  id          String      @id @default(uuid())
+  status      GameStatus  @default(WAITING)
+  player1Id   String      @map("player1_id")
+  player2Id   String?     @map("player2_id")
+  winnerId    String?     @map("winner_id")
+  player1Score Int        @default(0) @map("player1_score")
+  player2Score Int        @default(0) @map("player2_score")
+  isPrivate   Boolean     @default(false) @map("is_private")
+  vsAI        Boolean     @default(false) @map("vs_ai")
+  maxPlayers  Int         @default(2) @map("max_players")
+  duration    Int?        // seconds
+  knockType   KnockType?  @map("knock_type")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  finishedAt  DateTime?   @map("finished_at")
+
+  // Relations
+  player1         User             @relation("Player1", fields: [player1Id], references: [id])
+  player2         User?            @relation("Player2", fields: [player2Id], references: [id])
+  winner          User?            @relation("Winner", fields: [winnerId], references: [id])
+  gameEvents      GameEvent[]
+  gameInvitations GameInvitation[]
+
+  @@map("games")
+}
+
+model GameEvent {
+  id        String   @id @default(uuid())
+  gameId    String   @map("game_id")
+  userId    String?  @map("user_id")
+  eventType String   @map("event_type")
+  eventData Json     @map("event_data")
+  timestamp DateTime @default(now())
+
+  // Relations
+  game Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("game_events")
+}
+
+model EloHistory {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  elo       Int
+  change    Int
+  gameId    String?  @map("game_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("elo_history")
+}
+
+enum GameStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+enum KnockType {
+  GIN
+  KNOCK
+  UNDERCUT
+}
+
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String           @map("requester_id")
+  receiverId  String           @map("receiver_id")
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver  User @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@map("friendships")
+}
+
+model GameInvitation {
+  id         String           @id @default(uuid())
+  gameId     String           @map("game_id")
+  senderId   String           @map("sender_id")
+  receiverId String           @map("receiver_id")
+  status     InvitationStatus @default(PENDING)
+  message    String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+  expiresAt  DateTime         @map("expires_at")
+
+  // Relations
+  game     Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  sender   User @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("InvitationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("game_invitations")
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  BLOCKED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
