@@ -9,7 +9,7 @@
       }
     },
     {
-      "src": "apps/api/src/server.ts",
+      "src": "apps/api/src/app.ts",
       "use": "@vercel/node"
     }
   ],
@@ -18,7 +18,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "apps/api/src/server.ts"
+      "dest": "apps/api/src/app.ts"
     },
     {
       "handle": "filesystem"
