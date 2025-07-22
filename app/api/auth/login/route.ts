@@ -56,9 +56,29 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    // Enhanced error logging for production debugging
+    console.error('Login error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      cause: error.cause,
+    });
+    
+    // More specific error messages for different failure modes
+    let errorMessage = 'Login failed';
+    if (error.message?.includes('database') || error.message?.includes('connect')) {
+      errorMessage = 'Database connection failed';
+    } else if (error.message?.includes('bcrypt')) {
+      errorMessage = 'Password verification failed';
+    } else if (error.message?.includes('jwt') || error.message?.includes('token')) {
+      errorMessage = 'Token generation failed';
+    }
+    
     return NextResponse.json(
-      { error: 'Login failed' },
+      { 
+        error: errorMessage,
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      },
       { status: 500 }
     );
   }
