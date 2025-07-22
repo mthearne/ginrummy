@@ -100,23 +100,8 @@ export async function GET(
         }
       }
 
-      // Check if it's AI's turn and process AI move
-      const currentState = gameEngine.getState();
-      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
-        console.log('Processing AI move for game:', gameId, 'phase:', currentState.phase);
-        
-        // Get AI suggestion and make the move
-        const aiMove = gameEngine.getAISuggestion();
-        if (aiMove) {
-          console.log('AI making move:', aiMove.type);
-          const moveResult = gameEngine.makeMove(aiMove);
-          if (moveResult.success) {
-            console.log('AI move successful, new phase:', moveResult.state.phase);
-          } else {
-            console.error('AI move failed:', moveResult.error);
-          }
-        }
-      }
+      // Process AI moves if it's AI's turn
+      await processAIMoves(gameEngine);
 
       return NextResponse.json({
         gameState: gameEngine.getState()
@@ -133,7 +118,6 @@ export async function GET(
         }
       });
     }
-
 
     // For active PvP games, return basic game state
     return NextResponse.json({
@@ -180,4 +164,46 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+/**
+ * Process multiple AI moves if needed (e.g. immediate response moves)
+ */
+async function processAIMoves(gameEngine: any, maxMoves: number = 3): Promise<void> {
+  let movesProcessed = 0;
+  
+  while (movesProcessed < maxMoves) {
+    const currentState = gameEngine.getState();
+    
+    if (currentState.currentPlayerId !== 'ai-player' || currentState.gameOver) {
+      break; // Not AI's turn or game is over
+    }
+    
+    console.log(`Processing AI move ${movesProcessed + 1} for phase:`, currentState.phase);
+    
+    const aiMove = gameEngine.getAISuggestion();
+    if (!aiMove) {
+      console.log('No AI move available for phase:', currentState.phase);
+      break;
+    }
+    
+    console.log('AI making move:', aiMove.type);
+    const moveResult = gameEngine.makeMove(aiMove);
+    
+    if (!moveResult.success) {
+      console.error('AI move failed:', moveResult.error);
+      break;
+    }
+    
+    console.log('AI move successful, new phase:', moveResult.state.phase);
+    movesProcessed++;
+    
+    // Add small delay to prevent infinite loops
+    if (movesProcessed >= maxMoves) {
+      console.log('Max AI moves reached, stopping to prevent infinite loop');
+      break;
+    }
+  }
+  
+  console.log(`Processed ${movesProcessed} AI moves`);
 }

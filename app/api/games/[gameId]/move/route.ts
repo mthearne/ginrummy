@@ -3,6 +3,7 @@ import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
 import { GameCache } from '../../../../../src/utils/gameCache';
+import { GamePhase } from '@gin-rummy/common';
 
 export async function POST(
   request: NextRequest,
@@ -95,22 +96,8 @@ export async function POST(
 
       console.log('Player move successful, new phase:', moveResult.state.phase);
 
-      // Check if it's now AI's turn and process AI move
-      const currentState = gameEngine.getState();
-      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
-        console.log('Processing AI response move, phase:', currentState.phase);
-        
-        const aiMove = gameEngine.getAISuggestion();
-        if (aiMove) {
-          console.log('AI making response move:', aiMove.type);
-          const aiMoveResult = gameEngine.makeMove(aiMove);
-          if (aiMoveResult.success) {
-            console.log('AI response move successful, new phase:', aiMoveResult.state.phase);
-          } else {
-            console.error('AI response move failed:', aiMoveResult.error);
-          }
-        }
-      }
+      // Process AI response moves after player move
+      await processAIResponseMoves(gameEngine);
 
       return NextResponse.json({
         success: true,
@@ -131,4 +118,47 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+/**
+ * Process AI response moves after a player move
+ */
+async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Promise<void> {
+  let movesProcessed = 0;
+  
+  while (movesProcessed < maxMoves) {
+    const currentState = gameEngine.getState();
+    
+    if (currentState.currentPlayerId !== 'ai-player' || currentState.gameOver) {
+      console.log('AI turn complete. Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
+      break;
+    }
+    
+    console.log(`Processing AI response move ${movesProcessed + 1} for phase:`, currentState.phase);
+    
+    const aiMove = gameEngine.getAISuggestion();
+    if (!aiMove) {
+      console.log('No AI move suggestion available for phase:', currentState.phase);
+      break;
+    }
+    
+    console.log('AI making response move:', aiMove.type);
+    const aiMoveResult = gameEngine.makeMove(aiMove);
+    
+    if (!aiMoveResult.success) {
+      console.error('AI response move failed:', aiMoveResult.error);
+      break;
+    }
+    
+    console.log('AI response move successful, new phase:', aiMoveResult.state.phase, 'next player:', aiMoveResult.state.currentPlayerId);
+    movesProcessed++;
+    
+    // Prevent infinite loops
+    if (movesProcessed >= maxMoves) {
+      console.log('Max AI response moves reached, stopping');
+      break;
+    }
+  }
+  
+  console.log(`AI processed ${movesProcessed} response moves`);
 }

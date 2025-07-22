@@ -28,13 +28,18 @@ export class AIPlayer {
     discardPile: Card[],
     stockCount: number
   ): GameMove {
+    console.log(`AI evaluating move: phase=${phase}, hand size=${hand.length}, discard pile size=${discardPile.length}`);
     if (phase === GamePhase.Draw) {
-      return this.getDrawMove(hand, discardPile, stockCount);
+      const move = this.getDrawMove(hand, discardPile, stockCount);
+      console.log(`AI chose draw move: ${move.type}`);
+      return move;
     } else if (phase === GamePhase.Discard) {
-      return this.getDiscardMove(hand);
+      const move = this.getDiscardMove(hand);
+      console.log(`AI chose discard move: ${move.type}`);
+      return move;
     }
 
-    throw new Error('Invalid game phase for AI move');
+    throw new Error(`Invalid game phase for AI move: ${phase}`);
   }
 
   /**
@@ -165,8 +170,10 @@ export class AIPlayer {
     const unmeldedCards = hand.filter(card => !meldedCardIds.has(card.id));
     
     if (unmeldedCards.length === 0) {
-      // Shouldn't happen, but fallback to first card
-      return hand[0];
+      // Shouldn't happen, but fallback to highest card
+      return hand.reduce((highest, card) => 
+        getCardValue(card) > getCardValue(highest) ? card : highest
+      );
     }
 
     // Score each unmelded card by potential value
@@ -281,34 +288,142 @@ export class AIPlayer {
   }
 
   /**
+   * Evaluate how much potential a specific card has for meld formation
+   */
+  private evaluateCardPotential(card: Card, hand: Card[]): number {
+    const runPotential = this.evaluateRunPotential(card, hand);
+    const setPotential = this.evaluateSetPotential(card, hand);
+    return runPotential + setPotential;
+  }
+
+  /**
+   * Evaluate danger of discarding a card (how much it might help opponent)
+   */
+  private evaluateDiscardDanger(card: Card): number {
+    // High-value cards are more dangerous to discard (opponent gets more points)
+    let danger = getCardValue(card) * 0.5;
+    
+    // Middle ranks (5-9) are more dangerous as they can form more runs
+    const rankValue = getRankValue(card.rank);
+    if (rankValue >= 5 && rankValue <= 9) {
+      danger += 2;
+    }
+    
+    return danger;
+  }
+
+  /**
+   * Evaluate future potential of keeping a card
+   */
+  private evaluateFuturePotential(card: Card, hand: Card[]): number {
+    const runPotential = this.evaluateRunPotential(card, hand);
+    const setPotential = this.evaluateSetPotential(card, hand);
+    
+    // Give extra weight to cards that are close to forming melds
+    let potential = runPotential + setPotential;
+    
+    // Low-value cards with meld potential are valuable to keep
+    if (getCardValue(card) <= 5 && potential > 0) {
+      potential += 3;
+    }
+    
+    return potential;
+  }
+
+  /**
    * Get difficulty level adjustments
    */
   public static getDifficultyAdjustments(difficulty: 'easy' | 'medium' | 'hard') {
     switch (difficulty) {
       case 'easy':
         return {
-          makeSuboptimalMoves: 0.3, // 30% chance of suboptimal move
-          knockThreshold: 8, // Knock more aggressively
-          discardRandomness: 0.2,
+          makeSuboptimalMoves: 0.25, // 25% chance of suboptimal move
+          knockThreshold: 8, // Knock more aggressively (risky)
+          discardRandomness: 0.3,
+          drawDiscardThreshold: 2, // Lower threshold for drawing discard
+          ginThreshold: 15, // Less likely to go for gin
         };
       case 'medium':
         return {
           makeSuboptimalMoves: 0.1, // 10% chance of suboptimal move
           knockThreshold: 10,
-          discardRandomness: 0.1,
+          discardRandomness: 0.15,
+          drawDiscardThreshold: 3,
+          ginThreshold: 10,
         };
       case 'hard':
         return {
-          makeSuboptimalMoves: 0.05, // 5% chance of suboptimal move
-          knockThreshold: 10,
+          makeSuboptimalMoves: 0.03, // 3% chance of suboptimal move
+          knockThreshold: 10, // Only knock when optimal
           discardRandomness: 0.05,
+          drawDiscardThreshold: 4, // Higher threshold for drawing discard
+          ginThreshold: 5, // More likely to go for gin
         };
       default:
         return {
           makeSuboptimalMoves: 0.1,
           knockThreshold: 10,
-          discardRandomness: 0.1,
+          discardRandomness: 0.15,
+          drawDiscardThreshold: 3,
+          ginThreshold: 10,
         };
     }
+  }
+
+  /**
+   * Apply difficulty adjustments to move selection
+   */
+  public getMoveWithDifficulty(
+    hand: Card[],
+    phase: GamePhase,
+    discardPile: Card[],
+    stockCount: number,
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  ): GameMove {
+    const adjustments = AIPlayer.getDifficultyAdjustments(difficulty);
+    
+    // Sometimes make suboptimal moves based on difficulty
+    if (Math.random() < adjustments.makeSuboptimalMoves) {
+      return this.getSuboptimalMove(hand, phase, discardPile, stockCount);
+    }
+    
+    return this.getMove(hand, phase, discardPile, stockCount);
+  }
+
+  /**
+   * Generate intentionally suboptimal moves for easier difficulty
+   */
+  private getSuboptimalMove(
+    hand: Card[],
+    phase: GamePhase,
+    discardPile: Card[],
+    stockCount: number
+  ): GameMove {
+    if (phase === GamePhase.Draw) {
+      // Always draw from stock (suboptimal)
+      return {
+        type: MoveType.DrawStock,
+        playerId: this.playerId,
+      };
+    } else if (phase === GamePhase.Discard) {
+      // Discard randomly from unmelded cards
+      const optimal = findOptimalMelds(hand);
+      const meldedCardIds = new Set(
+        optimal.melds.flatMap(meld => meld.cards.map(card => card.id))
+      );
+      const unmeldedCards = hand.filter(card => !meldedCardIds.has(card.id));
+      
+      if (unmeldedCards.length > 0) {
+        const randomCard = unmeldedCards[Math.floor(Math.random() * unmeldedCards.length)];
+        return {
+          type: MoveType.Discard,
+          playerId: this.playerId,
+          cardId: randomCard.id,
+        };
+      }
+    }
+    
+    // Fall back to optimal move if suboptimal generation fails
+    return this.getMove(hand, phase, discardPile, stockCount);
   }
 }

@@ -20,6 +20,7 @@ import {
   hasGin,
 } from '../utils/scoring';
 import { isValidMove, validateMelds } from '../utils/validation';
+import { AIPlayer } from './ai-player';
 
 /**
  * Core Gin Rummy game engine with server-authoritative logic
@@ -27,10 +28,16 @@ import { isValidMove, validateMelds } from '../utils/validation';
 export class GinRummyGame {
   private state: GameState;
   private deck: Card[];
+  private aiPlayer: AIPlayer | null = null;
 
   constructor(gameId: string, player1Id: string, player2Id: string, vsAI = false) {
     this.deck = shuffleDeck(createDeck());
     
+    // Initialize AI player if this is an AI game
+    if (vsAI && player2Id === 'ai-player') {
+      this.aiPlayer = new AIPlayer('ai-player');
+    }
+
     this.state = {
       id: gameId,
       status: GameStatus.Active,
@@ -528,94 +535,94 @@ export class GinRummyGame {
   }
 
   /**
-   * Get suggested move for AI player
+   * Get suggested move for AI player using the sophisticated AIPlayer class
    */
   public getAISuggestion(): GameMove | null {
-    const aiPlayer = this.state.players.find(p => p.id === 'ai-player');
-    if (!aiPlayer || this.state.currentPlayerId !== aiPlayer.id) {
+    const aiPlayerState = this.state.players.find(p => p.id === 'ai-player');
+    if (!aiPlayerState || this.state.currentPlayerId !== aiPlayerState.id || !this.aiPlayer) {
       return null;
     }
 
-    // Simple AI logic - will be enhanced by AIPlayer class
-    if (this.state.phase === GamePhase.UpcardDecision) {
-      // AI decides whether to take the upcard
-      if (this.state.discardPile.length > 0) {
-        const upcard = this.state.discardPile[this.state.discardPile.length - 1];
-        // Simple logic: take if it helps form a meld
-        const handWithUpcard = [...aiPlayer.hand, upcard];
-        const withUpcardMelds = findOptimalMelds(handWithUpcard);
-        const currentMelds = findOptimalMelds(aiPlayer.hand);
-        
-        // Take upcard if it improves deadwood by 2 or more points
-        if (currentMelds.deadwood - withUpcardMelds.deadwood >= 2) {
-          return {
-            type: MoveType.TakeUpcard,
-            playerId: aiPlayer.id,
-          };
-        } else {
-          return {
-            type: MoveType.PassUpcard,
-            playerId: aiPlayer.id,
-          };
-        }
-      }
-      return {
-        type: MoveType.PassUpcard,
-        playerId: aiPlayer.id,
-      };
-    } else if (this.state.phase === GamePhase.Draw) {
-      // Prefer drawing from discard if it helps complete a meld
-      return {
-        type: MoveType.DrawStock,
-        playerId: aiPlayer.id,
-      };
-    } else if (this.state.phase === GamePhase.Discard) {
-      // Find optimal melds and check if we can knock/gin
-      const optimal = findOptimalMelds(aiPlayer.hand);
-      
-      if (hasGin(aiPlayer.hand, optimal.melds)) {
-        // Find a card to discard for gin
-        const nonMeldedCards = aiPlayer.hand.filter(card =>
-          !optimal.melds.some(meld => meld.cards.some(c => c.id === card.id))
-        );
-        
-        if (nonMeldedCards.length > 0) {
-          return {
-            type: MoveType.Gin,
-            playerId: aiPlayer.id,
-            cardId: nonMeldedCards[0].id,
-            melds: optimal.melds,
-          };
-        }
-      }
+    if (this.state.gameOver || this.state.phase === GamePhase.GameOver) {
+      return null;
+    }
 
-      if (optimal.deadwood <= 10) {
-        // Can knock
-        const nonMeldedCards = aiPlayer.hand.filter(card =>
-          !optimal.melds.some(meld => meld.cards.some(c => c.id === card.id))
-        );
-        
-        if (nonMeldedCards.length > 0) {
-          return {
-            type: MoveType.Knock,
-            playerId: aiPlayer.id,
-            cardId: nonMeldedCards[0].id,
-            melds: optimal.melds,
-          };
+    try {
+      // Handle upcard decision phase
+      if (this.state.phase === GamePhase.UpcardDecision) {
+        if (this.state.discardPile.length > 0) {
+          const upcard = this.state.discardPile[this.state.discardPile.length - 1];
+          const handWithUpcard = [...aiPlayerState.hand, upcard];
+          const withUpcardMelds = findOptimalMelds(handWithUpcard);
+          const currentMelds = findOptimalMelds(aiPlayerState.hand);
+          
+          // Use AI evaluation to decide on upcard
+          const improvement = currentMelds.deadwood - withUpcardMelds.deadwood;
+          
+          // AI takes upcard if it improves hand by 3+ points or creates good meld potential
+          if (improvement >= 3 || (improvement >= 1 && withUpcardMelds.melds.length > currentMelds.melds.length)) {
+            return {
+              type: MoveType.TakeUpcard,
+              playerId: aiPlayerState.id,
+              gameId: this.state.id,
+            };
+          }
         }
-      }
-
-      // Regular discard - discard highest deadwood
-      const nonMeldedCards = aiPlayer.hand.filter(card =>
-        !optimal.melds.some(meld => meld.cards.some(c => c.id === card.id))
-      );
-      
-      if (nonMeldedCards.length > 0) {
+        
         return {
-          type: MoveType.Discard,
-          playerId: aiPlayer.id,
-          cardId: nonMeldedCards[0].id,
+          type: MoveType.PassUpcard,
+          playerId: aiPlayerState.id,
+          gameId: this.state.id,
         };
+      }
+      
+      // For draw and discard phases, use the AIPlayer's sophisticated logic
+      if (this.state.phase === GamePhase.Draw || this.state.phase === GamePhase.Discard) {
+        const aiMove = this.aiPlayer.getMove(
+          aiPlayerState.hand,
+          this.state.phase,
+          this.state.discardPile,
+          this.state.stockPileCount
+        );
+        
+        // Add gameId to the move
+        if (aiMove) {
+          aiMove.gameId = this.state.id;
+        }
+        
+        return aiMove;
+      }
+      
+    } catch (error) {
+      console.error('AI suggestion error:', error);
+      // Fallback to safe moves
+      if (this.state.phase === GamePhase.UpcardDecision) {
+        return {
+          type: MoveType.PassUpcard,
+          playerId: aiPlayerState.id,
+          gameId: this.state.id,
+        };
+      } else if (this.state.phase === GamePhase.Draw) {
+        return {
+          type: MoveType.DrawStock,
+          playerId: aiPlayerState.id,
+          gameId: this.state.id,
+        };
+      } else if (this.state.phase === GamePhase.Discard && aiPlayerState.hand.length > 10) {
+        // Discard a high deadwood card as fallback
+        const optimal = findOptimalMelds(aiPlayerState.hand);
+        const nonMeldedCards = aiPlayerState.hand.filter(card =>
+          !optimal.melds.some(meld => meld.cards.some(c => c.id === card.id))
+        );
+        
+        if (nonMeldedCards.length > 0) {
+          return {
+            type: MoveType.Discard,
+            playerId: aiPlayerState.id,
+            gameId: this.state.id,
+            cardId: nonMeldedCards[0].id,
+          };
+        }
       }
     }
 
