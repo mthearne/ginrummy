@@ -1,5 +1,5 @@
-import { Card, Meld } from '../types/game.js';
-import { getCardValue, findCardGroups } from './cards.js';
+import { Card, Meld } from '../types/game';
+import { getCardValue, findCardGroups } from './cards';
 
 /**
  * Calculate deadwood value for a hand

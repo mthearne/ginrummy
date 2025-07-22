@@ -7,19 +7,19 @@ import {
   MoveType,
   PlayerState,
   Meld,
-} from '../types/game.js';
+} from '../types/game';
 import {
   createDeck,
   shuffleDeck,
   sortCards,
-} from '../utils/cards.js';
+} from '../utils/cards';
 import {
   calculateDeadwood,
   findOptimalMelds,
   calculateKnockScore,
   hasGin,
-} from '../utils/scoring.js';
-import { isValidMove, validateMelds } from '../utils/validation.js';
+} from '../utils/scoring';
+import { isValidMove, validateMelds } from '../utils/validation';
 
 /**
  * Core Gin Rummy game engine with server-authoritative logic

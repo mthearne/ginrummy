@@ -1,4 +1,4 @@
-import { Card, Suit, Rank } from '../types/game.js';
+import { Card, Suit, Rank } from '../types/game';
 
 /**
  * Generate a standard 52-card deck

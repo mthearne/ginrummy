@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web vite:build && ls -la apps/web/ && mkdir -p dist && cp -r apps/web/dist/* ./dist/ || echo 'Copy failed, checking directory...' && find . -name 'dist' -type d",
-  "outputDirectory": "dist",
-  "installCommand": "corepack enable && pnpm install"
+  "env": {
+    "NEXT_PUBLIC_API_URL": "/api"
+  }
 }

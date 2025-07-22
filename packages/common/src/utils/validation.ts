@@ -1,5 +1,5 @@
-import { Card, GameMove, MoveType, GamePhase, Meld } from '../types/game.js';
-import { isValidSet, isValidRun } from './cards.js';
+import { Card, GameMove, MoveType, GamePhase, Meld } from '../types/game';
+import { isValidSet, isValidRun } from './cards';
 
 /**
  * Validate if a move is legal in the current game state

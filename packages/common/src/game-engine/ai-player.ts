@@ -1,12 +1,12 @@
-import { Card, GameMove, MoveType, Meld, GamePhase } from '../types/game.js';
+import { Card, GameMove, MoveType, Meld, GamePhase } from '../types/game';
 import {
   getCardValue,
   findCardGroups,
   getRankValue,
   isValidRun,
   isValidSet,
-} from '../utils/cards.js';
-import { calculateDeadwood, findOptimalMelds } from '../utils/scoring.js';
+} from '../utils/cards';
+import { calculateDeadwood, findOptimalMelds } from '../utils/scoring';
 
 /**
  * AI strategy for Gin Rummy

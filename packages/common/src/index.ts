@@ -1,12 +1,12 @@
 // Types
-export * from './types/game.js';
-export * from './types/user.js';
-export * from './types/socket.js';
+export * from './types/game';
+export * from './types/user';
+export * from './types/socket';
 
 // Utilities
-export * from './utils/cards.js';
-export * from './utils/scoring.js';
-export * from './utils/validation.js';
+export * from './utils/cards';
+export * from './utils/scoring';
+export * from './utils/validation';
 
 // Game Engine
-export * from './game-engine/index.js';
+export * from './game-engine/index';

@@ -1,4 +1,4 @@
-import { GameState, GameMove } from './game.js';
+import { GameState, GameMove } from './game';
 
 export interface ServerToClientEvents {
   game_state: (state: Partial<GameState>) => void;
