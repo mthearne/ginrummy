@@ -50,11 +50,15 @@ export function FriendManager() {
     try {
       setLoading(true);
       const data = await FriendsService.getFriends();
-      setFriends(data.friends);
-      setSentRequests(data.sentRequests);
-      setReceivedRequests(data.receivedRequests);
+      setFriends(data.friends || []);
+      setSentRequests(data.sentRequests || []);
+      setReceivedRequests(data.receivedRequests || []);
     } catch (error) {
       console.error('Failed to load friends:', error);
+      // Ensure arrays remain defined even on error
+      setFriends([]);
+      setSentRequests([]);
+      setReceivedRequests([]);
     } finally {
       setLoading(false);
     }

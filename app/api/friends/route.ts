@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
             username: true,
             email: true,
             elo: true,
+            gamesPlayed: true,
           }
         },
         receiver: {
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
             username: true,
             email: true,
             elo: true,
+            gamesPlayed: true,
           }
         }
       }
@@ -66,8 +68,87 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Get sent friend requests
+    const sentRequests = await prisma.friendship.findMany({
+      where: {
+        requesterId: decoded.userId,
+        status: 'PENDING'
+      },
+      include: {
+        receiver: {
+          select: {
+            id: true,
+            username: true,
+            elo: true,
+            gamesPlayed: true,
+          }
+        }
+      }
+    });
+
+    // Get received friend requests
+    const receivedRequests = await prisma.friendship.findMany({
+      where: {
+        receiverId: decoded.userId,
+        status: 'PENDING'
+      },
+      include: {
+        requester: {
+          select: {
+            id: true,
+            username: true,
+            elo: true,
+            gamesPlayed: true,
+          }
+        }
+      }
+    });
+
+    // Format friend requests for frontend
+    const formattedSentRequests = sentRequests.map(request => ({
+      id: request.id,
+      user: {
+        id: request.receiver.id,
+        username: request.receiver.username,
+        elo: request.receiver.elo,
+        gamesPlayed: request.receiver.gamesPlayed,
+      },
+      sentAt: request.createdAt.toISOString(),
+    }));
+
+    const formattedReceivedRequests = receivedRequests.map(request => ({
+      id: request.id,
+      user: {
+        id: request.requester.id,
+        username: request.requester.username,
+        elo: request.requester.elo,
+        gamesPlayed: request.requester.gamesPlayed,
+      },
+      receivedAt: request.createdAt.toISOString(),
+    }));
+
+    // Format friends for frontend 
+    const formattedFriends = friendships.map(friendship => {
+      const friend = friendship.requesterId === decoded.userId 
+        ? friendship.receiver 
+        : friendship.requester;
+      
+      return {
+        id: friendship.id, // This is the friendship ID
+        user: {
+          id: friend.id,
+          username: friend.username,
+          elo: friend.elo,
+          gamesPlayed: friend.gamesPlayed,
+        },
+        since: friendship.createdAt.toISOString(),
+      };
+    });
+
     return NextResponse.json({
-      friends
+      friends: formattedFriends,
+      sentRequests: formattedSentRequests,
+      receivedRequests: formattedReceivedRequests,
     });
 
   } catch (error) {
