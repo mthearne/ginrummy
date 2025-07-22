@@ -2,9 +2,9 @@ import axios from 'axios';
 import { useAuthStore } from '../store/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || (
-  typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-    ? '/api' 
-    : 'http://localhost:3001'
+  typeof window !== 'undefined' 
+    ? '/api'  // Use relative API routes for Next.js
+    : '/api'  // Use relative API routes for SSR too
 );
 
 // Create axios instance
