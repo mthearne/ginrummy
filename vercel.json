@@ -14,7 +14,7 @@
     }
   ],
   "installCommand": "corepack enable && pnpm install",
-  "buildCommand": "pnpm build",
+  "buildCommand": "pnpm build && pnpm --filter api db:generate && pnpm --filter api db:deploy",
   "routes": [
     {
       "src": "/api/(.*)",
