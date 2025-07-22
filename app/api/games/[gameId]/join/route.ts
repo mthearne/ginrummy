@@ -34,16 +34,20 @@ export async function POST(
         id: gameId
       },
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
+        player1: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }
@@ -65,7 +69,7 @@ export async function POST(
     }
 
     // Check if user is already in the game
-    const isAlreadyPlayer = game.players.some(player => player.userId === decoded.userId);
+    const isAlreadyPlayer = game.player1Id === decoded.userId || game.player2Id === decoded.userId;
     
     if (isAlreadyPlayer) {
       return NextResponse.json(
@@ -74,48 +78,38 @@ export async function POST(
       );
     }
 
-    // Check if game is full
-    if (game.players.length >= game.maxPlayers) {
+    // Check if game is full (for now, only 2 players supported)
+    if (game.player2Id) {
       return NextResponse.json(
         { error: 'Game is full' },
         { status: 400 }
       );
     }
 
-    // Add player to game
+    // Add player to game as player2
     const updatedGame = await prisma.game.update({
       where: {
         id: gameId
       },
       data: {
-        players: {
-          create: {
-            userId: decoded.userId,
-            joinedAt: new Date(),
-          }
-        },
-        // If this brings us to max players, start the game
-        status: game.players.length + 1 >= game.maxPlayers ? 'IN_PROGRESS' : 'WAITING'
+        player2Id: decoded.userId,
+        status: 'ACTIVE' // Game starts when second player joins
       },
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
-          }
-        },
-        createdBy: {
+        player1: {
           select: {
             id: true,
             username: true,
             email: true,
-            eloRating: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }

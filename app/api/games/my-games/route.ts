@@ -26,34 +26,29 @@ export async function GET(request: NextRequest) {
     // Get user's games from database
     const games = await prisma.game.findMany({
       where: {
-        players: {
-          some: {
-            userId: decoded.userId
-          }
-        }
+        OR: [
+          { player1Id: decoded.userId },
+          { player2Id: decoded.userId }
+        ]
       },
       orderBy: {
         updatedAt: 'desc'
       },
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
-          }
-        },
-        createdBy: {
+        player1: {
           select: {
             id: true,
             username: true,
             email: true,
-            eloRating: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }

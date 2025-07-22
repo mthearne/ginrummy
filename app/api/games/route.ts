@@ -55,33 +55,23 @@ export async function POST(request: NextRequest) {
         vsAI,
         isPrivate,
         maxPlayers,
-        createdById: decoded.userId,
-        players: {
-          create: {
-            userId: decoded.userId,
-            joinedAt: new Date(),
-          }
-        }
+        player1Id: decoded.userId,
       },
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
-          }
-        },
-        createdBy: {
+        player1: {
           select: {
             id: true,
             username: true,
             email: true,
-            eloRating: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }
@@ -156,24 +146,20 @@ export async function GET(request: NextRequest) {
           createdAt: 'desc'
         },
         include: {
-          players: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  username: true,
-                  email: true,
-                  eloRating: true,
-                }
-              }
-            }
-          },
-          createdBy: {
+          player1: {
             select: {
               id: true,
               username: true,
               email: true,
-              eloRating: true,
+              elo: true,
+            }
+          },
+          player2: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              elo: true,
             }
           }
         }

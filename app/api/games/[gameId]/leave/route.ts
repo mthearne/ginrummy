@@ -34,16 +34,20 @@ export async function POST(
         id: gameId
       },
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
+        player1: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }
@@ -57,64 +61,65 @@ export async function POST(
     }
 
     // Check if user is in the game
-    const playerInGame = game.players.find(player => player.userId === decoded.userId);
+    const isPlayer1 = game.player1Id === decoded.userId;
+    const isPlayer2 = game.player2Id === decoded.userId;
     
-    if (!playerInGame) {
+    if (!isPlayer1 && !isPlayer2) {
       return NextResponse.json(
         { error: 'You are not in this game' },
         { status: 400 }
       );
     }
 
-    // Remove player from game
-    await prisma.gamePlayer.delete({
-      where: {
-        id: playerInGame.id
+    // Determine new status and update game
+    let updateData: any = {};
+    
+    if (isPlayer1) {
+      // Player 1 is leaving
+      if (game.player2Id) {
+        // Player 2 wins by forfeit
+        updateData = {
+          status: 'FINISHED',
+          winnerId: game.player2Id,
+          finishedAt: new Date()
+        };
+      } else {
+        // No player 2, cancel game
+        updateData = {
+          status: 'CANCELLED',
+          finishedAt: new Date()
+        };
       }
-    });
-
-    // Update game status based on remaining players
-    const remainingPlayersCount = game.players.length - 1;
-    let newStatus = game.status;
-
-    if (remainingPlayersCount === 0) {
-      // No players left, cancel the game
-      newStatus = 'CANCELLED';
-    } else if (game.status === 'IN_PROGRESS' && remainingPlayersCount === 1) {
-      // If game was in progress and only one player remains, end the game
-      newStatus = 'COMPLETED';
-    } else if (game.status === 'IN_PROGRESS') {
-      // Player resigned during active game
-      newStatus = 'COMPLETED';
+    } else {
+      // Player 2 is leaving
+      updateData = {
+        player2Id: null,
+        status: game.status === 'ACTIVE' ? 'FINISHED' : 'WAITING',
+        winnerId: game.status === 'ACTIVE' ? game.player1Id : undefined,
+        finishedAt: game.status === 'ACTIVE' ? new Date() : undefined
+      };
     }
 
     const updatedGame = await prisma.game.update({
       where: {
         id: gameId
       },
-      data: {
-        status: newStatus,
-        endedAt: newStatus === 'COMPLETED' || newStatus === 'CANCELLED' ? new Date() : undefined
-      },
+      data: updateData,
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
-          }
-        },
-        createdBy: {
+        player1: {
           select: {
             id: true,
             username: true,
             email: true,
-            eloRating: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }

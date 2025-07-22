@@ -34,24 +34,20 @@ export async function GET(
         id: gameId
       },
       include: {
-        players: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                eloRating: true,
-              }
-            }
-          }
-        },
-        createdBy: {
+        player1: {
           select: {
             id: true,
             username: true,
             email: true,
-            eloRating: true,
+            elo: true,
+          }
+        },
+        player2: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            elo: true,
           }
         }
       }
@@ -65,7 +61,7 @@ export async function GET(
     }
 
     // Check if user is a player in this game
-    const isPlayer = game.players.some(player => player.userId === decoded.userId);
+    const isPlayer = game.player1Id === decoded.userId || game.player2Id === decoded.userId;
     
     if (!isPlayer) {
       return NextResponse.json(
