@@ -168,8 +168,19 @@ export async function GET(request: NextRequest) {
       prisma.game.count({ where })
     ]);
 
+    // Format games for frontend
+    const formattedGames = games.map(game => ({
+      id: game.id,
+      status: game.status,
+      playerCount: game.player2Id ? 2 : 1,
+      maxPlayers: game.maxPlayers,
+      isPrivate: game.isPrivate,
+      vsAI: game.vsAI,
+      createdAt: game.createdAt.toISOString(),
+    }));
+
     return NextResponse.json({
-      games,
+      games: formattedGames,
       pagination: {
         total,
         offset,

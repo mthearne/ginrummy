@@ -73,7 +73,12 @@ export const useLobbyStore = create<LobbyStore>((set, get) => ({
     const { games, myGames, filter, gameView } = state;
     
     // Choose the appropriate games list based on current view
-    const gamesList = gameView === 'my-games' ? myGames : games;
+    const gamesList = gameView === 'my-games' ? (myGames || []) : (games || []);
+    
+    // Ensure gamesList is always an array
+    if (!Array.isArray(gamesList)) {
+      return [];
+    }
     
     switch (filter) {
       case 'pvp':
