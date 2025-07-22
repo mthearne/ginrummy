@@ -1,8 +1,8 @@
 {
   "version": 2,
   "installCommand": "corepack enable && pnpm install",
-  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web build && pnpm --filter api build",
-  "outputDirectory": "apps/web/dist",
+  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web build && pnpm --filter api build && cp -r apps/web/dist/* .",
+  "outputDirectory": ".",
   "builds": [
     {
       "src": "apps/api/src/server.ts",
