@@ -16,7 +16,11 @@ class SocketService {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
   connect(token: string) {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_URL = import.meta.env.VITE_API_URL || (
+      typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+        ? '' 
+        : 'http://localhost:3001'
+    );
     
     this.socket = io(API_URL, {
       auth: { token },
