@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && cd apps/web && pnpm vite:build && cd ../.. && cp -r apps/web/dist ./dist",
+  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web vite:build && mkdir -p dist && cp -r apps/web/dist/* ./dist/",
   "outputDirectory": "dist",
   "installCommand": "corepack enable && pnpm install"
 }
