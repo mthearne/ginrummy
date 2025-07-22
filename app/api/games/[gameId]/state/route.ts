@@ -70,25 +70,16 @@ export async function GET(
       );
     }
 
-    // For AI games, add AI player if needed
-    if (game.vsAI && !game.player2Id) {
-      // Update game to add AI player
+    // For AI games, activate the game if it's still waiting
+    if (game.vsAI && game.status === 'WAITING') {
+      // Update game to active status (keep player2Id as null for AI)
       const updatedGame = await prisma.game.update({
         where: { id: gameId },
         data: {
-          player2Id: 'ai-player',
           status: 'ACTIVE'
         },
         include: {
           player1: {
-            select: {
-              id: true,
-              username: true,
-              email: true,
-              elo: true,
-            }
-          },
-          player2: {
             select: {
               id: true,
               username: true,
