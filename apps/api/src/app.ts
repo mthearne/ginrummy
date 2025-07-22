@@ -9,6 +9,7 @@ import gameRoutes from './routes/games.js';
 import userRoutes from './routes/users.js';
 import friendsRoutes from './routes/friends.js';
 import invitationsRoutes from './routes/invitations.js';
+import migrateRoutes from './routes/migrate.js';
 import { configureJwtStrategy } from './middleware/auth.js';
 
 const app = express();
@@ -48,6 +49,7 @@ app.use('/games', gameRoutes);
 app.use('/users', userRoutes);
 app.use('/friends', friendsRoutes);
 app.use('/invitations', invitationsRoutes);
+app.use('/admin', migrateRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
