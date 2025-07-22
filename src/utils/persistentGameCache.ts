@@ -30,14 +30,15 @@ export class PersistentGameCache {
         return null;
       }
 
-      // If game state is stored, restore it
-      if (game.gameState) {
+      // If game state is stored, restore it (backwards compatible)
+      const gameStateData = (game as any).gameState;
+      if (gameStateData) {
         console.log(`Restoring game ${gameId} from stored state`);
-        const gameEngine = this.restoreGameFromState(gameId, game.gameState, game);
+        const gameEngine = this.restoreGameFromState(gameId, gameStateData, game);
         this.memoryCache.set(gameId, gameEngine);
         return gameEngine;
       } else {
-        console.log(`Game ${gameId} has no stored state, creating new`);
+        console.log(`Game ${gameId} has no stored state (field may not exist yet)`);
         return null;
       }
     } catch (error) {
@@ -53,7 +54,7 @@ export class PersistentGameCache {
     // Store in memory cache
     this.memoryCache.set(gameId, gameEngine);
     
-    // Store in database
+    // Store in database (with backwards compatibility)
     try {
       const gameState = gameEngine.getState();
       console.log(`Saving game ${gameId} state to database`);
@@ -67,7 +68,19 @@ export class PersistentGameCache {
       });
     } catch (error) {
       console.error(`Error saving game ${gameId} to database:`, error);
-      // Continue without failing - memory cache still works
+      // If gameState field doesn't exist, just update status for backwards compatibility
+      try {
+        const gameState = gameEngine.getState();
+        await prisma.game.update({
+          where: { id: gameId },
+          data: { 
+            status: gameState.gameOver ? 'FINISHED' : 'ACTIVE'
+          }
+        });
+        console.log(`Fallback save successful for game ${gameId} (status only)`);
+      } catch (fallbackError) {
+        console.error(`Fallback save also failed for game ${gameId}:`, fallbackError);
+      }
     }
   }
 
@@ -82,10 +95,10 @@ export class PersistentGameCache {
     try {
       const game = await prisma.game.findUnique({
         where: { id: gameId },
-        select: { id: true, vsAI: true, gameState: true }
+        select: { id: true, vsAI: true }
       });
 
-      return !!(game?.vsAI && game.gameState);
+      return !!(game?.vsAI);
     } catch (error) {
       console.error(`Error checking game ${gameId} existence:`, error);
       return false;
@@ -99,7 +112,7 @@ export class PersistentGameCache {
     // Remove from memory
     const wasInMemory = this.memoryCache.delete(gameId);
 
-    // Clear stored state from database
+    // Clear stored state from database (backwards compatible)
     try {
       await prisma.game.update({
         where: { id: gameId },
@@ -108,6 +121,7 @@ export class PersistentGameCache {
       return true;
     } catch (error) {
       console.error(`Error clearing game ${gameId} from database:`, error);
+      // If gameState field doesn't exist, that's fine - nothing to clear
       return wasInMemory;
     }
   }

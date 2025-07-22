@@ -3,6 +3,7 @@ import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
 import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
+import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 import { GamePhase } from '@gin-rummy/common';
 
 export async function POST(
@@ -66,7 +67,14 @@ export async function POST(
 
     // For AI games, get the persistent cached game engine
     if (game.vsAI) {
-      let gameEngine = await persistentGameCache.get(gameId);
+      let gameEngine;
+      
+      try {
+        gameEngine = await persistentGameCache.get(gameId);
+      } catch (error) {
+        console.log('Persistent cache failed, trying fallback cache:', error.message);
+        gameEngine = await fallbackGameCache.get(gameId);
+      }
       
       if (!gameEngine) {
         console.log('Game engine not found in persistent cache for gameId:', gameId);
@@ -96,8 +104,13 @@ export async function POST(
       // Process AI response moves after player move
       await processAIResponseMoves(gameEngine);
 
-      // Save updated game state to persistent storage
-      await persistentGameCache.set(gameId, gameEngine);
+      // Save updated game state to persistent storage (with fallback)
+      try {
+        await persistentGameCache.set(gameId, gameEngine);
+      } catch (error) {
+        console.log('Persistent cache save failed, using fallback cache:', error.message);
+        await fallbackGameCache.set(gameId, gameEngine);
+      }
 
       return NextResponse.json({
         success: true,
