@@ -118,7 +118,6 @@ postman/
 # Development tools
 .prettierrc
 .eslintrc*
-tsconfig.json
 jest.config.js
 vitest.config.ts
 
