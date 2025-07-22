@@ -7,11 +7,19 @@
       "config": {
         "distDir": "../../apps/web/dist"
       }
+    },
+    {
+      "src": "api/server.js",
+      "use": "@vercel/node"
     }
   ],
   "installCommand": "corepack enable && pnpm install",
   "buildCommand": "pnpm build",
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/server.js"
+    },
     {
       "handle": "filesystem"
     },
