@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@gin-rummy/common'],
-  output: 'standalone',
+  // output: 'standalone', // Temporarily disabled for development
   experimental: {
     missingSuspenseWithCSRBailout: false,
   },
