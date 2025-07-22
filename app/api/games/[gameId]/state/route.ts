@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
-import { GameCache } from '../../../../../src/utils/gameCache';
+import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
 
 export async function GET(
   request: NextRequest,
@@ -72,9 +72,9 @@ export async function GET(
       );
     }
 
-    // For AI games, use cached state or initialize new game
+    // For AI games, use persistent cached state or initialize new game
     if (game.vsAI) {
-      let gameEngine: any = GameCache.get(gameId);
+      let gameEngine: any = await persistentGameCache.get(gameId);
       
       if (!gameEngine) {
         // Initialize the game engine with proper cards and game logic
@@ -86,8 +86,8 @@ export async function GET(
         initialState.players[0].username = game.player1!.username;
         initialState.players[1].username = 'AI Opponent';
         
-        // Cache the game engine (not just state) so we can make moves
-        GameCache.set(gameId, gameEngine);
+        // Cache the game engine in persistent storage
+        await persistentGameCache.set(gameId, gameEngine);
         
         // Update game to active status in database if still waiting
         if (game.status === 'WAITING') {
@@ -102,6 +102,9 @@ export async function GET(
 
       // Process AI moves if it's AI's turn
       await processAIMoves(gameEngine);
+
+      // Save updated game state after AI moves
+      await persistentGameCache.set(gameId, gameEngine);
 
       return NextResponse.json({
         gameState: gameEngine.getState()

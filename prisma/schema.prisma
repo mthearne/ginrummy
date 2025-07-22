@@ -65,6 +65,7 @@ model Game {
   maxPlayers  Int         @default(2) @map("max_players")
   duration    Int?        // seconds
   knockType   KnockType?  @map("knock_type")
+  gameState   Json?       @map("game_state") // Store complete game state for AI games
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
   finishedAt  DateTime?   @map("finished_at")

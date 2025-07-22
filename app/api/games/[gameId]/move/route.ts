@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
-import { GameCache } from '../../../../../src/utils/gameCache';
+import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
 import { GamePhase } from '@gin-rummy/common';
 
 export async function POST(
@@ -64,19 +64,16 @@ export async function POST(
       );
     }
 
-    // For AI games, get the cached game engine
+    // For AI games, get the persistent cached game engine
     if (game.vsAI) {
-      let gameEngine = GameCache.get(gameId);
+      let gameEngine = await persistentGameCache.get(gameId);
       
       if (!gameEngine) {
-        console.log('Game engine not in cache for gameId:', gameId);
-        console.log('This can happen in serverless environments where memory is not persistent');
+        console.log('Game engine not found in persistent cache for gameId:', gameId);
         
-        // For now, return an error asking the user to refresh
-        // In a production system, we'd store game state in database/Redis
         return NextResponse.json(
           { 
-            error: 'Game state lost due to serverless limitations. Please refresh the page to reload the game.',
+            error: 'Game state not found. Please refresh the page to reload the game.',
             code: 'GAME_STATE_LOST'
           },
           { status: 400 }
@@ -98,6 +95,9 @@ export async function POST(
 
       // Process AI response moves after player move
       await processAIResponseMoves(gameEngine);
+
+      // Save updated game state to persistent storage
+      await persistentGameCache.set(gameId, gameEngine);
 
       return NextResponse.json({
         success: true,
