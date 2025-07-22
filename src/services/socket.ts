@@ -22,12 +22,29 @@ class SocketService {
         : 'http://localhost:3001'
     );
     
-    this.socket = io(API_URL, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-    });
+    try {
+      this.socket = io(API_URL, {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+        timeout: 5000,
+        autoConnect: true,
+      });
 
-    this.setupEventListeners();
+      this.setupEventListeners();
+      
+      // Set a timeout to consider connection failed if not connected within 3 seconds
+      setTimeout(() => {
+        if (!this.socket?.connected) {
+          console.log('Socket.io connection timeout, will use REST API fallback');
+          useGameStore.getState().setConnected(false);
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Failed to initialize Socket.io:', error);
+      useGameStore.getState().setConnected(false);
+    }
+    
     return this.socket;
   }
 
@@ -49,6 +66,11 @@ class SocketService {
 
     this.socket.on('disconnect', () => {
       console.log('Disconnected from server');
+      useGameStore.getState().setConnected(false);
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.log('Socket.io connection error:', error.message);
       useGameStore.getState().setConnected(false);
     });
 
@@ -181,9 +203,17 @@ class SocketService {
     if (this.socket?.connected) {
       this.socket.emit('join_game', { gameId });
     } else {
-      // Fallback to REST API
+      // Fallback to REST API immediately
       console.log('Socket.io not available, using REST API fallback');
       this.joinGameViaAPI(gameId);
+      
+      // Also try again after a short delay in case Socket.io connects later
+      setTimeout(() => {
+        if (this.socket?.connected && !useGameStore.getState().gameState) {
+          console.log('Retrying with Socket.io');
+          this.socket.emit('join_game', { gameId });
+        }
+      }, 2000);
     }
   }
 
