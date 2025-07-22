@@ -3,6 +3,9 @@ import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
 
+// Simple in-memory cache for game states (in production, this would be Redis)
+const gameStates = new Map<string, any>();
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { gameId: string } }
@@ -71,28 +74,36 @@ export async function GET(
       );
     }
 
-    // For AI games, initialize the game engine if it's still waiting
-    if (game.vsAI && game.status === 'WAITING') {
-      // Initialize the game engine with proper cards and game logic
-      const gameEngine = new GinRummyGame(gameId, game.player1Id, 'ai-player', true);
-      const initialState = gameEngine.getState();
+    // For AI games, use cached state or initialize new game
+    if (game.vsAI) {
+      let gameState = gameStates.get(gameId);
       
-      // Set player names from database
-      initialState.players[0].username = game.player1!.username;
-      initialState.players[1].username = 'AI Opponent';
-      
-      // Update game to active status in database
-      await prisma.game.update({
-        where: { id: gameId },
-        data: {
-          status: 'ACTIVE'
+      if (!gameState) {
+        // Initialize the game engine with proper cards and game logic
+        console.log('Initializing new AI game:', gameId);
+        const gameEngine = new GinRummyGame(gameId, game.player1Id, 'ai-player', true);
+        gameState = gameEngine.getState();
+        
+        // Set player names from database
+        gameState.players[0].username = game.player1!.username;
+        gameState.players[1].username = 'AI Opponent';
+        
+        // Cache the game state
+        gameStates.set(gameId, gameState);
+        
+        // Update game to active status in database if still waiting
+        if (game.status === 'WAITING') {
+          await prisma.game.update({
+            where: { id: gameId },
+            data: {
+              status: 'ACTIVE'
+            }
+          });
         }
-      });
+      }
 
-      // Store the initialized game state (in a real system, this would go to Redis/memory store)
-      // For now, we'll return the initialized state
       return NextResponse.json({
-        gameState: initialState
+        gameState: gameState
       });
     }
 
@@ -107,7 +118,8 @@ export async function GET(
       });
     }
 
-    // For active games, return basic game state
+
+    // For active PvP games, return basic game state
     return NextResponse.json({
       gameState: {
         id: game.id,
@@ -117,18 +129,24 @@ export async function GET(
           game.player1 ? {
             id: game.player1.id,
             username: game.player1.username,
-            elo: game.player1.elo,
             score: game.player1Score,
             hand: [], // Would need game engine for actual cards
+            handSize: 10,
             deadwood: 0,
+            hasKnocked: false,
+            hasGin: false,
+            melds: [],
           } : null,
           game.player2 ? {
             id: game.player2.id,
             username: game.player2.username,
-            elo: game.player2.elo,
             score: game.player2Score,
             hand: [],
+            handSize: 10,
             deadwood: 0,
+            hasKnocked: false,
+            hasGin: false,
+            melds: [],
           } : null,
         ].filter(Boolean),
         currentPlayerId: game.player1Id,
