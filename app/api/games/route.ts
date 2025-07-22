@@ -1,0 +1,201 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { verifyAccessToken } from '../../../src/utils/jwt';
+import { prisma } from '../../../src/utils/database';
+import { z } from 'zod';
+
+const CreateGameSchema = z.object({
+  vsAI: z.boolean().optional().default(false),
+  isPrivate: z.boolean().optional().default(false),
+  maxPlayers: z.number().min(2).max(4).optional().default(2),
+});
+
+const ListGamesSchema = z.object({
+  status: z.string().optional(),
+  limit: z.coerce.number().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().min(0).optional().default(0),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    // Get token from Authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyAccessToken(token);
+    
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Invalid or expired token' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const parsed = CreateGameSchema.safeParse(body);
+    
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { vsAI, isPrivate, maxPlayers } = parsed.data;
+
+    // Create game in database
+    const game = await prisma.game.create({
+      data: {
+        status: 'WAITING',
+        vsAI,
+        isPrivate,
+        maxPlayers,
+        createdById: decoded.userId,
+        players: {
+          create: {
+            userId: decoded.userId,
+            joinedAt: new Date(),
+          }
+        }
+      },
+      include: {
+        players: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                email: true,
+                eloRating: true,
+              }
+            }
+          }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            eloRating: true,
+          }
+        }
+      }
+    });
+
+    return NextResponse.json({
+      message: 'Game created successfully',
+      game
+    });
+
+  } catch (error) {
+    console.error('Create game error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    // Get token from Authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyAccessToken(token);
+    
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Invalid or expired token' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const queryParams = {
+      status: searchParams.get('status'),
+      limit: searchParams.get('limit'),
+      offset: searchParams.get('offset'),
+    };
+
+    const parsed = ListGamesSchema.safeParse(queryParams);
+    
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters', details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { status, limit, offset } = parsed.data;
+
+    // Build where clause
+    const where: any = {};
+    if (status) {
+      where.status = status;
+    }
+
+    // Get games from database
+    const [games, total] = await Promise.all([
+      prisma.game.findMany({
+        where,
+        skip: offset,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc'
+        },
+        include: {
+          players: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  email: true,
+                  eloRating: true,
+                }
+              }
+            }
+          },
+          createdBy: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              eloRating: true,
+            }
+          }
+        }
+      }),
+      prisma.game.count({ where })
+    ]);
+
+    return NextResponse.json({
+      games,
+      pagination: {
+        total,
+        offset,
+        limit,
+        hasMore: offset + limit < total
+      }
+    });
+
+  } catch (error) {
+    console.error('List games error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
