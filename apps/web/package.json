@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "vercel-build": "cd ../.. && pnpm --filter api db:generate && pnpm --filter common build && cd apps/web && vite build",
+    "build": "cd ../.. && pnpm --filter api db:generate && pnpm --filter common build && cd apps/web && vite build",
     "preview": "vite preview",
     "test": "vitest",
     "test:e2e": "playwright test",
