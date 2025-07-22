@@ -84,9 +84,17 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Create game error:', error);
+    console.error('Create game error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      },
       { status: 500 }
     );
   }
@@ -190,9 +198,17 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('List games error:', error);
+    console.error('List games error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      },
       { status: 500 }
     );
   }

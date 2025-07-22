@@ -70,9 +70,17 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Get my games error:', error);
+    console.error('Get my games error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      },
       { status: 500 }
     );
   }
