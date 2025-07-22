@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
-
-// Simple in-memory cache for game engines (same as state route)
-const gameStates = new Map<string, any>();
+import { GameCache } from '../../../../../src/utils/gameCache';
 
 export async function POST(
   request: NextRequest,
@@ -32,6 +30,8 @@ export async function POST(
 
     const { gameId } = params;
     const move = await request.json();
+    
+    console.log('Move API called with:', { gameId, move, userId: decoded.userId });
 
     // Get game from database
     const game = await prisma.game.findUnique({
@@ -65,9 +65,10 @@ export async function POST(
 
     // For AI games, get the cached game engine
     if (game.vsAI) {
-      let gameEngine = gameStates.get(gameId);
+      let gameEngine = GameCache.get(gameId);
       
       if (!gameEngine) {
+        console.error('Game engine not found for gameId:', gameId);
         return NextResponse.json(
           { error: 'Game not initialized' },
           { status: 400 }

@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
-
-// Simple in-memory cache for game states (in production, this would be Redis)
-const gameStates = new Map<string, any>();
+import { GameCache } from '../../../../../src/utils/gameCache';
 
 export async function GET(
   request: NextRequest,
@@ -76,7 +74,7 @@ export async function GET(
 
     // For AI games, use cached state or initialize new game
     if (game.vsAI) {
-      let gameEngine: any = gameStates.get(gameId);
+      let gameEngine: any = GameCache.get(gameId);
       
       if (!gameEngine) {
         // Initialize the game engine with proper cards and game logic
@@ -89,7 +87,7 @@ export async function GET(
         initialState.players[1].username = 'AI Opponent';
         
         // Cache the game engine (not just state) so we can make moves
-        gameStates.set(gameId, gameEngine);
+        GameCache.set(gameId, gameEngine);
         
         // Update game to active status in database if still waiting
         if (game.status === 'WAITING') {
