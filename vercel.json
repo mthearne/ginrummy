@@ -1,7 +1,7 @@
 {
   "version": 2,
   "installCommand": "corepack enable && pnpm install",
-  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web build && pnpm --filter api build && cp -r apps/web/dist/* .",
+  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web build && pnpm --filter api build && ls -la apps/web/ && cp -r apps/web/dist/. .",
   "outputDirectory": ".",
   "builds": [
     {
