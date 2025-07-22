@@ -299,7 +299,15 @@ class SocketService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (errorData.code === 'GAME_STATE_LOST') {
+          // Special handling for game state lost error
+          useGameStore.getState().setGameError(errorData.error);
+          return;
+        }
+        
+        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Unknown error'}`);
       }
 
       const data = await response.json();
@@ -312,7 +320,7 @@ class SocketService {
 
     } catch (error) {
       console.error('Failed to make move via API:', error);
-      useGameStore.getState().setGameError('Failed to make move');
+      useGameStore.getState().setGameError('Failed to make move: ' + error.message);
     }
   }
 

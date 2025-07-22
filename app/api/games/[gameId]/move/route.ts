@@ -68,9 +68,16 @@ export async function POST(
       let gameEngine = GameCache.get(gameId);
       
       if (!gameEngine) {
-        console.error('Game engine not found for gameId:', gameId);
+        console.log('Game engine not in cache for gameId:', gameId);
+        console.log('This can happen in serverless environments where memory is not persistent');
+        
+        // For now, return an error asking the user to refresh
+        // In a production system, we'd store game state in database/Redis
         return NextResponse.json(
-          { error: 'Game not initialized' },
+          { 
+            error: 'Game state lost due to serverless limitations. Please refresh the page to reload the game.',
+            code: 'GAME_STATE_LOST'
+          },
           { status: 400 }
         );
       }
