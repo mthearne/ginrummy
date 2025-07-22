@@ -76,20 +76,20 @@ export async function GET(
 
     // For AI games, use cached state or initialize new game
     if (game.vsAI) {
-      let gameState = gameStates.get(gameId);
+      let gameEngine: any = gameStates.get(gameId);
       
-      if (!gameState) {
+      if (!gameEngine) {
         // Initialize the game engine with proper cards and game logic
         console.log('Initializing new AI game:', gameId);
-        const gameEngine = new GinRummyGame(gameId, game.player1Id, 'ai-player', true);
-        gameState = gameEngine.getState();
+        gameEngine = new GinRummyGame(gameId, game.player1Id, 'ai-player', true);
+        const initialState = gameEngine.getState();
         
         // Set player names from database
-        gameState.players[0].username = game.player1!.username;
-        gameState.players[1].username = 'AI Opponent';
+        initialState.players[0].username = game.player1!.username;
+        initialState.players[1].username = 'AI Opponent';
         
-        // Cache the game state
-        gameStates.set(gameId, gameState);
+        // Cache the game engine (not just state) so we can make moves
+        gameStates.set(gameId, gameEngine);
         
         // Update game to active status in database if still waiting
         if (game.status === 'WAITING') {
@@ -102,8 +102,26 @@ export async function GET(
         }
       }
 
+      // Check if it's AI's turn and process AI move
+      const currentState = gameEngine.getState();
+      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
+        console.log('Processing AI move for game:', gameId, 'phase:', currentState.phase);
+        
+        // Get AI suggestion and make the move
+        const aiMove = gameEngine.getAISuggestion();
+        if (aiMove) {
+          console.log('AI making move:', aiMove.type);
+          const moveResult = gameEngine.makeMove(aiMove);
+          if (moveResult.success) {
+            console.log('AI move successful, new phase:', moveResult.state.phase);
+          } else {
+            console.error('AI move failed:', moveResult.error);
+          }
+        }
+      }
+
       return NextResponse.json({
-        gameState: gameState
+        gameState: gameEngine.getState()
       });
     }
 
