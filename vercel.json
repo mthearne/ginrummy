@@ -28,10 +28,5 @@
   "buildCommand": "npm run build",
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "apps/api/src/server.ts": {
-      "runtime": "nodejs18.x"
-    }
   }
 }
