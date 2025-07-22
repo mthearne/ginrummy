@@ -268,7 +268,52 @@ class SocketService {
   }
 
   makeMove(move: GameMove) {
-    this.socket?.emit('play_move', move);
+    // Always use REST API for moves (works reliably in Next.js/Vercel)
+    this.makeMoveViaAPI(move);
+    
+    // Optionally emit to Socket.io if available (development enhancement)
+    if (this.socket?.connected) {
+      console.log('Also notifying Socket.io server of move');
+      this.socket.emit('play_move', move);
+    }
+  }
+
+  // REST API for making moves
+  private async makeMoveViaAPI(move: GameMove) {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No access token found');
+        return;
+      }
+
+      console.log('Making move via REST API:', move);
+
+      const response = await fetch(`/api/games/${move.gameId}/move`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(move)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Update game store with the new state
+      if (data.gameState) {
+        useGameStore.getState().setGameState(data.gameState);
+        console.log('Move successful, new state:', data.gameState);
+      }
+
+    } catch (error) {
+      console.error('Failed to make move via API:', error);
+      useGameStore.getState().setGameError('Failed to make move');
+    }
   }
 
   sendChatMessage(gameId: string, message: string) {

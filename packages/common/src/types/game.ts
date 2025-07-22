@@ -64,6 +64,7 @@ export interface GameMove {
   playerId: string;
   cardId?: string;
   melds?: Meld[];
+  gameId?: string; // Optional for API calls
 }
 
 export interface PlayerState {

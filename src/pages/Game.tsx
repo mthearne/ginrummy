@@ -214,6 +214,7 @@ export default function Game() {
     socket.makeMove({
       type: MoveType.DrawStock,
       playerId: user.id,
+      gameId: gameId,
     });
   };
 
@@ -223,6 +224,7 @@ export default function Game() {
     socket.makeMove({
       type: MoveType.DrawDiscard,
       playerId: user.id,
+      gameId: gameId,
     });
   };
 
@@ -233,6 +235,7 @@ export default function Game() {
       type: MoveType.Discard,
       playerId: user.id,
       cardId: selectedCards[0],
+      gameId: gameId,
     });
     clearSelection();
   };
@@ -245,6 +248,7 @@ export default function Game() {
       playerId: user.id,
       cardId: selectedCards[0],
       melds: myPlayer?.melds || [],
+      gameId: gameId,
     });
     clearSelection();
   };
@@ -257,6 +261,7 @@ export default function Game() {
       playerId: user.id,
       cardId: selectedCards[0],
       melds: myPlayer?.melds || [],
+      gameId: gameId,
     });
     clearSelection();
   };
@@ -267,6 +272,7 @@ export default function Game() {
     socket.makeMove({
       type: MoveType.TakeUpcard,
       playerId: user.id,
+      gameId: gameId,
     });
   };
 
@@ -276,6 +282,7 @@ export default function Game() {
     socket.makeMove({
       type: MoveType.PassUpcard,
       playerId: user.id,
+      gameId: gameId,
     });
   };
 
@@ -285,6 +292,7 @@ export default function Game() {
     socket.makeMove({
       type: MoveType.StartNewRound,
       playerId: user.id,
+      gameId: gameId,
     });
   };
 
