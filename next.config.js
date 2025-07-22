@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@gin-rummy/common'],
-  // output: 'standalone', // Temporarily disabled for development
+  output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
   experimental: {
     missingSuspenseWithCSRBailout: false,
   },
