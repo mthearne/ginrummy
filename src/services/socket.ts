@@ -176,7 +176,54 @@ class SocketService {
   // Game actions
   joinGame(gameId: string) {
     console.log(`Attempting to join game: ${gameId}`);
-    this.socket?.emit('join_game', { gameId });
+    
+    // If Socket.io is connected, use it
+    if (this.socket?.connected) {
+      this.socket.emit('join_game', { gameId });
+    } else {
+      // Fallback to REST API
+      console.log('Socket.io not available, using REST API fallback');
+      this.joinGameViaAPI(gameId);
+    }
+  }
+
+  // REST API fallback for joining games
+  private async joinGameViaAPI(gameId: string) {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No access token found');
+        return;
+      }
+
+      const response = await fetch(`/api/games/${gameId}/state`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Update game store with the received state
+      if (data.gameState) {
+        useGameStore.getState().setGameState(data.gameState);
+        useGameStore.getState().setConnected(true);
+        console.log('Game state loaded via REST API:', data.gameState);
+      } else if (data.waitingState) {
+        useGameStore.getState().setWaitingState(data.waitingState);
+        useGameStore.getState().setConnected(true);
+        console.log('Waiting state loaded via REST API:', data.waitingState);
+      }
+
+    } catch (error) {
+      console.error('Failed to load game state via API:', error);
+      useGameStore.getState().setGameError('Failed to load game');
+    }
   }
 
   leaveGame(gameId: string) {
