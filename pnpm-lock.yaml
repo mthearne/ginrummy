@@ -129,6 +129,9 @@ importers:
       '@heroicons/react':
         specifier: ^2.0.18
         version: 2.2.0(react@18.3.1)
+      '@vitejs/plugin-react':
+        specifier: ^4.2.1
+        version: 4.7.0(vite@5.4.19(@types/node@20.19.9))
       axios:
         specifier: ^1.6.7
         version: 1.10.0
@@ -175,9 +178,6 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^6.21.0
         version: 6.21.0(eslint@8.57.1)(typescript@5.8.3)
-      '@vitejs/plugin-react':
-        specifier: ^4.2.1
-        version: 4.7.0(vite@5.4.19(@types/node@20.19.9))
       autoprefixer:
         specifier: ^10.4.17
         version: 10.4.21(postcss@8.5.6)
