@@ -5,7 +5,7 @@
       "src": "apps/web/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "apps/web/dist"
       }
     },
     {
@@ -14,7 +14,7 @@
     }
   ],
   "installCommand": "corepack enable && pnpm install",
-  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build",
+  "buildCommand": "pnpm --filter api db:generate && pnpm --filter common build && pnpm --filter web build",
   "routes": [
     {
       "src": "/api/(.*)",
