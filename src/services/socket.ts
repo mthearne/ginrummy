@@ -316,6 +316,11 @@ class SocketService {
       if (data.gameState) {
         useGameStore.getState().setGameState(data.gameState);
         console.log('Move successful, new state:', data.gameState);
+        
+        // If this is an AI game and it's now AI's turn, start polling for AI completion
+        if (data.gameState.vsAI && data.gameState.currentPlayerId === 'ai-player' && move.gameId) {
+          this.pollForAICompletion(move.gameId);
+        }
       }
 
     } catch (error) {
@@ -326,6 +331,59 @@ class SocketService {
 
   sendChatMessage(gameId: string, message: string) {
     this.socket?.emit('send_chat', { gameId, message });
+  }
+
+  // Poll for AI move completion
+  private async pollForAICompletion(gameId: string, attempts = 0) {
+    const maxAttempts = 30; // Poll for up to 30 seconds
+    const pollInterval = 1000; // Poll every 1 second
+
+    if (attempts >= maxAttempts) {
+      console.log('AI polling timeout - stopping');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No access token found for AI polling');
+        return;
+      }
+
+      const response = await fetch(`/api/games/${gameId}/ai-status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.error('AI status check failed:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.aiProcessing) {
+        // AI is still processing, poll again
+        setTimeout(() => {
+          this.pollForAICompletion(gameId, attempts + 1);
+        }, pollInterval);
+      } else {
+        // AI is done, update game state if provided
+        console.log('AI processing complete');
+        if (data.gameState) {
+          useGameStore.getState().setGameState(data.gameState);
+          console.log('Updated game state after AI moves:', data.gameState);
+        }
+      }
+    } catch (error) {
+      console.error('AI polling error:', error);
+      // Try again after a delay
+      setTimeout(() => {
+        this.pollForAICompletion(gameId, attempts + 1);
+      }, pollInterval);
+    }
   }
 
   // Connection status

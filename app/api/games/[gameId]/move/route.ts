@@ -222,6 +222,18 @@ async function processAIResponseMovesAsync(gameId: string, gameEngine: any): Pro
     }
     
     console.log('Background AI processing completed for game:', gameId);
+    
+    // Set a flag to indicate AI processing is complete - just use a completion timestamp
+    const completionKey = `${gameId}_ai_complete`;
+    const completionData = { ...gameEngine.getState(), aiCompletedAt: Date.now() };
+    try {
+      // Store the game state with completion timestamp
+      await persistentGameCache.set(completionKey, completionData as any);
+    } catch (error) {
+      console.log('Failed to set AI completion flag:', error.message);
+      await fallbackGameCache.set(completionKey, completionData as any);
+    }
+    
   } catch (error) {
     console.error('Background AI processing failed for game:', gameId, error);
   }
