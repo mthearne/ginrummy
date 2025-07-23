@@ -1,5 +1,8 @@
 {
   "env": {
     "NEXT_PUBLIC_API_URL": "/api"
-  }
+  },
+  "buildCommand": "pnpm build",
+  "installCommand": "pnpm install",
+  "devCommand": "pnpm dev"
 }
