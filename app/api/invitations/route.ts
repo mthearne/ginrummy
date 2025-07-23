@@ -260,8 +260,27 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // TODO: Re-enable notifications once Prisma client is updated
-    console.log('Skipping notification creation temporarily for debugging...');
+    // Create notification for receiver
+    try {
+      console.log('Attempting to create notification for user:', receiver.id);
+      await createNotification({
+        userId: receiver.id,
+        type: 'GAME_INVITATION',
+        title: `Game Invitation from ${invitation.sender.username}`,
+        message: invitation.message || `${invitation.sender.username} invited you to join a Gin Rummy game!`,
+        data: {
+          invitationId: invitation.id,
+          gameId: invitation.gameId,
+          senderUsername: invitation.sender.username,
+          senderId: invitation.sender.id
+        },
+        expiresAt: invitation.expiresAt
+      });
+      console.log('Notification created successfully');
+    } catch (notificationError) {
+      console.error('Failed to create notification:', notificationError);
+      // Continue without notification - the invitation was still created
+    }
 
     return NextResponse.json({
       message: 'Game invitation sent successfully',
