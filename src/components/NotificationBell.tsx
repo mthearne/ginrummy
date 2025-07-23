@@ -1,52 +1,64 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useNotificationStore, AppNotification } from '../store/notifications';
+import { useNotifications } from '../hooks/useNotifications';
 import { FriendsService } from '../services/friends';
 import { formatRelativeTime } from '../utils/helpers';
+import { Notification } from '../services/notifications';
 
 export function NotificationBell() {
   const router = useRouter();
-  const {
-    unreadCount,
-    isOpen,
-    markAsRead,
-    markAllAsRead,
-    removeNotification,
-    toggleOpen,
-    setOpen,
-    getRecentNotifications
-  } = useNotificationStore();
-
+  const { notifications, unreadCount, isConnected, markAsRead } = useNotifications();
+  const [isOpen, setIsOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const recentNotifications = getRecentNotifications(10);
+  const recentNotifications = notifications.slice(0, 10);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpen(false);
+        setIsOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [setOpen]);
+  }, []);
 
-  const handleNotificationClick = (notification: AppNotification) => {
+  const handleNotificationClick = async (notification: Notification) => {
     if (!notification.read) {
-      markAsRead(notification.id);
+      await markAsRead(notification.id);
     }
+
+    // Handle navigation based on notification type
+    switch (notification.type) {
+      case 'GAME_INVITATION':
+        if (notification.data?.gameId) {
+          router.push(`/game/${notification.data.gameId}`);
+        }
+        break;
+      case 'INVITATION_RESPONSE':
+        if (notification.data?.gameId && notification.data?.response === 'accepted') {
+          router.push(`/game/${notification.data.gameId}`);
+        }
+        break;
+      case 'FRIEND_REQUEST':
+      case 'FRIEND_REQUEST_ACCEPTED':
+        router.push('/lobby');
+        break;
+    }
+
+    setIsOpen(false);
   };
 
-  const handleAcceptFriendRequest = async (notification: AppNotification) => {
+  const handleAcceptFriendRequest = async (notification: Notification) => {
     if (!notification.data?.friendshipId) return;
     
     try {
       setActionLoading(notification.id);
       await FriendsService.acceptFriendRequest(notification.data.friendshipId);
-      removeNotification(notification.id);
+      await markAsRead(notification.id); // Mark as read instead of removing
     } catch (error) {
       console.error('Failed to accept friend request:', error);
     } finally {
@@ -54,13 +66,13 @@ export function NotificationBell() {
     }
   };
 
-  const handleDeclineFriendRequest = async (notification: AppNotification) => {
+  const handleDeclineFriendRequest = async (notification: Notification) => {
     if (!notification.data?.friendshipId) return;
     
     try {
       setActionLoading(notification.id);
       await FriendsService.declineFriendRequest(notification.data.friendshipId);
-      removeNotification(notification.id);
+      await markAsRead(notification.id); // Mark as read instead of removing
     } catch (error) {
       console.error('Failed to decline friend request:', error);
     } finally {
@@ -68,13 +80,13 @@ export function NotificationBell() {
     }
   };
 
-  const handleAcceptGameInvitation = async (notification: AppNotification) => {
+  const handleAcceptGameInvitation = async (notification: Notification) => {
     if (!notification.data?.invitationId) return;
     
     try {
       setActionLoading(notification.id);
       const result = await FriendsService.acceptInvitation(notification.data.invitationId);
-      removeNotification(notification.id);
+      await markAsRead(notification.id);
       // Navigate to the game
       router.push(`/game/${result.gameId}`);
     } catch (error) {
@@ -84,13 +96,13 @@ export function NotificationBell() {
     }
   };
 
-  const handleDeclineGameInvitation = async (notification: AppNotification) => {
+  const handleDeclineGameInvitation = async (notification: Notification) => {
     if (!notification.data?.invitationId) return;
     
     try {
       setActionLoading(notification.id);
       await FriendsService.declineInvitation(notification.data.invitationId);
-      removeNotification(notification.id);
+      await markAsRead(notification.id);
     } catch (error) {
       console.error('Failed to decline game invitation:', error);
     } finally {
@@ -98,16 +110,20 @@ export function NotificationBell() {
     }
   };
 
-  const getNotificationIcon = (type: AppNotification['type']) => {
+  const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
-      case 'friend_request':
+      case 'FRIEND_REQUEST':
         return '👤';
-      case 'friend_accepted':
+      case 'FRIEND_REQUEST_ACCEPTED':
         return '✅';
-      case 'game_invitation':
+      case 'GAME_INVITATION':
         return '🎮';
-      case 'invitation_response':
+      case 'INVITATION_RESPONSE':
         return '🎯';
+      case 'GAME_STARTED':
+        return '▶️';
+      case 'GAME_ENDED':  
+        return '🏁';
       default:
         return '🔔';
     }
@@ -117,9 +133,10 @@ export function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
-        onClick={toggleOpen}
+        onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg transition-colors"
         aria-label="Notifications"
+        title={isConnected ? 'Notifications (Live)' : 'Notifications (Offline)'}
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -136,6 +153,12 @@ export function NotificationBell() {
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
+        
+        {/* Connection Status Indicator */}
+        <div 
+          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${isConnected ? 'bg-green-400' : 'bg-gray-400'}`} 
+          title={isConnected ? 'Live notifications' : 'Offline'}
+        />
       </button>
 
       {/* Dropdown */}
@@ -143,15 +166,19 @@ export function NotificationBell() {
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Mark all read
-              </button>
-            )}
+            <div>
+              <h3 className="font-semibold text-gray-900">Notifications</h3>
+              <div className="flex items-center mt-1 text-xs text-gray-500">
+                <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-gray-400'} mr-1.5`} />
+                {isConnected ? 'Live updates' : 'Offline'}
+              </div>
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
           </div>
 
           {/* Notifications List */}
@@ -190,13 +217,13 @@ export function NotificationBell() {
                           {notification.message}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                          {formatRelativeTime(notification.timestamp.toISOString())}
+                          {formatRelativeTime(notification.createdAt)}
                         </p>
 
                         {/* Action buttons for actionable notifications */}
-                        {notification.actionable && (
+                        {(notification.type === 'FRIEND_REQUEST' || notification.type === 'GAME_INVITATION') && (
                           <div className="flex space-x-2 mt-2">
-                            {notification.type === 'friend_request' && (
+                            {notification.type === 'FRIEND_REQUEST' && (
                               <>
                                 <button
                                   onClick={(e) => {
@@ -220,7 +247,7 @@ export function NotificationBell() {
                                 </button>
                               </>
                             )}
-                            {notification.type === 'game_invitation' && (
+                            {notification.type === 'GAME_INVITATION' && (
                               <>
                                 <button
                                   onClick={(e) => {
