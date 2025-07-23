@@ -25,18 +25,18 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { requestId } = body;
+    const { friendshipId } = body;
 
-    if (!requestId) {
+    if (!friendshipId) {
       return NextResponse.json(
-        { error: 'Request ID is required' },
+        { error: 'Friendship ID is required' },
         { status: 400 }
       );
     }
 
     // Find the friend request
     const friendRequest = await prisma.friendship.findUnique({
-      where: { id: requestId },
+      where: { id: friendshipId },
       include: {
         requester: {
           select: {
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Accept the friend request
     const updatedFriendship = await prisma.friendship.update({
-      where: { id: requestId },
+      where: { id: friendshipId },
       data: { status: 'ACCEPTED' },
       include: {
         requester: {
