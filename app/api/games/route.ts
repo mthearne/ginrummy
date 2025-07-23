@@ -152,6 +152,11 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (status) {
       where.status = status;
+    } else {
+      // Exclude cancelled games when no specific status is requested
+      where.status = {
+        not: 'CANCELLED'
+      };
     }
 
     // Get games from database

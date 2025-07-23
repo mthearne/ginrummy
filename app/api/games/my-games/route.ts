@@ -26,9 +26,18 @@ export async function GET(request: NextRequest) {
     // Get user's games from database
     const games = await prisma.game.findMany({
       where: {
-        OR: [
-          { player1Id: decoded.userId },
-          { player2Id: decoded.userId }
+        AND: [
+          {
+            OR: [
+              { player1Id: decoded.userId },
+              { player2Id: decoded.userId }
+            ]
+          },
+          {
+            status: {
+              not: 'CANCELLED'
+            }
+          }
         ]
       },
       orderBy: {
