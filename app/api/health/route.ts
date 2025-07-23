@@ -24,6 +24,7 @@ export async function GET() {
     return NextResponse.json({ 
       status: databaseError ? 'degraded' : 'ok', 
       timestamp: new Date().toISOString(),
+      build: '2025-07-23-v2', // Force rebuild
       database: databaseStatus,
       environment: process.env.NODE_ENV,
       hasJwtSecret: !!process.env.JWT_SECRET,
