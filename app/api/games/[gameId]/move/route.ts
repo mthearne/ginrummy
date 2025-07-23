@@ -134,6 +134,13 @@ export async function POST(
 }
 
 /**
+ * Generate a random AI thinking delay between 0.5-4 seconds
+ */
+function getRandomAIThinkingDelay(): number {
+  return Math.random() * 3500 + 500; // 500ms to 4000ms
+}
+
+/**
  * Process AI response moves after a player move
  */
 async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Promise<void> {
@@ -154,6 +161,11 @@ async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Pr
       console.log('No AI move suggestion available for phase:', currentState.phase);
       break;
     }
+    
+    // Add thinking delay for more natural AI behavior
+    const thinkingDelay = getRandomAIThinkingDelay();
+    console.log(`AI thinking for ${Math.round(thinkingDelay)}ms before making move:`, aiMove.type);
+    await new Promise(resolve => setTimeout(resolve, thinkingDelay));
     
     console.log('AI making response move:', aiMove.type);
     const aiMoveResult = gameEngine.makeMove(aiMove);

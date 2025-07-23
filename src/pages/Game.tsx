@@ -86,22 +86,26 @@ export default function Game() {
   // Track AI status during AI turns
   useEffect(() => {
     if (gameState && gameState.vsAI && gameState.currentPlayerId === 'ai-player') {
-      // Determine what phase the AI is in
+      // Determine what phase the AI is in and show appropriate thinking message
       let status = '';
-      if (gameState.phase === 'draw') {
-        status = 'AI is deciding what to draw...';
+      if (gameState.phase === 'upcard_decision') {
+        status = 'Thinking about the upcard...';
+      } else if (gameState.phase === 'draw') {
+        status = 'Deciding what to draw...';
       } else if (gameState.phase === 'discard') {
-        status = 'AI is choosing a card to discard...';
+        status = 'Choosing a card to discard...';
+      } else if (gameState.phase === 'round_over') {
+        status = 'Preparing next round...';
       } else {
-        status = 'AI is thinking...';
+        status = 'Thinking...';
       }
       
       setAiStatus(status);
       
-      // Clear AI status after a delay (AI moves are processed server-side with 1 second delay)
+      // Clear AI status after a longer delay to account for thinking time (0.5-4 seconds + processing)
       const timer = setTimeout(() => {
         setAiStatus(null);
-      }, 2000);
+      }, 5000);
       
       return () => clearTimeout(timer);
     } else {
@@ -134,10 +138,19 @@ export default function Game() {
         if (currentPlayer && currentPlayer.id !== user?.id) {
           // AI just made a move that changed the phase
           if (lastGamePhase === 'draw' && gameState.phase === 'discard') {
-            setAiStatus('AI drew a card');
+            setAiStatus('Drew a card');
             setTimeout(() => setAiStatus(null), 1500);
           } else if (lastGamePhase === 'discard' && gameState.phase === 'draw') {
-            setAiStatus('AI discarded a card');
+            setAiStatus('Discarded a card');
+            setTimeout(() => setAiStatus(null), 1500);
+          } else if (lastGamePhase === 'upcard_decision' && gameState.phase === 'discard') {
+            setAiStatus('Took the upcard');
+            setTimeout(() => setAiStatus(null), 1500);
+          } else if (lastGamePhase === 'upcard_decision' && gameState.phase === 'draw') {
+            setAiStatus('Passed on the upcard');
+            setTimeout(() => setAiStatus(null), 1500);
+          } else if (lastGamePhase === 'round_over') {
+            setAiStatus('Started new round');
             setTimeout(() => setAiStatus(null), 1500);
           }
         }
