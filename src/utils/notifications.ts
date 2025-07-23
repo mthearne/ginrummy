@@ -19,6 +19,7 @@ export interface NotificationData {
 export async function createNotification(notificationData: NotificationData) {
   try {
     console.log('🔔 [SERVER] Creating notification for user:', notificationData.userId, 'type:', notificationData.type);
+    console.log('🔔 [SERVER] Notification data:', JSON.stringify(notificationData, null, 2));
     
     // Save notification to database
     const notification = await prisma.notification.create({
@@ -32,7 +33,13 @@ export async function createNotification(notificationData: NotificationData) {
       }
     });
 
-    console.log('🔔 [SERVER] Notification saved to database:', notification.id);
+    console.log('🔔 [SERVER] Notification saved to database successfully:', {
+      id: notification.id,
+      userId: notification.userId,
+      type: notification.type,
+      title: notification.title,
+      createdAt: notification.createdAt
+    });
 
     // Send to active SSE connections
     console.log('🔔 [SERVER] Sending SSE notification to user:', notificationData.userId);
@@ -57,17 +64,20 @@ export async function createNotification(notificationData: NotificationData) {
 async function sendSSENotification(userId: string, data: any) {
   try {
     console.log('🔔 [SERVER] Looking for SSE function to send notification...');
+    console.log('🔔 [SERVER] SSE data to send:', JSON.stringify(data, null, 2));
     // Use the global function set by the SSE route
     const sendNotificationToUser = (global as any).sendNotificationToUser;
     if (sendNotificationToUser) {
       console.log('🔔 [SERVER] SSE function found, sending notification to user:', userId);
-      sendNotificationToUser(userId, data);
-      console.log('🔔 [SERVER] SSE notification sent successfully');
+      const result = sendNotificationToUser(userId, data);
+      console.log('🔔 [SERVER] SSE notification sent successfully, result:', result);
     } else {
       console.warn('🔔 [SERVER] SSE notification function not available - SSE route may not be initialized');
+      console.warn('🔔 [SERVER] Global object keys:', Object.keys(global));
     }
   } catch (error) {
     console.error('🔔 [SERVER] Failed to send SSE notification:', error);
+    console.error('🔔 [SERVER] SSE error stack:', error instanceof Error ? error.stack : 'No stack trace');
   }
 }
 
