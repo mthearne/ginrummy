@@ -23,6 +23,7 @@ model User {
   gameEvents             GameEvent[]
   receivedInvitations    GameInvitation[] @relation("InvitationReceiver")
   sentInvitations        GameInvitation[] @relation("InvitationSender")
+  notifications          Notification[]
   player1Games           Game[]           @relation("Player1")
   player2Games           Game[]           @relation("Player2")
   wonGames               Game[]           @relation("Winner")
@@ -124,6 +125,21 @@ model GameInvitation {
   @@map("game_invitations")
 }
 
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?            // Additional data for the notification
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  expiresAt   DateTime?        @map("expires_at")
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
 enum GameStatus {
   WAITING
   ACTIVE
@@ -149,4 +165,13 @@ enum InvitationStatus {
   ACCEPTED
   DECLINED
   EXPIRED
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_REQUEST_ACCEPTED
+  GAME_INVITATION
+  INVITATION_RESPONSE
+  GAME_STARTED
+  GAME_ENDED
 }

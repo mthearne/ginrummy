@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/database';
-import { emitToUser } from '../../../src/utils/socket';
+import { createNotification } from '../../../src/utils/notifications';
 
 export async function GET(request: NextRequest) {
   try {
@@ -243,17 +243,19 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Send socket notification to receiver
-    await emitToUser(receiver.id, 'game_invitation', {
-      id: invitation.id,
-      from: {
-        id: invitation.sender.id,
-        username: invitation.sender.username
+    // Create notification for receiver
+    await createNotification({
+      userId: receiver.id,
+      type: 'GAME_INVITATION',
+      title: `Game Invitation from ${invitation.sender.username}`,
+      message: invitation.message || `${invitation.sender.username} invited you to join a Gin Rummy game!`,
+      data: {
+        invitationId: invitation.id,
+        gameId: invitation.gameId,
+        senderUsername: invitation.sender.username,
+        senderId: invitation.sender.id
       },
-      gameId: invitation.gameId,
-      message: invitation.message,
-      sentAt: invitation.createdAt.toISOString(),
-      expiresAt: invitation.expiresAt.toISOString()
+      expiresAt: invitation.expiresAt
     });
 
     return NextResponse.json({

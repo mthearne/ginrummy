@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../src/utils/jwt';
 import { prisma } from '../../../../src/utils/database';
-import { emitToUser } from '../../../../src/utils/socket';
+import { createNotification } from '../../../../src/utils/notifications';
 
 export async function POST(request: NextRequest) {
   try {
@@ -123,15 +123,19 @@ export async function POST(request: NextRequest) {
       select: { id: true, username: true }
     });
 
-    // Send socket notification to sender about acceptance
-    await emitToUser(invitation.senderId, 'invitation_response', {
-      invitationId: invitation.id,
-      gameId: invitation.gameId,
-      from: {
-        id: currentUser!.id,
-        username: currentUser!.username
-      },
-      response: 'accepted'
+    // Create notification for sender about acceptance
+    await createNotification({
+      userId: invitation.senderId,
+      type: 'INVITATION_RESPONSE',
+      title: 'Invitation Accepted!',
+      message: `${currentUser!.username} accepted your game invitation!`,
+      data: {
+        invitationId: invitation.id,
+        gameId: invitation.gameId,
+        responderUsername: currentUser!.username,
+        responderId: currentUser!.id,
+        response: 'accepted'
+      }
     });
 
     return NextResponse.json({
