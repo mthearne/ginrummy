@@ -1,5 +1,12 @@
 import { prisma } from './database';
 
+export interface ToastNotification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+}
+
 export interface NotificationData {
   userId: string;
   type: 'FRIEND_REQUEST' | 'FRIEND_REQUEST_ACCEPTED' | 'GAME_INVITATION' | 'INVITATION_RESPONSE' | 'GAME_STARTED' | 'GAME_ENDED';
@@ -78,3 +85,47 @@ export async function markNotificationAsRead(notificationId: string, userId: str
     data: { read: true }
   });
 }
+
+// Simple toast notification service for the ToastNotifications component
+class ToastNotificationService {
+  private listeners: Array<(notifications: ToastNotification[]) => void> = [];
+  private toasts: ToastNotification[] = [];
+
+  subscribe(callback: (notifications: ToastNotification[]) => void) {
+    this.listeners.push(callback);
+    callback(this.toasts); // Send current toasts immediately
+    
+    return () => {
+      const index = this.listeners.indexOf(callback);
+      if (index > -1) {
+        this.listeners.splice(index, 1);
+      }
+    };
+  }
+
+  addToast(toast: Omit<ToastNotification, 'id'>) {
+    const newToast: ToastNotification = {
+      ...toast,
+      id: Math.random().toString(36).substr(2, 9)
+    };
+    
+    this.toasts.push(newToast);
+    this.notifyListeners();
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      this.removeToast(newToast.id);
+    }, 5000);
+  }
+
+  removeToast(id: string) {
+    this.toasts = this.toasts.filter(toast => toast.id !== id);
+    this.notifyListeners();
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach(listener => listener([...this.toasts]));
+  }
+}
+
+export const notificationService = new ToastNotificationService();
