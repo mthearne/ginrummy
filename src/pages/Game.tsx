@@ -488,9 +488,6 @@ export default function Game() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-xl font-bold">Gin Rummy</h1>
-              <p className="text-sm text-gray-600">
-                {isMyTurn ? "Your turn" : `${opponent?.username || "Opponent"}'s turn`}
-              </p>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-600">Phase: {getPhaseDisplayText(gameState.phase || GamePhase.Draw)}</div>
@@ -512,11 +509,21 @@ export default function Game() {
             {/* Opponent */}
             <div className="bg-white rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h3 className="font-semibold">{opponent?.username || "Opponent"}</h3>
-                  {aiStatus && (
-                    <div className="text-xs text-blue-600 italic">{aiStatus}</div>
-                  )}
+                <div className="flex items-center gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{opponent?.username || "Opponent"}</h3>
+                      {!isMyTurn && !gameState.gameOver && (
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          <span className="text-xs text-green-600 font-medium">Turn</span>
+                        </div>
+                      )}
+                    </div>
+                    {aiStatus && (
+                      <div className="text-xs text-blue-600 italic">{aiStatus}</div>
+                    )}
+                  </div>
                 </div>
                 <div className="text-sm text-gray-600">
                   Score: {opponent?.score || 0} | Cards: {opponent?.handSize || 0}
@@ -720,7 +727,15 @@ export default function Game() {
             {/* My Hand */}
             <div className="bg-white rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold">Your Hand ({myPlayer?.hand?.length || 0} cards)</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">Your Hand ({myPlayer?.hand?.length || 0} cards)</h3>
+                  {isMyTurn && !gameState.gameOver && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs text-blue-600 font-medium">Your Turn</span>
+                    </div>
+                  )}
+                </div>
                 <div className="flex space-x-2">
                   <button
                     onClick={handleDiscard}

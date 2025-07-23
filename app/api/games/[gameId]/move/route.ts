@@ -167,6 +167,13 @@ async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Pr
     console.log(`AI thinking for ${Math.round(thinkingDelay)}ms before making move:`, aiMove.type);
     await new Promise(resolve => setTimeout(resolve, thinkingDelay));
     
+    // Validate turn state before making AI move
+    const preMoveState = gameEngine.getState();
+    if (preMoveState.currentPlayerId !== 'ai-player') {
+      console.error('Turn state changed during AI thinking, aborting AI move. Current player:', preMoveState.currentPlayerId);
+      break;
+    }
+    
     console.log('AI making response move:', aiMove.type);
     const aiMoveResult = gameEngine.makeMove(aiMove);
     
@@ -177,6 +184,9 @@ async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Pr
     
     console.log('AI response move successful, new phase:', aiMoveResult.state.phase, 'next player:', aiMoveResult.state.currentPlayerId);
     movesProcessed++;
+    
+    // Add a small delay between AI moves to prevent race conditions
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     // Prevent infinite loops
     if (movesProcessed >= maxMoves) {
