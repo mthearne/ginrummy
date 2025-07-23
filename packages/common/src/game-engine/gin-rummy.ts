@@ -577,6 +577,15 @@ export class GinRummyGame {
         };
       }
       
+      // Handle round over phase - AI should start the next round
+      if (this.state.phase === GamePhase.RoundOver) {
+        return {
+          type: MoveType.StartNewRound,
+          playerId: aiPlayerState.id,
+          gameId: this.state.id,
+        };
+      }
+      
       // For draw and discard phases, use the AIPlayer's sophisticated logic
       if (this.state.phase === GamePhase.Draw || this.state.phase === GamePhase.Discard) {
         const aiMove = this.aiPlayer.getMove(
