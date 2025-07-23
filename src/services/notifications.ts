@@ -23,14 +23,16 @@ export class NotificationService {
       this.disconnect();
     }
 
-    console.log('Connecting to SSE notification stream...');
+    console.log('🔔 [SSE] Connecting to SSE notification stream...');
+    console.log('🔔 [SSE] Token present:', !!token);
+    console.log('🔔 [SSE] SSE URL:', `/api/notifications/stream?token=${token ? '[REDACTED]' : 'MISSING'}`);
     
     try {
       // Create EventSource with token as query parameter (since EventSource doesn't support custom headers)
       this.eventSource = new EventSource(`/api/notifications/stream?token=${encodeURIComponent(token)}`);
 
       this.eventSource.onopen = () => {
-        console.log('SSE connection established');
+        console.log('🔔 [SSE] Connection established successfully');
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000; // Reset delay on successful connection
       };
@@ -41,12 +43,13 @@ export class NotificationService {
           
           // Handle different message types
           if (data.type === 'connected') {
-            console.log('SSE connection confirmed:', data.message);
+            console.log('🔔 [SSE] Connection confirmed:', data.message);
           } else if (data.type === 'ping') {
             // Keep-alive ping, no action needed
+            console.log('🔔 [SSE] Keep-alive ping received');
           } else {
             // It's a notification
-            console.log('Received notification:', data);
+            console.log('🔔 [SSE] Received notification:', data);
             this.handleNotification(data);
           }
         } catch (error) {
@@ -55,12 +58,13 @@ export class NotificationService {
       };
 
       this.eventSource.onerror = (error) => {
-        console.error('SSE connection error:', error);
+        console.error('🔔 [SSE] Connection error:', error);
+        console.error('🔔 [SSE] EventSource readyState:', this.eventSource?.readyState);
         this.handleConnectionError();
       };
 
     } catch (error) {
-      console.error('Failed to create SSE connection:', error);
+      console.error('🔔 [SSE] Failed to create SSE connection:', error);
       this.handleConnectionError();
     }
   }

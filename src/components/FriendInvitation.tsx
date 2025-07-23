@@ -56,11 +56,13 @@ export function FriendInvitation({ gameId }: FriendInvitationProps) {
 
   const sendInvitation = async (friendUsername: string) => {
     try {
+      console.log('🎮 [INVITE] Sending invitation to:', friendUsername, 'for game:', gameId);
       setSendingTo(friendUsername);
       await FriendsService.sendGameInvitation(gameId, friendUsername, message);
+      console.log('🎮 [INVITE] Invitation sent successfully to:', friendUsername);
       setInvitationSent(prev => [...prev, friendUsername]);
     } catch (error: any) {
-      console.error('Failed to send invitation:', error);
+      console.error('🎮 [INVITE] Failed to send invitation:', error);
       
       // Show user-friendly error message
       const errorMessage = error.response?.data?.error || 'Failed to send invitation';

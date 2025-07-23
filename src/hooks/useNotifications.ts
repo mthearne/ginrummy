@@ -53,9 +53,13 @@ export function useNotifications() {
         
         // Connect to SSE stream
         const token = localStorage.getItem('access_token');
+        console.log('🔔 [HOOK] Initializing notifications, token present:', !!token);
         if (token) {
+          console.log('🔔 [HOOK] Connecting to notification service...');
           notificationService.connect(token);
           setIsConnected(true);
+        } else {
+          console.warn('🔔 [HOOK] No access token found, cannot connect to SSE');
         }
       } catch (error) {
         console.error('Failed to initialize notifications:', error);
