@@ -101,10 +101,7 @@ export async function POST(
 
       console.log('Player move successful, new phase:', moveResult.state.phase);
 
-      // Process AI response moves after player move
-      await processAIResponseMoves(gameEngine);
-
-      // Save updated game state to persistent storage (with fallback)
+      // Save player's move immediately
       try {
         await persistentGameCache.set(gameId, gameEngine);
       } catch (error) {
@@ -112,10 +109,18 @@ export async function POST(
         await fallbackGameCache.set(gameId, gameEngine);
       }
 
-      return NextResponse.json({
+      // Return response to player immediately
+      const playerResponse = NextResponse.json({
         success: true,
         gameState: gameEngine.getState()
       });
+
+      // Process AI response moves asynchronously (don't await)
+      processAIResponseMovesAsync(gameId, gameEngine).catch(error => {
+        console.error('Background AI processing error:', error);
+      });
+
+      return playerResponse;
     }
 
     // For PvP games, this would need different handling
@@ -196,4 +201,28 @@ async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Pr
   }
   
   console.log(`AI processed ${movesProcessed} response moves`);
+}
+
+/**
+ * Process AI response moves asynchronously in the background
+ */
+async function processAIResponseMovesAsync(gameId: string, gameEngine: any): Promise<void> {
+  try {
+    console.log('Starting background AI processing for game:', gameId);
+    
+    // Process AI moves with thinking delays
+    await processAIResponseMoves(gameEngine);
+    
+    // Save updated game state after AI moves
+    try {
+      await persistentGameCache.set(gameId, gameEngine);
+    } catch (error) {
+      console.log('Background AI cache save failed, using fallback cache:', error.message);
+      await fallbackGameCache.set(gameId, gameEngine);
+    }
+    
+    console.log('Background AI processing completed for game:', gameId);
+  } catch (error) {
+    console.error('Background AI processing failed for game:', gameId, error);
+  }
 }
