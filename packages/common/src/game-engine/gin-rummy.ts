@@ -115,7 +115,8 @@ export class GinRummyGame {
       this.state.phase,
       this.state.currentPlayerId,
       player.hand,
-      this.state.discardPile
+      this.state.discardPile,
+      this.state.vsAI
     );
 
     if (!validation.valid) {
