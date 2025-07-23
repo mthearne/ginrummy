@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Send socket notification to receiver
-    emitToUser(receiver.id, 'game_invitation', {
+    await emitToUser(receiver.id, 'game_invitation', {
       id: invitation.id,
       from: {
         id: invitation.sender.id,

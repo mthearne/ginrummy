@@ -3,10 +3,14 @@ import { Server as NetServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { verifyAccessToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/database';
-import { setSocketInstance } from '../../../src/utils/socket';
 
 // Global socket.io instance
 let io: SocketIOServer;
+
+// Export the socket instance for use in other API routes
+export function getSocketIO(): SocketIOServer | null {
+  return io || null;
+}
 
 export async function GET(req: NextRequest) {
   if (!io) {
@@ -57,9 +61,6 @@ export async function GET(req: NextRequest) {
         next(new Error('Authentication failed'));
       }
     });
-
-    // Set global instance for use in other routes
-    setSocketInstance(io);
 
     // Connection handler
     io.on('connection', (socket) => {

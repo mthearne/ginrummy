@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Send socket notification to sender about decline
-    emitToUser(invitation.senderId, 'invitation_response', {
+    await emitToUser(invitation.senderId, 'invitation_response', {
       invitationId: invitation.id,
       gameId: invitation.gameId,
       from: {
