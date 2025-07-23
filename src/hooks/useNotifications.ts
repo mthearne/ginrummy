@@ -52,7 +52,7 @@ export function useNotifications() {
         setUnreadCount(existingNotifications.filter(n => !n.read).length);
         
         // Connect to SSE stream
-        const token = localStorage.getItem('access_token');
+        const token = localStorage.getItem('accessToken');
         console.log('🔔 [HOOK] Initializing notifications, token present:', !!token);
         if (token) {
           console.log('🔔 [HOOK] Connecting to notification service...');
@@ -82,7 +82,7 @@ export function useNotifications() {
   // Reconnect when token changes
   useEffect(() => {
     const handleStorageChange = () => {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('accessToken');
       if (token && !isConnected) {
         notificationService.connect(token);
         setIsConnected(true);

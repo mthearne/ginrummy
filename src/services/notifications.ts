@@ -154,7 +154,7 @@ export class NotificationService {
       
       setTimeout(() => {
         // Get token from localStorage or wherever it's stored
-        const token = localStorage.getItem('access_token');
+        const token = localStorage.getItem('accessToken');
         if (token) {
           this.connect(token);
         }
