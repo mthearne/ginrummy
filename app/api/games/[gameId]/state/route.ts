@@ -94,6 +94,12 @@ export async function GET(
         initialState.players[0].username = game.player1!.username;
         initialState.players[1].username = 'AI Opponent';
         
+        // Process initial AI moves for new games (AI gets first upcard decision)
+        if (initialState.currentPlayerId === 'ai-player' && initialState.phase === 'upcard_decision') {
+          console.log('Processing initial AI upcard decision');
+          await processInitialAIMoves(gameEngine);
+        }
+        
         // Cache the game engine in persistent storage (with fallback)
         try {
           await persistentGameCache.set(gameId, gameEngine);
@@ -184,5 +190,34 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+/**
+ * Process initial AI moves when a new game is created (upcard decision only)
+ */
+async function processInitialAIMoves(gameEngine: any): Promise<void> {
+  const currentState = gameEngine.getState();
+  
+  if (currentState.currentPlayerId !== 'ai-player' || currentState.phase !== 'upcard_decision') {
+    return; // Not AI's turn or not upcard decision phase
+  }
+  
+  console.log('AI making initial upcard decision');
+  const aiMove = gameEngine.getAISuggestion();
+  
+  if (!aiMove) {
+    console.log('No AI move available for upcard decision phase');
+    return;
+  }
+  
+  console.log('AI making initial move:', aiMove.type);
+  const moveResult = gameEngine.makeMove(aiMove);
+  
+  if (!moveResult.success) {
+    console.error('AI initial move failed:', moveResult.error);
+    return;
+  }
+  
+  console.log('AI initial move successful, new phase:', moveResult.state.phase, 'next player:', moveResult.state.currentPlayerId);
 }
 
