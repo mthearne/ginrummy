@@ -159,6 +159,9 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Exclude PvE games from public lobby - they should only appear in "My Games"
+    where.vsAI = false;
+
     // Get games from database
     const [games, total] = await Promise.all([
       prisma.game.findMany({

@@ -458,7 +458,6 @@ export default function Game() {
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-600">Phase: {getPhaseDisplayText(gameState.phase || GamePhase.Draw)}</div>
-              <div className="text-sm text-gray-600">Timer: {gameState.turnTimer}s</div>
               <div className="text-sm font-medium text-gray-800">
                 Match Score: You {myPlayer?.score || 0} - {opponent?.score || 0} {opponent?.username || "AI"}
                 {gameState.roundScores && (
