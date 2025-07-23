@@ -3,6 +3,14 @@ import { verifyAccessToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/database';
 import { z } from 'zod';
 
+// Add CORS headers to all responses
+function addCorsHeaders(response: NextResponse) {
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return response;
+}
+
 const CreateGameSchema = z.object({
   vsAI: z.boolean().optional().default(false),
   isPrivate: z.boolean().optional().default(false),
@@ -77,11 +85,12 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: 'Game created successfully',
       id: game.id,
       game
     });
+    return addCorsHeaders(response);
 
   } catch (error) {
     console.error('Create game error details:', {
@@ -212,4 +221,16 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }
