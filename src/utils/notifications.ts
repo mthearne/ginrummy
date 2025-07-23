@@ -18,6 +18,8 @@ export interface NotificationData {
 
 export async function createNotification(notificationData: NotificationData) {
   try {
+    console.log('🔔 [SERVER] Creating notification for user:', notificationData.userId, 'type:', notificationData.type);
+    
     // Save notification to database
     const notification = await prisma.notification.create({
       data: {
@@ -30,7 +32,10 @@ export async function createNotification(notificationData: NotificationData) {
       }
     });
 
+    console.log('🔔 [SERVER] Notification saved to database:', notification.id);
+
     // Send to active SSE connections
+    console.log('🔔 [SERVER] Sending SSE notification to user:', notificationData.userId);
     await sendSSENotification(notificationData.userId, {
       id: notification.id,
       type: notification.type,
@@ -41,24 +46,28 @@ export async function createNotification(notificationData: NotificationData) {
       read: notification.read
     });
 
+    console.log('🔔 [SERVER] Notification creation completed successfully');
     return notification;
   } catch (error) {
-    console.error('Failed to create notification:', error);
+    console.error('🔔 [SERVER] Failed to create notification:', error);
     throw error;
   }
 }
 
 async function sendSSENotification(userId: string, data: any) {
   try {
+    console.log('🔔 [SERVER] Looking for SSE function to send notification...');
     // Use the global function set by the SSE route
     const sendNotificationToUser = (global as any).sendNotificationToUser;
     if (sendNotificationToUser) {
+      console.log('🔔 [SERVER] SSE function found, sending notification to user:', userId);
       sendNotificationToUser(userId, data);
+      console.log('🔔 [SERVER] SSE notification sent successfully');
     } else {
-      console.warn('SSE notification function not available - SSE route may not be initialized');
+      console.warn('🔔 [SERVER] SSE notification function not available - SSE route may not be initialized');
     }
   } catch (error) {
-    console.error('Failed to send SSE notification:', error);
+    console.error('🔔 [SERVER] Failed to send SSE notification:', error);
   }
 }
 

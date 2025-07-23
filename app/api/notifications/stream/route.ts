@@ -105,21 +105,23 @@ export async function GET(request: NextRequest) {
 
 // Function to send notifications to connected users (used internally)
 function sendNotificationToUser(userId: string, data: any) {
+  console.log('🔔 [SSE GLOBAL] Attempting to send notification to user:', userId);
+  console.log('🔔 [SSE GLOBAL] Active connections:', Array.from(connections.keys()));
   const connection = connections.get(userId);
   if (connection) {
     try {
       const encoder = new TextEncoder();
       const message = `data: ${JSON.stringify(data)}\n\n`;
       connection.controller.enqueue(encoder.encode(message));
-      console.log(`Sent SSE notification to user ${userId}:`, data);
+      console.log(`🔔 [SSE GLOBAL] Sent SSE notification to user ${userId}:`, data);
       return true;
     } catch (error) {
-      console.log(`Failed to send SSE notification to user ${userId}, removing connection:`, error);
+      console.log(`🔔 [SSE GLOBAL] Failed to send SSE notification to user ${userId}, removing connection:`, error);
       connection.cleanup();
       return false;
     }
   }
-  console.log(`No active SSE connection found for user ${userId}`);
+  console.log(`🔔 [SSE GLOBAL] No active SSE connection found for user ${userId}`);
   return false;
 }
 
