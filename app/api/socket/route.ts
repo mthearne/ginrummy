@@ -3,6 +3,7 @@ import { Server as NetServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { verifyAccessToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/database';
+import { setSocketInstance } from '../../../src/utils/socket';
 
 // Global socket.io instance
 let io: SocketIOServer;
@@ -57,9 +58,15 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Set global instance for use in other routes
+    setSocketInstance(io);
+
     // Connection handler
     io.on('connection', (socket) => {
       console.log(`User ${socket.data.user.username} connected`);
+      
+      // Join user's personal room for notifications
+      socket.join(`user:${socket.data.user.id}`);
 
       // Join game room
       socket.on('join-game', async (gameId) => {
