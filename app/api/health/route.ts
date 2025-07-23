@@ -28,7 +28,7 @@ export async function GET() {
       environment: process.env.NODE_ENV,
       hasJwtSecret: !!process.env.JWT_SECRET,
       hasDatabaseUrl: !!process.env.DATABASE_URL,
-      ...(databaseError && { databaseError })
+      ...(databaseError ? { databaseError } : {})
     });
   } catch (error) {
     console.error('Health check error:', error);
