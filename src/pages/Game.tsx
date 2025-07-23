@@ -5,6 +5,8 @@ import { useAuthStore } from '../store/auth';
 import { useSocket } from '../services/socket';
 import { Card as CardComponent } from '../components/ui/Card';
 import { FriendInvitation } from '../components/FriendInvitation';
+import Confetti from '../components/ui/Confetti';
+import FlyingAnimal from '../components/ui/FlyingAnimal';
 import { MoveType, GamePhase, Card, Meld } from '@gin-rummy/common';
 
 export default function Game() {
@@ -35,6 +37,8 @@ export default function Game() {
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [handOrder, setHandOrder] = useState<string[]>([]);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showFlyingAnimal, setShowFlyingAnimal] = useState(false);
 
   useEffect(() => {
     console.log(`[NAV DEBUG] Game page effect - gameId: ${gameId}, user: ${user?.username}`);
@@ -105,18 +109,37 @@ export default function Game() {
     }
   }, [gameState?.currentPlayerId, gameState?.phase, gameState?.vsAI]);
 
-  // Track phase changes to show AI actions
+  // Track phase changes to show AI actions and celebrations
   useEffect(() => {
-    if (gameState && lastGamePhase && gameState.phase !== lastGamePhase && gameState.vsAI) {
-      const currentPlayer = gameState.players?.find(p => p.id === gameState.currentPlayerId);
-      if (currentPlayer && currentPlayer.id !== user?.id) {
-        // AI just made a move that changed the phase
-        if (lastGamePhase === 'draw' && gameState.phase === 'discard') {
-          setAiStatus('AI drew a card');
-          setTimeout(() => setAiStatus(null), 1500);
-        } else if (lastGamePhase === 'discard' && gameState.phase === 'draw') {
-          setAiStatus('AI discarded a card');
-          setTimeout(() => setAiStatus(null), 1500);
+    if (gameState && lastGamePhase && gameState.phase !== lastGamePhase) {
+      // Trigger celebrations for round completion
+      if (gameState.phase === 'round_over' && lastGamePhase !== 'round_over') {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
+      
+      // Trigger celebrations for game completion
+      if (gameState.phase === 'game_over' && lastGamePhase !== 'game_over') {
+        setShowConfetti(true);
+        setShowFlyingAnimal(true);
+        setTimeout(() => {
+          setShowConfetti(false);
+          setShowFlyingAnimal(false);
+        }, 4000);
+      }
+
+      // AI status tracking for PvE games
+      if (gameState.vsAI) {
+        const currentPlayer = gameState.players?.find(p => p.id === gameState.currentPlayerId);
+        if (currentPlayer && currentPlayer.id !== user?.id) {
+          // AI just made a move that changed the phase
+          if (lastGamePhase === 'draw' && gameState.phase === 'discard') {
+            setAiStatus('AI drew a card');
+            setTimeout(() => setAiStatus(null), 1500);
+          } else if (lastGamePhase === 'discard' && gameState.phase === 'draw') {
+            setAiStatus('AI discarded a card');
+            setTimeout(() => setAiStatus(null), 1500);
+          }
         }
       }
     }
@@ -524,7 +547,47 @@ export default function Game() {
 
             {/* Center Area */}
             <div className="bg-white rounded-lg p-4">
-              {gameState.phase === 'round_over' ? (
+              {gameState.phase === 'game_over' ? (
+                /* Game Over - Show Congratulations */
+                <div className="text-center relative">
+                  <div className="text-6xl mb-4">🎉</div>
+                  <h2 className="text-3xl font-bold mb-6 text-purple-600">
+                    Congratulations!
+                  </h2>
+                  <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-6 mb-6 shadow-lg">
+                    <h3 className="text-xl font-semibold mb-4">
+                      {gameState.winner === user?.id ? '🏆 You Won!' : '🥈 Good Game!'}
+                    </h3>
+                    <div className="text-lg space-y-2">
+                      <div className={gameState.winner === user?.id ? 'text-green-600 font-bold' : 'text-gray-700'}>
+                        <strong>You:</strong> {myPlayer?.score || 0} points
+                      </div>
+                      <div className={gameState.winner !== user?.id ? 'text-green-600 font-bold' : 'text-gray-700'}>
+                        <strong>{opponent?.username || 'Opponent'}:</strong> {opponent?.score || 0} points
+                      </div>
+                    </div>
+                    {gameState.roundScores && (
+                      <div className="mt-4 pt-4 border-t border-purple-200">
+                        <h4 className="font-medium mb-2 text-sm">Final Round:</h4>
+                        <div className="text-sm space-y-1">
+                          <div>
+                            <strong>You:</strong> +{gameState.roundScores[user?.id || ''] || 0} points
+                          </div>
+                          <div>
+                            <strong>{opponent?.username || 'Opponent'}:</strong> +{gameState.roundScores[opponent?.id || ''] || 0} points
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => router.push('/lobby')}
+                    className="btn btn-primary bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-lg font-semibold rounded-lg shadow-lg"
+                  >
+                    Return to Lobby
+                  </button>
+                </div>
+              ) : gameState.phase === 'round_over' ? (
                 /* Round Over - Show Results */
                 <div className="text-center">
                   <h3 className="text-lg font-semibold mb-4 text-green-600">
@@ -798,6 +861,10 @@ export default function Game() {
           </div>
         </div>
       </div>
+      
+      {/* Celebration Effects */}
+      <Confetti active={showConfetti} duration={3000} />
+      <FlyingAnimal active={showFlyingAnimal} duration={3000} />
     </div>
   );
 }
