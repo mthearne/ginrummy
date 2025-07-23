@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if invitation already exists
+    // Check if invitation already exists and handle expired ones
     const existingInvitation = await prisma.gameInvitation.findFirst({
       where: {
         gameId,
@@ -202,10 +202,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingInvitation) {
-      return NextResponse.json(
-        { error: 'Invitation already sent to this user' },
-        { status: 400 }
-      );
+      // Check if the existing invitation has expired
+      if (existingInvitation.expiresAt < new Date()) {
+        // Mark expired invitation as expired and allow new one
+        await prisma.gameInvitation.update({
+          where: { id: existingInvitation.id },
+          data: { status: 'EXPIRED' }
+        });
+      } else {
+        // Invitation is still valid
+        const timeLeft = Math.ceil((existingInvitation.expiresAt.getTime() - Date.now()) / 1000 / 60);
+        return NextResponse.json(
+          { error: `Invitation already sent to this user. It will expire in ${timeLeft} minute(s).` },
+          { status: 400 }
+        );
+      }
     }
 
     // Create invitation (expires in 10 minutes)
