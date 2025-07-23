@@ -12,17 +12,18 @@ export function isValidMove(
   discardPile: Card[],
   vsAI?: boolean
 ): { valid: boolean; error?: string } {
-  // Special handling for StartNewRound - different rules for PvE vs PvP
-  if (move.type === MoveType.StartNewRound) {
-    return validateStartNewRound(currentPhase, move.playerId, currentPlayerId, vsAI);
-  }
+  try {
+    // Special handling for StartNewRound - different rules for PvE vs PvP
+    if (move.type === MoveType.StartNewRound) {
+      return validateStartNewRound(currentPhase, move.playerId, currentPlayerId, vsAI);
+    }
 
-  // Check if it's the player's turn for all other move types
-  if (move.playerId !== currentPlayerId) {
-    return { valid: false, error: 'Not your turn' };
-  }
+    // Check if it's the player's turn for all other move types
+    if (move.playerId !== currentPlayerId) {
+      return { valid: false, error: 'Not your turn' };
+    }
 
-  switch (move.type) {
+    switch (move.type) {
     case MoveType.TakeUpcard:
       return validateTakeUpcard(currentPhase, discardPile);
     
@@ -46,6 +47,10 @@ export function isValidMove(
     
     default:
       return { valid: false, error: 'Invalid move type' };
+    }
+  } catch (error) {
+    console.error('Error in move validation:', error);
+    return { valid: false, error: 'Validation error occurred' };
   }
 }
 
@@ -191,13 +196,13 @@ function validateStartNewRound(
   }
   
   // In PvE games, only the human player can start new rounds
-  if (vsAI) {
+  if (vsAI === true) {
     // The human player should always be able to start new rounds in PvE
-    // We don't check currentPlayerId for PvE games
+    // We don't check currentPlayerId for PvE games since AI should never start rounds
     return { valid: true };
   }
   
-  // In PvP games, either player can start a new round
+  // In PvP games (or when vsAI is undefined/false), either player can start a new round
   // We don't need to check whose turn it is since both should be able to start
   return { valid: true };
 }
