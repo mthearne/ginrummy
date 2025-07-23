@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Export function to send notifications to connected users
-export function sendNotificationToUser(userId: string, data: any) {
+// Function to send notifications to connected users (used internally)
+function sendNotificationToUser(userId: string, data: any) {
   const connection = connections.get(userId);
   if (connection) {
     try {
@@ -122,3 +122,6 @@ export function sendNotificationToUser(userId: string, data: any) {
   console.log(`No active SSE connection found for user ${userId}`);
   return false;
 }
+
+// Make the function available globally for other modules
+(global as any).sendNotificationToUser = sendNotificationToUser;

@@ -43,9 +43,13 @@ export async function createNotification(notificationData: NotificationData) {
 
 async function sendSSENotification(userId: string, data: any) {
   try {
-    // Import the SSE sender function
-    const { sendNotificationToUser } = await import('../../app/api/notifications/stream/route');
-    sendNotificationToUser(userId, data);
+    // Use the global function set by the SSE route
+    const sendNotificationToUser = (global as any).sendNotificationToUser;
+    if (sendNotificationToUser) {
+      sendNotificationToUser(userId, data);
+    } else {
+      console.warn('SSE notification function not available - SSE route may not be initialized');
+    }
   } catch (error) {
     console.error('Failed to send SSE notification:', error);
   }
