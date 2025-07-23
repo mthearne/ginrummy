@@ -260,8 +260,10 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Create notification for receiver - temporarily expose errors for debugging
-    console.log('🔔 [INVITE] Attempting to create notification for user:', receiver.id);
+    // TODO: Fix notification creation - temporarily disabled to test invitation flow
+    console.log('🔔 [INVITE] Skipping notification creation for debugging - invitation should succeed');
+    
+    /* DISABLED FOR DEBUGGING:
     try {
       await createNotification({
         userId: receiver.id,
@@ -279,9 +281,9 @@ export async function POST(request: NextRequest) {
       console.log('🔔 [INVITE] Notification created successfully');
     } catch (notificationError) {
       console.error('🔔 [INVITE] NOTIFICATION CREATION FAILED:', notificationError);
-      // For debugging: throw the error to see it in the response
       throw new Error(`Notification creation failed: ${notificationError.message}`);
     }
+    */
 
     return NextResponse.json({
       message: 'Game invitation sent successfully',
