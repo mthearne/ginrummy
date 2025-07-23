@@ -7,11 +7,6 @@ import { prisma } from '../../../src/utils/database';
 // Global socket.io instance
 let io: SocketIOServer;
 
-// Export the socket instance for use in other API routes
-export function getSocketIO(): SocketIOServer | null {
-  return io || null;
-}
-
 export async function GET(req: NextRequest) {
   if (!io) {
     console.log('Initializing Socket.io server...');
