@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('POST /api/invitations - Start');
     // Get token from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -126,8 +127,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
+    console.log('Parsing request body...');
     const body = await request.json();
     const { gameId, receiverUsername, message } = body;
+    console.log('Request data:', { gameId, receiverUsername, hasMessage: !!message });
 
     if (!gameId || !receiverUsername) {
       return NextResponse.json(
@@ -137,10 +140,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Find receiver by username
+    console.log('Finding receiver by username:', receiverUsername);
     const receiver = await prisma.user.findUnique({
       where: { username: receiverUsername },
       select: { id: true, username: true }
     });
+    console.log('Receiver found:', receiver ? { id: receiver.id, username: receiver.username } : 'null');
 
     if (!receiver) {
       return NextResponse.json(
@@ -220,6 +225,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create invitation (expires in 10 minutes)
+    console.log('Creating invitation...');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     
     const invitation = await prisma.gameInvitation.create({
@@ -255,19 +261,26 @@ export async function POST(request: NextRequest) {
     });
 
     // Create notification for receiver
-    await createNotification({
-      userId: receiver.id,
-      type: 'GAME_INVITATION',
-      title: `Game Invitation from ${invitation.sender.username}`,
-      message: invitation.message || `${invitation.sender.username} invited you to join a Gin Rummy game!`,
-      data: {
-        invitationId: invitation.id,
-        gameId: invitation.gameId,
-        senderUsername: invitation.sender.username,
-        senderId: invitation.sender.id
-      },
-      expiresAt: invitation.expiresAt
-    });
+    try {
+      console.log('Attempting to create notification for user:', receiver.id);
+      await createNotification({
+        userId: receiver.id,
+        type: 'GAME_INVITATION',
+        title: `Game Invitation from ${invitation.sender.username}`,
+        message: invitation.message || `${invitation.sender.username} invited you to join a Gin Rummy game!`,
+        data: {
+          invitationId: invitation.id,
+          gameId: invitation.gameId,
+          senderUsername: invitation.sender.username,
+          senderId: invitation.sender.id
+        },
+        expiresAt: invitation.expiresAt
+      });
+      console.log('Notification created successfully');
+    } catch (notificationError) {
+      console.error('Failed to create notification:', notificationError);
+      // Continue without notification - the invitation was still created
+    }
 
     return NextResponse.json({
       message: 'Game invitation sent successfully',
