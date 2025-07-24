@@ -251,6 +251,12 @@ class SocketService {
         useGameStore.getState().setGameState(data.gameState);
         useGameStore.getState().setConnected(true);
         console.log('Game state loaded via REST API:', data.gameState);
+        
+        // If loading a state where it's AI's turn, start polling for AI completion
+        if (data.gameState.vsAI && data.gameState.currentPlayerId === 'ai-player') {
+          console.log('AI turn detected on state load, starting polling');
+          this.pollForAICompletion(gameId);
+        }
       } else if (data.waitingState) {
         useGameStore.getState().setWaitingState(data.waitingState);
         useGameStore.getState().setConnected(true);
