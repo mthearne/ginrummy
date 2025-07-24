@@ -328,6 +328,19 @@ class SocketService {
           currentPlayerId: data.gameState.currentPlayerId,
           gameId: data.gameState.id
         });
+        
+        // Log AI processing debug info
+        if (data.debug) {
+          console.log('🤖 AI Processing Debug:', data.debug);
+          if (data.debug.aiProcessingTriggered) {
+            console.log('✅ AI processing was triggered');
+            console.log('Pre-AI state:', data.debug.preAIState);
+            console.log('Post-AI state:', data.debug.postAIState);
+          } else {
+            console.log('❌ AI processing was NOT triggered');
+          }
+        }
+        
         useGameStore.getState().setGameState(data.gameState);
         console.log('Move successful, new state:', data.gameState);
         

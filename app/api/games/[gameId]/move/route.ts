@@ -171,27 +171,6 @@ export async function POST(
       console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
       console.log('Turn state after move:', gameEngine.getTurnState());
 
-      // Save final game state
-      const finalGameState = gameEngine.getState();
-      console.log('\n=== SAVING FINAL STATE ===');
-      console.log('Final state - Phase:', finalGameState.phase, 'Current player:', finalGameState.currentPlayerId);
-      console.log('Game over:', finalGameState.gameOver);
-      
-      try {
-        await persistentGameCache.set(gameId, gameEngine);
-        console.log('Game state saved to persistent cache successfully');
-      } catch (error) {
-        console.log('Persistent cache save failed, using fallback cache:', error.message);
-        await fallbackGameCache.set(gameId, gameEngine);
-        console.log('Game state saved to fallback cache');
-      }
-
-      // Return response to player immediately
-      const playerResponse = NextResponse.json({
-        success: true,
-        gameState: gameEngine.getState()
-      });
-
       // Process AI moves synchronously using new atomic system
       const currentState = gameEngine.getState();
       if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
@@ -232,7 +211,40 @@ export async function POST(
       
       console.log('=== ATOMIC MOVE PROCESSING END ===\n');
 
-      return playerResponse;
+      // Save final game state after all processing (including AI moves)
+      const finalGameState = gameEngine.getState();
+      console.log('\n=== SAVING FINAL STATE ===');
+      console.log('Final state - Phase:', finalGameState.phase, 'Current player:', finalGameState.currentPlayerId);
+      console.log('Game over:', finalGameState.gameOver);
+      
+      try {
+        await persistentGameCache.set(gameId, gameEngine);
+        console.log('Game state saved to persistent cache successfully');
+      } catch (error) {
+        console.log('Persistent cache save failed, using fallback cache:', error.message);
+        await fallbackGameCache.set(gameId, gameEngine);
+        console.log('Game state saved to fallback cache');
+      }
+
+      // Return final response with complete game state and AI processing info
+      const finalGameState = gameEngine.getState();
+      return NextResponse.json({
+        success: true,
+        gameState: finalGameState,
+        debug: {
+          aiProcessingTriggered: currentState.currentPlayerId === 'ai-player' && !currentState.gameOver,
+          preAIState: {
+            currentPlayerId: currentState.currentPlayerId,
+            phase: currentState.phase,
+            gameOver: currentState.gameOver
+          },
+          postAIState: {
+            currentPlayerId: finalGameState.currentPlayerId,
+            phase: finalGameState.phase,
+            gameOver: finalGameState.gameOver
+          }
+        }
+      });
     }
 
     // For PvP games, this would need different handling
