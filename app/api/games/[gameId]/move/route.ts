@@ -92,7 +92,9 @@ export async function POST(
       // Make the player's move
       console.log('Processing player move:', move.type, 'by player:', decoded.userId);
       console.log('Current game state - Phase:', gameEngine.getState().phase, 'Current player:', gameEngine.getState().currentPlayerId);
-      console.log('Move validation - Move player:', move.playerId, 'Current player:', gameEngine.getState().currentPlayerId, 'Match:', move.playerId === gameEngine.getState().currentPlayerId);
+      const backendState = gameEngine.getState();
+      console.log('Move validation - Move player:', move.playerId, 'Backend current player:', backendState.currentPlayerId, 'Match:', move.playerId === backendState.currentPlayerId);
+      console.log('Backend game state details - Phase:', backendState.phase, 'Game ID:', backendState.id, 'Players:', backendState.players?.map(p => p.id));
       
       const moveResult = gameEngine.makeMove(move);
       
