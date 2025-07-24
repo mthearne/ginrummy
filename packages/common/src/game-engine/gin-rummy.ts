@@ -178,16 +178,36 @@ export class GinRummyGame {
    * Process AI moves synchronously
    */
   public processAIMoves(): MoveResult[] {
+    console.log('\n=== AI MOVE PROCESSING START ===');
     const results: MoveResult[] = [];
     
     while (this.shouldProcessAIMoves()) {
-      const aiMove = this.getAISuggestion();
-      if (!aiMove) break;
+      console.log(`AI move attempt ${results.length + 1}`);
+      console.log('Should process AI moves:', this.shouldProcessAIMoves());
+      console.log('Current player:', this.state.currentPlayerId);
+      console.log('Current phase:', this.state.phase);
       
+      const aiMove = this.getAISuggestion();
+      if (!aiMove) {
+        console.log('No AI move suggestion available, breaking chain');
+        break;
+      }
+      
+      console.log('Executing AI move:', aiMove.type);
       const result = this.executeAtomicMove(aiMove);
       results.push(result);
       
-      if (!result.success) break;
+      console.log('AI move result:', result.success ? 'SUCCESS' : 'FAILED');
+      if (result.error) console.log('AI move error:', result.error);
+      if (result.stateChanges) console.log('State changes:', result.stateChanges);
+      
+      if (!result.success) {
+        console.log('AI move failed, breaking chain');
+        break;
+      }
+      
+      // Log state after move
+      console.log('After AI move - Phase:', this.state.phase, 'Current player:', this.state.currentPlayerId);
       
       // Prevent infinite loops
       if (results.length >= 5) {
@@ -196,6 +216,7 @@ export class GinRummyGame {
       }
     }
     
+    console.log('=== AI MOVE PROCESSING END ===\n');
     return results;
   }
 
@@ -670,11 +691,20 @@ export class GinRummyGame {
    * Check if AI moves should be processed
    */
   private shouldProcessAIMoves(): boolean {
-    return this.state.vsAI && 
+    const should = this.state.vsAI && 
            this.state.currentPlayerId === 'ai-player' && 
            !this.state.gameOver &&
            this.state.phase !== GamePhase.GameOver &&
            this.state.phase !== GamePhase.RoundOver;
+           
+    console.log('Should process AI moves check:');
+    console.log('- vsAI:', this.state.vsAI);
+    console.log('- currentPlayerId:', this.state.currentPlayerId);
+    console.log('- gameOver:', this.state.gameOver);
+    console.log('- phase:', this.state.phase);
+    console.log('- result:', should);
+    
+    return should;
   }
 
   /**
@@ -798,12 +828,20 @@ export class GinRummyGame {
   public getAISuggestion(): GameMove | null {
     const aiPlayerState = this.state.players.find(p => p.id === 'ai-player');
     if (!aiPlayerState || this.state.currentPlayerId !== aiPlayerState.id || !this.aiPlayer) {
+      console.log('AI suggestion failed: no AI player or not AI turn');
       return null;
     }
 
     if (this.state.gameOver || this.state.phase === GamePhase.GameOver) {
+      console.log('AI suggestion failed: game is over');
       return null;
     }
+    
+    console.log(`\n=== AI SUGGESTION REQUEST ===`);
+    console.log('AI hand size:', aiPlayerState.hand.length);
+    console.log('Current phase:', this.state.phase);
+    console.log('Stock count:', this.state.stockPileCount);
+    console.log('Discard pile size:', this.state.discardPile.length);
 
     try {
       // Handle upcard decision phase
@@ -864,6 +902,9 @@ export class GinRummyGame {
         // Add gameId to the move
         if (aiMove) {
           aiMove.gameId = this.state.id;
+          console.log('AI move generated:', aiMove.type, 'for phase:', actualPhase);
+        } else {
+          console.log('AI move generation failed - no move returned');
         }
         
         return aiMove;
