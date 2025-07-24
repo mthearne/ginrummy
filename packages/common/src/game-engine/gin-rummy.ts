@@ -307,6 +307,9 @@ export class GinRummyGame {
     
     // Update melds and deadwood for all players
     this.updateAllPlayersState();
+    
+    // Sync turn state after phase change
+    this.syncTurnState();
 
     return { success: true, state: this.state };
   }
@@ -319,11 +322,13 @@ export class GinRummyGame {
     if (playerId === player2Id) {
       // Non-dealer passed, now dealer can decide
       this.state.currentPlayerId = player1Id;
+      this.syncTurnState();
       return { success: true, state: this.state };
     } else {
       // Dealer also passed, non-dealer starts drawing from stock
       this.state.currentPlayerId = player2Id;
       this.state.phase = GamePhase.Draw;
+      this.syncTurnState();
       return { success: true, state: this.state };
     }
   }
@@ -337,6 +342,7 @@ export class GinRummyGame {
     if (this.deck.length <= 2) {
       this.state.phase = GamePhase.GameOver;
       this.state.gameOver = true;
+      this.syncTurnState();
       return { success: true, state: this.state };
     }
 
@@ -352,6 +358,9 @@ export class GinRummyGame {
     
     // Update melds and deadwood for all players
     this.updateAllPlayersState();
+    
+    // Sync turn state after phase change
+    this.syncTurnState();
 
     return { success: true, state: this.state };
   }
@@ -372,6 +381,9 @@ export class GinRummyGame {
     
     // Update melds and deadwood for all players
     this.updateAllPlayersState();
+    
+    // Sync turn state after phase change
+    this.syncTurnState();
 
     return { success: true, state: this.state };
   }
@@ -833,9 +845,18 @@ export class GinRummyGame {
       
       // For draw and discard phases, use the AIPlayer's sophisticated logic
       if (this.state.phase === GamePhase.Draw || this.state.phase === GamePhase.Discard) {
+        // Defensive check: if AI has 11 cards but phase is Draw, it should be Discard
+        let actualPhase = this.state.phase;
+        if (this.state.phase === GamePhase.Draw && aiPlayerState.hand.length === 11) {
+          console.warn('AI has 11 cards but phase is Draw, correcting to Discard phase');
+          actualPhase = GamePhase.Discard;
+          this.state.phase = GamePhase.Discard;
+          this.syncTurnState();
+        }
+        
         const aiMove = this.aiPlayer.getMove(
           aiPlayerState.hand,
-          this.state.phase,
+          actualPhase,
           this.state.discardPile,
           this.state.stockPileCount
         );
@@ -858,12 +879,22 @@ export class GinRummyGame {
           gameId: this.state.id,
         };
       } else if (this.state.phase === GamePhase.Draw) {
-        return {
-          type: MoveType.DrawStock,
-          playerId: aiPlayerState.id,
-          gameId: this.state.id,
-        };
-      } else if (this.state.phase === GamePhase.Discard && aiPlayerState.hand.length > 10) {
+        // Check if AI already has 11 cards (should be discarding)
+        if (aiPlayerState.hand.length > 10) {
+          console.warn('Fallback: AI has 11+ cards but phase is Draw, switching to discard');
+          this.state.phase = GamePhase.Discard;
+          this.syncTurnState();
+          // Fall through to discard logic
+        } else {
+          return {
+            type: MoveType.DrawStock,
+            playerId: aiPlayerState.id,
+            gameId: this.state.id,
+          };
+        }
+      }
+      
+      if (this.state.phase === GamePhase.Discard && aiPlayerState.hand.length > 10) {
         // Discard a high deadwood card as fallback
         const optimal = findOptimalMelds(aiPlayerState.hand);
         const nonMeldedCards = aiPlayerState.hand.filter(card =>
