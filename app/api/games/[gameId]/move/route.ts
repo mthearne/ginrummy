@@ -227,7 +227,6 @@ export async function POST(
       }
 
       // Return final response with complete game state and AI processing info
-      const finalGameState = gameEngine.getState();
       return NextResponse.json({
         success: true,
         gameState: finalGameState,
