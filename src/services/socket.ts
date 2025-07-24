@@ -325,7 +325,10 @@ class SocketService {
         
         // If this is an AI game and it's now AI's turn, start polling for AI completion
         if (data.gameState.vsAI && data.gameState.currentPlayerId === 'ai-player' && move.gameId) {
+          console.log('Starting AI completion polling after move. Current player:', data.gameState.currentPlayerId, 'Phase:', data.gameState.phase);
           this.pollForAICompletion(move.gameId);
+        } else {
+          console.log('Not starting AI polling. vsAI:', data.gameState.vsAI, 'currentPlayer:', data.gameState.currentPlayerId, 'gameId:', move.gameId);
         }
       }
 

@@ -99,7 +99,7 @@ export async function POST(
         );
       }
 
-      console.log('Player move successful, new phase:', moveResult.state.phase);
+      console.log('Player move successful, new phase:', moveResult.state.phase, 'current player:', moveResult.state.currentPlayerId);
 
       // Save player's move immediately
       try {
@@ -115,10 +115,16 @@ export async function POST(
         gameState: gameEngine.getState()
       });
 
-      // Process AI response moves asynchronously (don't await)
-      processAIResponseMovesAsync(gameId, gameEngine).catch(error => {
-        console.error('Background AI processing error:', error);
-      });
+      // Process AI response moves asynchronously only if it's now AI's turn
+      const currentState = gameEngine.getState();
+      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
+        console.log('AI turn detected after player move, starting background AI processing');
+        processAIResponseMovesAsync(gameId, gameEngine).catch(error => {
+          console.error('Background AI processing error:', error);
+        });
+      } else {
+        console.log('Not AI turn after player move. Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
+      }
 
       return playerResponse;
     }
