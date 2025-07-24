@@ -17,62 +17,23 @@ export class NotificationService {
   private reconnectDelay = 1000; // Start with 1 second
   private listeners: Array<(notification: Notification) => void> = [];
 
-  // Start SSE connection
+  // Start notification polling (SSE disabled for Vercel compatibility)
   connect(token: string) {
-    if (this.eventSource) {
-      this.disconnect();
-    }
-
-    console.log('🔔 [SSE] Connecting to SSE notification stream...');
-    console.log('🔔 [SSE] Token present:', !!token);
-    console.log('🔔 [SSE] SSE URL:', `/api/notifications/stream?token=${token ? '[REDACTED]' : 'MISSING'}`);
+    console.log('🔔 [POLLING] Starting notification polling (SSE disabled for serverless compatibility)');
     
-    try {
-      // Create EventSource with token as query parameter (since EventSource doesn't support custom headers)
-      this.eventSource = new EventSource(`/api/notifications/stream?token=${encodeURIComponent(token)}`);
-
-      this.eventSource.onopen = () => {
-        console.log('🔔 [SSE] Connection established successfully');
-        this.reconnectAttempts = 0;
-        this.reconnectDelay = 1000; // Reset delay on successful connection
-      };
-
-      this.eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Handle different message types
-          if (data.type === 'connected') {
-            console.log('🔔 [SSE] Connection confirmed:', data.message);
-          } else if (data.type === 'ping') {
-            // Keep-alive ping, no action needed
-            console.log('🔔 [SSE] Keep-alive ping received');
-          } else {
-            // It's a notification
-            console.log('🔔 [SSE] Received notification:', data);
-            this.handleNotification(data);
-          }
-        } catch (error) {
-          console.error('Failed to parse SSE message:', error, event.data);
-        }
-      };
-
-      this.eventSource.onerror = (error) => {
-        console.error('🔔 [SSE] Connection error:', error);
-        console.error('🔔 [SSE] EventSource readyState:', this.eventSource?.readyState);
-        this.handleConnectionError();
-      };
-
-    } catch (error) {
-      console.error('🔔 [SSE] Failed to create SSE connection:', error);
-      this.handleConnectionError();
-    }
+    // Note: SSE is disabled because it doesn't work reliably on serverless platforms like Vercel
+    // We could implement polling instead, but for now we'll just log the connection attempt
+    console.log('🔔 [POLLING] Notification polling would start here - currently disabled');
+    
+    // Reset reconnection state
+    this.reconnectAttempts = 0;
+    this.reconnectDelay = 1000;
   }
 
-  // Disconnect SSE
+  // Disconnect notification service
   disconnect() {
     if (this.eventSource) {
-      console.log('Disconnecting from SSE stream');
+      console.log('🔔 [POLLING] Disconnecting from notification service');
       this.eventSource.close();
       this.eventSource = null;
     }
@@ -146,25 +107,10 @@ export class NotificationService {
     }
   }
 
-  // Handle connection errors and reconnection
+  // Handle connection errors (disabled for serverless compatibility)
   private handleConnectionError() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectDelay}ms...`);
-      
-      setTimeout(() => {
-        // Get token from localStorage or wherever it's stored
-        const token = localStorage.getItem('accessToken');
-        if (token) {
-          this.connect(token);
-        }
-      }, this.reconnectDelay);
-
-      // Exponential backoff
-      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000); // Max 30 seconds
-    } else {
-      console.error('Max reconnection attempts reached. SSE connection failed.');
-    }
+    console.log('🔔 [POLLING] Connection error handling disabled for serverless compatibility');
+    // Note: Reconnection logic disabled to prevent endless retry loops in serverless environments
   }
 
   // Add notification listener

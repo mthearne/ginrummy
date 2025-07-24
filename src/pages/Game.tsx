@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useGameStore } from '../store/game';
 import { useAuthStore } from '../store/auth';
@@ -193,7 +193,7 @@ export default function Game() {
         }
       }
     }
-  }, [gameState?.players, getMyPlayer]);
+  }, [gameState?.players, handOrder.length]);
 
 
   const handleCardClick = (cardId: string) => {
@@ -392,8 +392,8 @@ export default function Game() {
     );
   }
 
-  const myPlayer = getMyPlayer();
-  const opponent = getOpponent();
+  const myPlayer = useMemo(() => getMyPlayer(), [gameState?.players, user?.id]);
+  const opponent = useMemo(() => getOpponent(), [gameState?.players, user?.id]);
   const isMyTurn = gameState.currentPlayerId === user?.id;
 
   // Helper function to get user-friendly phase text

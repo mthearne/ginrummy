@@ -108,9 +108,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const currentUser = useAuthStore.getState().user;
     if (!gameState?.players || !currentUser) return null;
     
-    const myPlayer = gameState.players.find(player => player.id === currentUser.id) || null;
-    console.log('[GAME_STORE] getMyPlayer - currentUser:', currentUser.id, 'found player:', myPlayer?.id, myPlayer?.username);
-    return myPlayer;
+    return gameState.players.find(player => player.id === currentUser.id) || null;
   },
   
   getOpponent: () => {
@@ -119,8 +117,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const currentUser = useAuthStore.getState().user;
     if (!gameState?.players || !currentUser) return null;
     
-    const opponent = gameState.players.find(player => player.id !== currentUser.id) || null;
-    console.log('[GAME_STORE] getOpponent - currentUser:', currentUser.id, 'found opponent:', opponent?.id, opponent?.username);
-    return opponent;
+    return gameState.players.find(player => player.id !== currentUser.id) || null;
   },
 }));

@@ -74,11 +74,17 @@ export async function GET(
 
     // If we found completion data, AI is done
     if (completionData) {
-      // Clean up the completion flag
+      // Clean up the completion flag from both caches
       try {
         await persistentGameCache.delete(completionKey);
       } catch (error) {
+        console.log('Failed to clean up completion flag from persistent cache:', error);
+      }
+      
+      try {
         await fallbackGameCache.delete(completionKey);
+      } catch (error) {
+        console.log('Failed to clean up completion flag from fallback cache:', error);
       }
 
       // Return the completed game state

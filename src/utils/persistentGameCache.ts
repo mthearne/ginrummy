@@ -15,6 +15,12 @@ export class PersistentGameCache {
       return this.memoryCache.get(gameId)!;
     }
 
+    // For completion keys (e.g., "gameId_ai_complete"), only check memory cache
+    if (gameId.includes('_ai_complete')) {
+      console.log(`Completion flag ${gameId} not found in memory cache`);
+      return null;
+    }
+
     // If not in memory, try to load from database
     console.log(`Game ${gameId} not in memory, loading from database`);
     try {
@@ -54,7 +60,13 @@ export class PersistentGameCache {
     // Store in memory cache
     this.memoryCache.set(gameId, gameEngine);
     
-    // Store in database (with backwards compatibility)
+    // For completion keys (e.g., "gameId_ai_complete"), only store in memory
+    if (gameId.includes('_ai_complete')) {
+      console.log(`Stored completion flag ${gameId} in memory cache only`);
+      return;
+    }
+    
+    // Store actual games in database (with backwards compatibility)
     try {
       const gameState = gameEngine.getState();
       console.log(`Saving game ${gameId} state to database`);
@@ -92,6 +104,11 @@ export class PersistentGameCache {
       return true;
     }
 
+    // For completion keys, only check memory cache
+    if (gameId.includes('_ai_complete')) {
+      return false;
+    }
+
     try {
       const game = await prisma.game.findUnique({
         where: { id: gameId },
@@ -112,7 +129,13 @@ export class PersistentGameCache {
     // Remove from memory
     const wasInMemory = this.memoryCache.delete(gameId);
 
-    // Clear stored state from database (backwards compatible)
+    // For completion keys (e.g., "gameId_ai_complete"), just remove from memory
+    if (gameId.includes('_ai_complete')) {
+      console.log(`Removed completion flag ${gameId} from memory cache`);
+      return wasInMemory;
+    }
+
+    // Clear stored state from database (backwards compatible) for actual game IDs
     try {
       await prisma.game.update({
         where: { id: gameId },
