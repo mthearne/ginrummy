@@ -392,8 +392,8 @@ export default function Game() {
     );
   }
 
-  const myPlayer = useMemo(() => getMyPlayer(), [gameState?.players, user?.id]);
-  const opponent = useMemo(() => getOpponent(), [gameState?.players, user?.id]);
+  const myPlayer = getMyPlayer();
+  const opponent = getOpponent();
   const isMyTurn = gameState.currentPlayerId === user?.id;
 
   // Helper function to get user-friendly phase text
