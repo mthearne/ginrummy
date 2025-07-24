@@ -294,6 +294,13 @@ class SocketService {
       }
 
       console.log('Making move via REST API:', move);
+      
+      // Debug: Log current game state before making move
+      const currentGameState = useGameStore.getState().gameState;
+      if (currentGameState) {
+        console.log('Frontend game state before move - Phase:', currentGameState.phase, 'Current player:', currentGameState.currentPlayerId);
+        console.log('Move validation check - Move player ID:', move.playerId, 'Current player ID:', currentGameState.currentPlayerId, 'Match:', move.playerId === currentGameState.currentPlayerId);
+      }
 
       const response = await fetch(`/api/games/${move.gameId}/move`, {
         method: 'POST',
