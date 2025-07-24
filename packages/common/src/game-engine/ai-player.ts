@@ -20,7 +20,7 @@ export class AIPlayer {
   }
 
   /**
-   * Get AI thought process for display
+   * Get AI thought process for display (without revealing strategy)
    */
   public getThoughts(
     hand: Card[],
@@ -31,51 +31,38 @@ export class AIPlayer {
     const thoughts: string[] = [];
     
     if (phase === GamePhase.Draw) {
-      thoughts.push("Analyzing my hand...");
-      
-      const currentValue = this.evaluateHand(hand);
-      const currentMelds = findOptimalMelds(hand);
-      thoughts.push(`I have ${currentMelds.melds.length} melds, ${currentMelds.deadwood} deadwood`);
+      thoughts.push("Looking at my cards...");
       
       if (discardPile.length > 0) {
         const topDiscard = discardPile[discardPile.length - 1];
-        thoughts.push(`Considering ${topDiscard.rank} of ${topDiscard.suit.toLowerCase()}...`);
+        thoughts.push(`Hmm, should I take the ${topDiscard.rank}?`);
         
-        const handWithDiscard = [...hand, topDiscard];
-        const discardValue = this.evaluateHand(handWithDiscard);
-        const improvement = discardValue - currentValue;
-        
-        if (improvement > 5) {
-          thoughts.push("This card improves my hand significantly!");
-          thoughts.push("Taking from discard pile");
+        // Don't reveal the actual evaluation
+        const shouldTake = Math.random() > 0.6; // Just for thinking variety
+        if (shouldTake) {
+          thoughts.push("That could be useful...");
+          thoughts.push("I'll take it");
         } else {
-          thoughts.push("Not worth taking. Drawing from stock");
+          thoughts.push("I'll pass on that");
+          thoughts.push("Drawing from the deck");
         }
       } else {
-        thoughts.push("Drawing from stock pile");
+        thoughts.push("Drawing from the deck");
       }
     } else if (phase === GamePhase.Discard) {
-      thoughts.push("Time to discard...");
+      thoughts.push("Which card should I discard?");
+      thoughts.push("Let me think about this...");
       
-      const optimal = findOptimalMelds(hand);
-      thoughts.push(`Current deadwood: ${optimal.deadwood}`);
+      // Generic thoughts without revealing strategy
+      const thinkingOptions = [
+        "This one doesn't fit well",
+        "I don't need this card",
+        "This seems like the right choice",
+        "Better to get rid of this one"
+      ];
       
-      if (optimal.deadwood <= 10) {
-        thoughts.push("I can knock! But let me think...");
-      }
-      
-      const nonMeldedCards = hand.filter(card =>
-        !optimal.melds.some(meld => meld.cards.some(c => c.id === card.id))
-      );
-      
-      if (nonMeldedCards.length > 0) {
-        const worstCard = nonMeldedCards.reduce((worst, card) =>
-          getCardValue(card) > getCardValue(worst) ? card : worst
-        );
-        thoughts.push(`Discarding ${worstCard.rank} of ${worstCard.suit.toLowerCase()}`);
-      } else {
-        thoughts.push("Choosing least useful card...");
-      }
+      const randomThought = thinkingOptions[Math.floor(Math.random() * thinkingOptions.length)];
+      thoughts.push(randomThought);
     }
     
     return thoughts;

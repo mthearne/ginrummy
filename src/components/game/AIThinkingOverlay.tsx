@@ -60,25 +60,25 @@ export default function AIThinkingOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-20 z-50 flex items-center justify-center pointer-events-none">
-      {/* Position over AI's cards area */}
-      <div className="absolute top-8 right-8 bg-white bg-opacity-95 backdrop-blur-sm rounded-lg shadow-lg p-4 max-w-sm border border-gray-200">
+    <div className="absolute inset-0 z-50 pointer-events-none">
+      {/* Thinking bubble positioned over AI's card area */}
+      <div className="absolute top-4 left-4 bg-white bg-opacity-95 backdrop-blur-sm rounded-lg shadow-lg p-3 max-w-xs border border-gray-200">
         <div className="flex items-center space-x-2 mb-2">
-          <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium text-gray-700">AI Thinking...</span>
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          <span className="text-xs font-medium text-gray-700">AI Thinking...</span>
         </div>
         
-        <div className="text-sm text-gray-800 min-h-[1.5rem]">
+        <div className="text-xs text-gray-800 min-h-[1rem]">
           {displayedText}
           {isTyping && <span className="animate-pulse">|</span>}
         </div>
         
         {/* Progress indicator */}
-        <div className="mt-3 flex space-x-1">
+        <div className="mt-2 flex space-x-1">
           {aiThoughts.map((_, index) => (
             <div
               key={index}
-              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+              className={`h-0.5 flex-1 rounded-full transition-colors duration-300 ${
                 index < currentThoughtIndex 
                   ? 'bg-blue-500' 
                   : index === currentThoughtIndex 
