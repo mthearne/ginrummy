@@ -119,7 +119,12 @@ export async function GET(
         }
       }
 
-      // Note: AI moves are now handled by the move endpoint to prevent race conditions
+      // Check if AI needs to move when state is loaded
+      const currentState = gameEngine.getState();
+      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
+        console.log('AI turn detected when loading state, processing AI moves');
+        await processAIMovesFromState(gameId, gameEngine);
+      }
 
       // Save updated game state after AI moves (with fallback)
       try {
@@ -219,5 +224,55 @@ async function processInitialAIMoves(gameEngine: any): Promise<void> {
   }
   
   console.log('AI initial move successful, new phase:', moveResult.state.phase, 'next player:', moveResult.state.currentPlayerId);
+}
+
+/**
+ * Process AI moves when loading state and it's AI's turn
+ */
+async function processAIMovesFromState(gameId: string, gameEngine: any): Promise<void> {
+  try {
+    console.log('Processing AI moves from state load for game:', gameId);
+    
+    let movesProcessed = 0;
+    const maxMoves = 5;
+    
+    while (movesProcessed < maxMoves) {
+      const currentState = gameEngine.getState();
+      
+      if (currentState.currentPlayerId !== 'ai-player' || currentState.gameOver) {
+        console.log('AI turn complete from state. Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
+        break;
+      }
+      
+      console.log(`Processing AI move ${movesProcessed + 1} from state for phase:`, currentState.phase);
+      
+      const aiMove = gameEngine.getAISuggestion();
+      if (!aiMove) {
+        console.log('No AI move suggestion available for phase:', currentState.phase);
+        break;
+      }
+      
+      console.log('AI making move from state:', aiMove.type);
+      const aiMoveResult = gameEngine.makeMove(aiMove);
+      
+      if (!aiMoveResult.success) {
+        console.error('AI move from state failed:', aiMoveResult.error);
+        break;
+      }
+      
+      console.log('AI move from state successful, new phase:', aiMoveResult.state.phase, 'next player:', aiMoveResult.state.currentPlayerId);
+      movesProcessed++;
+      
+      // Prevent infinite loops
+      if (movesProcessed >= maxMoves) {
+        console.log('Max AI moves reached from state, stopping');
+        break;
+      }
+    }
+    
+    console.log(`AI processed ${movesProcessed} moves from state load`);
+  } catch (error) {
+    console.error('AI processing from state failed:', error);
+  }
 }
 
