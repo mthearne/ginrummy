@@ -291,14 +291,15 @@ async function processAIMovesFromStateAsync(gameId: string, gameEngine: any): Pr
       await fallbackGameCache.set(gameId, gameEngine);
     }
     
-    // Set completion flag for polling
+    // Set completion flag for polling using fallback cache only
     const completionKey = `${gameId}_ai_complete`;
-    const completionData = { ...gameEngine.getState(), aiCompletedAt: Date.now() };
+    const completionData = gameEngine.getState();
     try {
-      await persistentGameCache.set(completionKey, completionData as any);
-    } catch (error) {
-      console.log('Failed to set AI completion flag from state:', error.message);
+      // Only use fallback cache for completion flags to avoid persistence issues
       await fallbackGameCache.set(completionKey, completionData as any);
+      console.log('AI completion flag set successfully from state for game:', gameId);
+    } catch (error) {
+      console.error('Failed to set AI completion flag from state:', error);
     }
     
   } catch (error) {

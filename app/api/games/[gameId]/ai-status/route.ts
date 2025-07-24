@@ -57,34 +57,28 @@ export async function GET(
       return NextResponse.json({ aiProcessing: false });
     }
 
-    // Check if AI processing is complete 
+    // Check if AI processing is complete - only check fallback cache for completion flags
     const completionKey = `${gameId}_ai_complete`;
     let completionData;
     
     try {
-      completionData = await persistentGameCache.get(completionKey);
+      // Only check fallback cache for completion flags
+      completionData = await fallbackGameCache.get(completionKey);
+      console.log('Completion check result:', completionData ? 'Found' : 'Not found');
     } catch (error) {
-      try {
-        completionData = await fallbackGameCache.get(completionKey);
-      } catch (fallbackError) {
-        // No completion data found, AI still processing
-        return NextResponse.json({ aiProcessing: true });
-      }
+      console.log('Error checking completion flag:', error);
+      // No completion data found, AI still processing
+      return NextResponse.json({ aiProcessing: true });
     }
 
     // If we found completion data, AI is done
     if (completionData) {
-      // Clean up the completion flag from both caches
-      try {
-        await persistentGameCache.delete(completionKey);
-      } catch (error) {
-        console.log('Failed to clean up completion flag from persistent cache:', error);
-      }
-      
+      // Clean up the completion flag from fallback cache only
       try {
         await fallbackGameCache.delete(completionKey);
+        console.log('Cleaned up completion flag for game:', gameId);
       } catch (error) {
-        console.log('Failed to clean up completion flag from fallback cache:', error);
+        console.log('Failed to clean up completion flag:', error);
       }
 
       // Return the completed game state
