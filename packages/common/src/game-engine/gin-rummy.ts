@@ -23,12 +23,38 @@ import { isValidMove, validateMelds } from '../utils/validation';
 import { AIPlayer } from './ai-player';
 
 /**
+ * Turn state management for atomic operations
+ */
+interface TurnState {
+  currentPlayerId: string;
+  phase: GamePhase;
+  isProcessing: boolean;
+  lockTimestamp: number;
+  moveQueue: GameMove[];
+}
+
+/**
+ * Move result with comprehensive state information
+ */
+interface MoveResult {
+  success: boolean;
+  error?: string;
+  state: GameState;
+  nextMoves?: GameMove[]; // For AI chaining
+  stateChanges?: string[]; // Debug information
+}
+
+/**
  * Core Gin Rummy game engine with server-authoritative logic
+ * Rebuilt with atomic turn management and proper synchronization
  */
 export class GinRummyGame {
   private state: GameState;
   private deck: Card[];
   private aiPlayer: AIPlayer | null = null;
+  private turnState: TurnState;
+  private readonly TURN_LOCK_TIMEOUT = 5000; // 5 seconds
+  private readonly AI_PROCESSING_TIMEOUT = 3000; // 3 seconds
 
   constructor(gameId: string, player1Id: string, player2Id: string, vsAI = false) {
     this.deck = shuffleDeck(createDeck());
@@ -77,6 +103,15 @@ export class GinRummyGame {
       gameOver: false,
     };
 
+    // Initialize turn state management
+    this.turnState = {
+      currentPlayerId: player2Id,
+      phase: GamePhase.UpcardDecision,
+      isProcessing: false,
+      lockTimestamp: 0,
+      moveQueue: []
+    };
+
     this.dealInitialCards();
   }
 
@@ -98,6 +133,9 @@ export class GinRummyGame {
     
     // Calculate initial melds and deadwood for all players
     this.updateAllPlayersState();
+    
+    // Sync turn state
+    this.syncTurnState();
   }
 
   /**
@@ -431,8 +469,11 @@ export class GinRummyGame {
     
     // Alternate dealer (non-dealer from previous round goes first)
     // In Gin Rummy, the non-dealer from previous round becomes dealer
-    const [player1, player2] = this.state.players;
+    const [, player2] = this.state.players;
     this.state.currentPlayerId = player2.id; // Non-dealer gets first upcard decision
+    
+    // Sync turn state
+    this.syncTurnState();
   }
 
   /**
@@ -444,6 +485,113 @@ export class GinRummyGame {
     this.state.currentPlayerId = this.state.players[nextIndex].id;
     this.state.phase = GamePhase.Draw;
     this.state.turnTimer = 30;
+    
+    // Sync turn state
+    this.syncTurnState();
+  }
+
+  /**
+   * Sync turn state with game state
+   */
+  private syncTurnState(): void {
+    this.turnState.currentPlayerId = this.state.currentPlayerId;
+    this.turnState.phase = this.state.phase;
+  }
+
+  /**
+   * Acquire turn lock for atomic operations
+   */
+  private acquireTurnLock(playerId: string): boolean {
+    const now = Date.now();
+    
+    // Check if lock has expired
+    if (this.turnState.isProcessing && (now - this.turnState.lockTimestamp) > this.TURN_LOCK_TIMEOUT) {
+      console.warn('Turn lock expired, releasing stale lock');
+      this.releaseTurnLock();
+    }
+    
+    // Can't acquire if already processing
+    if (this.turnState.isProcessing) {
+      return false;
+    }
+    
+    // Acquire lock
+    this.turnState.isProcessing = true;
+    this.turnState.lockTimestamp = now;
+    return true;
+  }
+
+  /**
+   * Release turn lock
+   */
+  private releaseTurnLock(): void {
+    this.turnState.isProcessing = false;
+    this.turnState.lockTimestamp = 0;
+  }
+
+  /**
+   * Validate move with turn state
+   */
+  private validateMoveWithTurnState(move: GameMove, player: PlayerState): { valid: boolean; error?: string } {
+    // Basic turn validation
+    if (move.playerId !== this.state.currentPlayerId) {
+      return {
+        valid: false,
+        error: `Not your turn. Current player: ${this.state.currentPlayerId}, attempted: ${move.playerId}`
+      };
+    }
+
+    // Phase validation
+    if (this.state.gameOver) {
+      return { valid: false, error: 'Game is over' };
+    }
+
+    // Use existing validation logic
+    return isValidMove(
+      move,
+      this.state.phase,
+      this.state.currentPlayerId,
+      player.hand,
+      this.state.discardPile,
+      this.state.vsAI
+    );
+  }
+
+  /**
+   * Check if AI moves should be processed
+   */
+  private shouldProcessAIMoves(): boolean {
+    return this.state.vsAI && 
+           this.state.currentPlayerId === 'ai-player' && 
+           !this.state.gameOver &&
+           this.state.phase !== GamePhase.GameOver &&
+           this.state.phase !== GamePhase.RoundOver;
+  }
+
+  /**
+   * Generate AI moves for chaining
+   */
+  private generateAIMoves(): GameMove[] {
+    const moves: GameMove[] = [];
+    const aiMove = this.getAISuggestion();
+    if (aiMove) {
+      moves.push(aiMove);
+    }
+    return moves;
+  }
+
+  /**
+   * Get turn state for debugging
+   */
+  public getTurnState(): TurnState {
+    return { ...this.turnState };
+  }
+
+  /**
+   * Check if game is processing moves
+   */
+  public isProcessing(): boolean {
+    return this.turnState.isProcessing;
   }
 
   /**

@@ -136,27 +136,28 @@ export async function POST(
       console.log('- Move playerId:', move.playerId);
       console.log('- Current game player:', retrievedState.currentPlayerId);
 
-      // Make the player's move
-      console.log('Processing player move:', move.type, 'by player:', decoded.userId);
-      console.log('Current game state - Phase:', retrievedState.phase, 'Current player:', retrievedState.currentPlayerId);
-      console.log('Move validation - Move player:', move.playerId, 'Backend current player:', retrievedState.currentPlayerId, 'Match:', move.playerId === retrievedState.currentPlayerId);
-      console.log('Backend game state details - Phase:', retrievedState.phase, 'Game ID:', retrievedState.id, 'Players:', retrievedState.players?.map(p => p.id));
+      // Make the player's move using new atomic system
+      console.log('\n=== ATOMIC MOVE PROCESSING START ===');
+      console.log('Move:', move.type, 'by player:', decoded.userId);
+      console.log('Game state - Phase:', retrievedState.phase, 'Current player:', retrievedState.currentPlayerId);
+      console.log('Turn state before move:', gameEngine.getTurnState());
+      console.log('Processing lock status:', gameEngine.isProcessing());
       
       const moveResult = gameEngine.makeMove(move);
       
       if (!moveResult.success) {
         console.log('Move failed with error:', moveResult.error);
+        console.log('Turn state after failed move:', gameEngine.getTurnState());
         
-        // Enhanced error logging for upcard phase issues
-        if (moveResult.error === 'Not your turn') {
-          console.error('UPCARD PHASE DEBUG - Turn validation failed:');
+        // Enhanced error logging for debugging
+        if (moveResult.error?.includes('Not your turn')) {
+          console.error('TURN VALIDATION DEBUG:');
           console.error('- Move type:', move.type);
           console.error('- Move player ID:', move.playerId);
           console.error('- Backend current player ID:', retrievedState.currentPlayerId);
           console.error('- Game phase:', retrievedState.phase);
-          console.error('- User ID from token:', decoded.userId);
-          console.error('- Full move object:', JSON.stringify(move, null, 2));
-          console.error('- Players in game:', retrievedState.players?.map(p => ({ id: p.id, username: p.username })));
+          console.error('- Turn state:', gameEngine.getTurnState());
+          console.error('- State changes:', moveResult.stateChanges);
         }
         
         return NextResponse.json(
@@ -165,10 +166,17 @@ export async function POST(
         );
       }
 
-      console.log('Player move successful, new phase:', moveResult.state.phase, 'current player:', moveResult.state.currentPlayerId);
+      console.log('\n=== PLAYER MOVE SUCCESS ===');
+      console.log('State changes:', moveResult.stateChanges);
+      console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
+      console.log('Turn state after move:', gameEngine.getTurnState());
 
-      // Save player's move immediately
-      console.log('Saving game state after move - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
+      // Save final game state
+      const finalGameState = gameEngine.getState();
+      console.log('\n=== SAVING FINAL STATE ===');
+      console.log('Final state - Phase:', finalGameState.phase, 'Current player:', finalGameState.currentPlayerId);
+      console.log('Game over:', finalGameState.gameOver);
+      
       try {
         await persistentGameCache.set(gameId, gameEngine);
         console.log('Game state saved to persistent cache successfully');
@@ -184,19 +192,45 @@ export async function POST(
         gameState: gameEngine.getState()
       });
 
-      // Process AI response moves asynchronously only if it's now AI's turn
+      // Process AI moves synchronously using new atomic system
       const currentState = gameEngine.getState();
       if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
-        console.log('AI turn detected after player move, starting background AI processing');
-        // Add a small delay to prevent race conditions with immediate player moves
-        setTimeout(() => {
-          processAIResponseMovesAsync(gameId, gameEngine).catch(error => {
-            console.error('Background AI processing error:', error);
+        console.log('\n=== AI PROCESSING START ===');
+        console.log('AI turn detected - processing synchronously');
+        console.log('Pre-AI state - Phase:', currentState.phase, 'Current player:', currentState.currentPlayerId);
+        
+        try {
+          const startTime = Date.now();
+          const aiResults = gameEngine.processAIMoves();
+          const endTime = Date.now();
+          
+          console.log('\n=== AI PROCESSING COMPLETE ===');
+          console.log('Processing time:', endTime - startTime, 'ms');
+          console.log('AI moves processed:', aiResults.length);
+          
+          // Log AI move results
+          aiResults.forEach((result, index) => {
+            if (result.success) {
+              console.log(`AI move ${index + 1} SUCCESS:`, result.stateChanges);
+            } else {
+              console.error(`AI move ${index + 1} FAILED:`, result.error);
+            }
           });
-        }, 100); // 100ms delay to ensure cache consistency
+          
+          const finalState = gameEngine.getState();
+          console.log('Final state - Phase:', finalState.phase, 'Current player:', finalState.currentPlayerId);
+          console.log('Turn state after AI:', gameEngine.getTurnState());
+        } catch (error) {
+          console.error('\n=== AI PROCESSING ERROR ===');
+          console.error('Error:', error);
+          console.error('Turn state:', gameEngine.getTurnState());
+        }
       } else {
-        console.log('Not AI turn after player move. Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
+        console.log('\n=== NO AI PROCESSING NEEDED ===');
+        console.log('Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
       }
+      
+      console.log('=== ATOMIC MOVE PROCESSING END ===\n');
 
       return playerResponse;
     }
@@ -216,124 +250,4 @@ export async function POST(
   }
 }
 
-/**
- * Generate a random AI thinking delay between 0.5-4 seconds
- */
-function getRandomAIThinkingDelay(): number {
-  return Math.random() * 3500 + 500; // 500ms to 4000ms
-}
-
-/**
- * Process AI response moves after a player move
- */
-async function processAIResponseMoves(gameEngine: any, maxMoves: number = 5): Promise<void> {
-  let movesProcessed = 0;
-  
-  while (movesProcessed < maxMoves) {
-    const currentState = gameEngine.getState();
-    
-    if (currentState.currentPlayerId !== 'ai-player' || currentState.gameOver) {
-      console.log('AI turn complete. Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
-      break;
-    }
-    
-    console.log(`Processing AI response move ${movesProcessed + 1} for phase:`, currentState.phase);
-    
-    const aiMove = gameEngine.getAISuggestion();
-    if (!aiMove) {
-      console.log('No AI move suggestion available for phase:', currentState.phase);
-      break;
-    }
-    
-    // Add thinking delay for more natural AI behavior
-    const thinkingDelay = getRandomAIThinkingDelay();
-    console.log(`AI thinking for ${Math.round(thinkingDelay)}ms before making move:`, aiMove.type);
-    await new Promise(resolve => setTimeout(resolve, thinkingDelay));
-    
-    // Validate turn state before making AI move
-    const preMoveState = gameEngine.getState();
-    if (preMoveState.currentPlayerId !== 'ai-player') {
-      console.error('Turn state changed during AI thinking, aborting AI move. Current player:', preMoveState.currentPlayerId);
-      break;
-    }
-    
-    console.log('AI making response move:', aiMove.type);
-    const aiMoveResult = gameEngine.makeMove(aiMove);
-    
-    if (!aiMoveResult.success) {
-      console.error('AI response move failed:', aiMoveResult.error);
-      break;
-    }
-    
-    console.log('AI response move successful, new phase:', aiMoveResult.state.phase, 'next player:', aiMoveResult.state.currentPlayerId);
-    movesProcessed++;
-    
-    // Add a small delay between AI moves to prevent race conditions
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    // Prevent infinite loops
-    if (movesProcessed >= maxMoves) {
-      console.log('Max AI response moves reached, stopping');
-      break;
-    }
-  }
-  
-  console.log(`AI processed ${movesProcessed} response moves`);
-}
-
-/**
- * Process AI response moves asynchronously in the background
- */
-async function processAIResponseMovesAsync(gameId: string, gameEngine: any): Promise<void> {
-  try {
-    console.log('Starting background AI processing for game:', gameId);
-    
-    // Create a fresh copy of the game engine to avoid state conflicts
-    const gameEngineState = gameEngine.getState();
-    console.log('AI processing with state - Phase:', gameEngineState.phase, 'Current player:', gameEngineState.currentPlayerId);
-    
-    // Process AI moves with thinking delays
-    await processAIResponseMoves(gameEngine);
-    
-    // Save updated game state after AI moves with retry logic
-    let saveAttempts = 0;
-    const maxSaveAttempts = 3;
-    
-    while (saveAttempts < maxSaveAttempts) {
-      try {
-        await persistentGameCache.set(gameId, gameEngine);
-        console.log('AI game state saved to persistent cache successfully after', saveAttempts + 1, 'attempts');
-        break;
-      } catch (error) {
-        saveAttempts++;
-        console.log(`AI cache save attempt ${saveAttempts} failed:`, error.message);
-        
-        if (saveAttempts >= maxSaveAttempts) {
-          console.log('Using fallback cache after persistent cache failures');
-          await fallbackGameCache.set(gameId, gameEngine);
-        } else {
-          // Brief delay before retry to avoid immediate conflicts
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
-    }
-    
-    console.log('Background AI processing completed for game:', gameId);
-    
-    // Set a simple completion flag using fallback cache only (since completion data is temporary)
-    const completionKey = `${gameId}_ai_complete`;
-    const completionData = gameEngine.getState();
-    console.log('Setting AI completion flag with state - Phase:', completionData.phase, 'Current player:', completionData.currentPlayerId);
-    
-    try {
-      // Only use fallback cache for completion flags to avoid persistence issues
-      await fallbackGameCache.set(completionKey, completionData as any);
-      console.log('AI completion flag set successfully for game:', gameId);
-    } catch (error) {
-      console.error('Failed to set AI completion flag:', error);
-    }
-    
-  } catch (error) {
-    console.error('Background AI processing failed for game:', gameId, error);
-  }
-}
+// Legacy async AI processing code removed - using new synchronous atomic system
