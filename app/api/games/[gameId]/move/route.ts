@@ -35,6 +35,7 @@ export async function POST(
     
     console.log('Move API called with:', { gameId, move, userId: decoded.userId });
     console.log('Move details - Type:', move.type, 'PlayerId:', move.playerId, 'Current user:', decoded.userId);
+    console.log('Player ID verification - Move player ID:', move.playerId, 'Token user ID:', decoded.userId, 'Match:', move.playerId === decoded.userId);
 
     // Get game from database
     const game = await prisma.game.findUnique({
@@ -58,6 +59,7 @@ export async function POST(
 
     // Check if user is a player in this game
     const isPlayer = game.player1Id === decoded.userId || game.player2Id === decoded.userId;
+    console.log('Player access check - DB player1:', game.player1Id, 'DB player2:', game.player2Id, 'Token user:', decoded.userId, 'Is player:', isPlayer);
     
     if (!isPlayer) {
       return NextResponse.json(
@@ -125,6 +127,14 @@ export async function POST(
           { status: 400 }
         );
       }
+
+      // Debug player ID mapping
+      console.log('Player ID mapping verification:');
+      console.log('- Database player1Id:', game.player1Id);
+      console.log('- Database player2Id:', game.player2Id);
+      console.log('- Game engine player IDs:', retrievedState.players?.map(p => ({ id: p.id, username: p.username })));
+      console.log('- Move playerId:', move.playerId);
+      console.log('- Current game player:', retrievedState.currentPlayerId);
 
       // Make the player's move
       console.log('Processing player move:', move.type, 'by player:', decoded.userId);
