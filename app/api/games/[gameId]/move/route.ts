@@ -34,6 +34,7 @@ export async function POST(
     const move = await request.json();
     
     console.log('Move API called with:', { gameId, move, userId: decoded.userId });
+    console.log('Move details - Type:', move.type, 'PlayerId:', move.playerId, 'Current user:', decoded.userId);
 
     // Get game from database
     const game = await prisma.game.findUnique({
