@@ -9,6 +9,8 @@ interface GameStore {
   chatMessages: ChatMessage[];
   isConnected: boolean;
   gameError: string | null;
+  isAIThinking: boolean;
+  aiThoughts: string[];
   
   // Actions
   setGameState: (state: Partial<GameState>) => void;
@@ -19,6 +21,7 @@ interface GameStore {
   addChatMessage: (message: ChatMessage) => void;
   setConnected: (connected: boolean) => void;
   setGameError: (error: string | null) => void;
+  setAIThinking: (thinking: boolean, thoughts: string[]) => void;
   resetGame: () => void;
   
   // Computed
@@ -35,6 +38,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   chatMessages: [],
   isConnected: false,
   gameError: null,
+  isAIThinking: false,
+  aiThoughts: [],
 
   setGameState: (gameState) => {
     set({ gameState, waitingState: null });
@@ -64,6 +69,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setConnected: (isConnected) => set({ isConnected }),
   
   setGameError: (gameError) => set({ gameError }),
+  
+  setAIThinking: (isAIThinking, aiThoughts) => set({ isAIThinking, aiThoughts }),
   
   resetGame: () => set({
     gameState: null,

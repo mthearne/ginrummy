@@ -329,16 +329,15 @@ class SocketService {
           gameId: data.gameState.id
         });
         
+        // Handle AI thinking if needed
+        if (data.debug?.aiShouldThink && move.gameId) {
+          console.log('🤖 AI should think, starting thinking process');
+          this.handleAIThinking(move.gameId);
+        }
+        
         // Log AI processing debug info
         if (data.debug) {
           console.log('🤖 AI Processing Debug:', data.debug);
-          if (data.debug.aiProcessingTriggered) {
-            console.log('✅ AI processing was triggered');
-            console.log('Pre-AI state:', data.debug.preAIState);
-            console.log('Post-AI state:', data.debug.postAIState);
-          } else {
-            console.log('❌ AI processing was NOT triggered');
-          }
         }
         
         useGameStore.getState().setGameState(data.gameState);
@@ -358,7 +357,75 @@ class SocketService {
     this.socket?.emit('send_chat', { gameId, message });
   }
 
-  // AI polling removed - using synchronous processing in API
+  // Handle AI thinking process with visual feedback
+  private async handleAIThinking(gameId: string) {
+    try {
+      console.log('Starting AI thinking process for game:', gameId);
+      
+      // Get AI thoughts
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No access token for AI thoughts');
+        return;
+      }
+
+      const thoughtsResponse = await fetch(`/api/games/${gameId}/ai-thoughts`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!thoughtsResponse.ok) {
+        console.error('Failed to get AI thoughts:', thoughtsResponse.status);
+        return;
+      }
+
+      const thoughtsData = await thoughtsResponse.json();
+      const thoughts = thoughtsData.thoughts || ['Thinking...'];
+      
+      console.log('AI thoughts:', thoughts);
+      
+      // Set AI thinking state
+      useGameStore.getState().setAIThinking(true, thoughts);
+      
+      // Generate random thinking delay (2-4 seconds)
+      const thinkingDelay = Math.random() * 2000 + 2000; // 2000-4000ms
+      console.log(`AI will think for ${Math.round(thinkingDelay)}ms`);
+      
+      // Wait for thinking delay
+      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
+      
+      // Process AI moves
+      const aiMoveResponse = await fetch(`/api/games/${gameId}/ai-move`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ thoughts })
+      });
+
+      if (!aiMoveResponse.ok) {
+        console.error('AI move failed:', aiMoveResponse.status);
+        useGameStore.getState().setAIThinking(false, []);
+        return;
+      }
+
+      const aiMoveData = await aiMoveResponse.json();
+      console.log('AI move completed:', aiMoveData);
+      
+      // Clear AI thinking state and update game state
+      useGameStore.getState().setAIThinking(false, []);
+      if (aiMoveData.gameState) {
+        useGameStore.getState().setGameState(aiMoveData.gameState);
+      }
+      
+    } catch (error) {
+      console.error('AI thinking process failed:', error);
+      useGameStore.getState().setAIThinking(false, []);
+    }
+  }
 
   // Connection status
   isConnected(): boolean {

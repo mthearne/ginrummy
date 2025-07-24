@@ -7,6 +7,7 @@ import { Card as CardComponent } from '../components/ui/Card';
 import { FriendInvitation } from '../components/FriendInvitation';
 import Confetti from '../components/ui/Confetti';
 import FlyingAnimal from '../components/ui/FlyingAnimal';
+import AIThinkingOverlay from '../components/game/AIThinkingOverlay';
 import { MoveType, GamePhase, Card, Meld } from '@gin-rummy/common';
 
 export default function Game() {
@@ -893,6 +894,9 @@ export default function Game() {
       {/* Celebration Effects */}
       <Confetti active={showConfetti} duration={3000} />
       <FlyingAnimal active={showFlyingAnimal} duration={3000} />
+      
+      {/* AI Thinking Overlay */}
+      <AIThinkingOverlay />
     </div>
   );
 }

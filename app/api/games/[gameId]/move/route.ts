@@ -171,44 +171,15 @@ export async function POST(
       console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
       console.log('Turn state after move:', gameEngine.getTurnState());
 
-      // Process AI moves synchronously using new atomic system
+      // Check if AI should think (but don't process moves yet)
       const currentState = gameEngine.getState();
-      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
-        console.log('\n=== AI PROCESSING START ===');
-        console.log('AI turn detected - processing synchronously');
-        console.log('Pre-AI state - Phase:', currentState.phase, 'Current player:', currentState.currentPlayerId);
-        
-        try {
-          const startTime = Date.now();
-          const aiResults = gameEngine.processAIMoves();
-          const endTime = Date.now();
-          
-          console.log('\n=== AI PROCESSING COMPLETE ===');
-          console.log('Processing time:', endTime - startTime, 'ms');
-          console.log('AI moves processed:', aiResults.length);
-          
-          // Log AI move results
-          aiResults.forEach((result, index) => {
-            if (result.success) {
-              console.log(`AI move ${index + 1} SUCCESS:`, result.stateChanges);
-            } else {
-              console.error(`AI move ${index + 1} FAILED:`, result.error);
-            }
-          });
-          
-          const finalState = gameEngine.getState();
-          console.log('Final state - Phase:', finalState.phase, 'Current player:', finalState.currentPlayerId);
-          console.log('Turn state after AI:', gameEngine.getTurnState());
-        } catch (error) {
-          console.error('\n=== AI PROCESSING ERROR ===');
-          console.error('Error:', error);
-          console.error('Turn state:', gameEngine.getTurnState());
-        }
-      } else {
-        console.log('\n=== NO AI PROCESSING NEEDED ===');
-        console.log('Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
-      }
+      const aiShouldThink = currentState.currentPlayerId === 'ai-player' && !currentState.gameOver;
       
+      console.log('\n=== MOVE PROCESSING COMPLETE ===');
+      console.log('AI should think:', aiShouldThink);
+      if (aiShouldThink) {
+        console.log('AI will think before making moves');
+      }
       console.log('=== ATOMIC MOVE PROCESSING END ===\n');
 
       // Save final game state after all processing (including AI moves)
@@ -231,7 +202,7 @@ export async function POST(
         success: true,
         gameState: finalGameState,
         debug: {
-          aiProcessingTriggered: currentState.currentPlayerId === 'ai-player' && !currentState.gameOver,
+          aiShouldThink: aiShouldThink,
           preAIState: {
             currentPlayerId: currentState.currentPlayerId,
             phase: currentState.phase,

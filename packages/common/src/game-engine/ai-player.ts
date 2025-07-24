@@ -20,6 +20,68 @@ export class AIPlayer {
   }
 
   /**
+   * Get AI thought process for display
+   */
+  public getThoughts(
+    hand: Card[],
+    phase: GamePhase,
+    discardPile: Card[],
+    stockCount: number
+  ): string[] {
+    const thoughts: string[] = [];
+    
+    if (phase === GamePhase.Draw) {
+      thoughts.push("Analyzing my hand...");
+      
+      const currentValue = this.evaluateHand(hand);
+      const currentMelds = findOptimalMelds(hand);
+      thoughts.push(`I have ${currentMelds.melds.length} melds, ${currentMelds.deadwood} deadwood`);
+      
+      if (discardPile.length > 0) {
+        const topDiscard = discardPile[discardPile.length - 1];
+        thoughts.push(`Considering ${topDiscard.rank} of ${topDiscard.suit.toLowerCase()}...`);
+        
+        const handWithDiscard = [...hand, topDiscard];
+        const discardValue = this.evaluateHand(handWithDiscard);
+        const improvement = discardValue - currentValue;
+        
+        if (improvement > 5) {
+          thoughts.push("This card improves my hand significantly!");
+          thoughts.push("Taking from discard pile");
+        } else {
+          thoughts.push("Not worth taking. Drawing from stock");
+        }
+      } else {
+        thoughts.push("Drawing from stock pile");
+      }
+    } else if (phase === GamePhase.Discard) {
+      thoughts.push("Time to discard...");
+      
+      const optimal = findOptimalMelds(hand);
+      thoughts.push(`Current deadwood: ${optimal.deadwood}`);
+      
+      if (optimal.deadwood <= 10) {
+        thoughts.push("I can knock! But let me think...");
+      }
+      
+      const nonMeldedCards = hand.filter(card =>
+        !optimal.melds.some(meld => meld.cards.some(c => c.id === card.id))
+      );
+      
+      if (nonMeldedCards.length > 0) {
+        const worstCard = nonMeldedCards.reduce((worst, card) =>
+          getCardValue(card) > getCardValue(worst) ? card : worst
+        );
+        thoughts.push(`Discarding ${worstCard.rank} of ${worstCard.suit.toLowerCase()}`);
+      } else {
+        thoughts.push("Choosing least useful card...");
+      }
+    }
+    
+    return thoughts;
+  }
+
+  /**
    * Evaluate and return the best move for the current game state
    */
   public getMove(

@@ -823,6 +823,32 @@ export class GinRummyGame {
   }
 
   /**
+   * Get AI thought process for display
+   */
+  public getAIThoughts(): string[] {
+    const aiPlayerState = this.state.players.find(p => p.id === 'ai-player');
+    if (!aiPlayerState || this.state.currentPlayerId !== aiPlayerState.id || !this.aiPlayer) {
+      return [];
+    }
+
+    if (this.state.gameOver || this.state.phase === GamePhase.GameOver) {
+      return [];
+    }
+
+    try {
+      return this.aiPlayer.getThoughts(
+        aiPlayerState.hand,
+        this.state.phase,
+        this.state.discardPile,
+        this.state.stockPileCount
+      );
+    } catch (error) {
+      console.error('AI thoughts error:', error);
+      return ['Thinking...'];
+    }
+  }
+
+  /**
    * Get suggested move for AI player using the sophisticated AIPlayer class
    */
   public getAISuggestion(): GameMove | null {
