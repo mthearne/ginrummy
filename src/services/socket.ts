@@ -389,8 +389,15 @@ class SocketService {
         // AI is done, update game state if provided
         console.log('AI processing complete');
         if (data.gameState) {
+          console.log('AI completion - Backend state received - Phase:', data.gameState.phase, 'Current player:', data.gameState.currentPlayerId);
           useGameStore.getState().setGameState(data.gameState);
-          console.log('Updated game state after AI moves:', data.gameState);
+          console.log('Updated game state after AI moves - Phase:', data.gameState.phase, 'Current player:', data.gameState.currentPlayerId);
+          
+          // Force a verification of the current state after update
+          const verifyState = useGameStore.getState().gameState;
+          console.log('Frontend state verification after AI update - Phase:', verifyState?.phase, 'Current player:', verifyState?.currentPlayerId);
+        } else {
+          console.log('AI completion received but no gameState provided');
         }
       }
     } catch (error) {
