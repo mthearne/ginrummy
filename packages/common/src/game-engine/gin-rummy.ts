@@ -139,57 +139,154 @@ export class GinRummyGame {
   }
 
   /**
-   * Execute a game move and return updated state
+   * Execute a game move with atomic turn management
    */
-  public makeMove(move: GameMove): { success: boolean; error?: string; state: GameState } {
+  public makeMove(move: GameMove): MoveResult {
+    return this.executeAtomicMove(move);
+  }
+
+  /**
+   * Execute a single move atomically with proper locking
+   */
+  private executeAtomicMove(move: GameMove): MoveResult {
+    // Acquire turn lock
+    if (!this.acquireTurnLock(move.playerId)) {
+      return {
+        success: false,
+        error: 'Turn lock acquisition failed - another move is processing',
+        state: this.state,
+        stateChanges: [`Failed to acquire lock for player ${move.playerId}`]
+      };
+    }
+
+    try {
+      const result = this.processMove(move);
+      
+      // Handle AI moves if needed
+      if (result.success && this.shouldProcessAIMoves()) {
+        const aiMoves = this.generateAIMoves();
+        result.nextMoves = aiMoves;
+      }
+      
+      return result;
+    } finally {
+      this.releaseTurnLock();
+    }
+  }
+
+  /**
+   * Process AI moves synchronously
+   */
+  public processAIMoves(): MoveResult[] {
+    const results: MoveResult[] = [];
+    
+    while (this.shouldProcessAIMoves()) {
+      const aiMove = this.getAISuggestion();
+      if (!aiMove) break;
+      
+      const result = this.executeAtomicMove(aiMove);
+      results.push(result);
+      
+      if (!result.success) break;
+      
+      // Prevent infinite loops
+      if (results.length >= 5) {
+        console.warn('AI move limit reached, breaking chain');
+        break;
+      }
+    }
+    
+    return results;
+  }
+
+  /**
+   * Core move processing logic
+   */
+  private processMove(move: GameMove): MoveResult {
+    const stateChanges: string[] = [];
     const player = this.getPlayer(move.playerId);
+    
     if (!player) {
-      return { success: false, error: 'Player not found', state: this.state };
+      return {
+        success: false,
+        error: 'Player not found',
+        state: this.state,
+        stateChanges: [`Player ${move.playerId} not found`]
+      };
     }
 
-    // Validate move
-    const validation = isValidMove(
-      move,
-      this.state.phase,
-      this.state.currentPlayerId,
-      player.hand,
-      this.state.discardPile,
-      this.state.vsAI
-    );
-
+    // Validate move against current turn state
+    const validation = this.validateMoveWithTurnState(move, player);
     if (!validation.valid) {
-      return { success: false, error: validation.error, state: this.state };
+      return {
+        success: false,
+        error: validation.error,
+        state: this.state,
+        stateChanges: [`Move validation failed: ${validation.error}`]
+      };
     }
 
+    stateChanges.push(`Processing ${move.type} for player ${move.playerId}`);
+    
     // Execute move based on type
+    let result: { success: boolean; error?: string; state: GameState };
+    
     switch (move.type) {
       case MoveType.TakeUpcard:
-        return this.handleTakeUpcard(move.playerId);
+        result = this.handleTakeUpcard(move.playerId);
+        stateChanges.push(`Upcard taken, phase: ${this.state.phase}`);
+        break;
       
       case MoveType.PassUpcard:
-        return this.handlePassUpcard(move.playerId);
+        result = this.handlePassUpcard(move.playerId);
+        stateChanges.push(`Upcard passed, next player: ${this.state.currentPlayerId}`);
+        break;
       
       case MoveType.DrawStock:
-        return this.handleDrawStock(move.playerId);
+        result = this.handleDrawStock(move.playerId);
+        stateChanges.push(`Stock drawn, cards left: ${this.state.stockPileCount}`);
+        break;
       
       case MoveType.DrawDiscard:
-        return this.handleDrawDiscard(move.playerId);
+        result = this.handleDrawDiscard(move.playerId);
+        stateChanges.push(`Discard drawn, pile size: ${this.state.discardPile.length}`);
+        break;
       
       case MoveType.Discard:
-        return this.handleDiscard(move.playerId, move.cardId!);
+        result = this.handleDiscard(move.playerId, move.cardId!);
+        stateChanges.push(`Card discarded, next player: ${this.state.currentPlayerId}`);
+        break;
       
       case MoveType.Knock:
-        return this.handleKnock(move.playerId, move.cardId!, move.melds!);
+        result = this.handleKnock(move.playerId, move.cardId!, move.melds!);
+        stateChanges.push(`Player knocked, round ending`);
+        break;
       
       case MoveType.Gin:
-        return this.handleGin(move.playerId, move.cardId!, move.melds!);
+        result = this.handleGin(move.playerId, move.cardId!, move.melds!);
+        stateChanges.push(`Player ginned, round ending`);
+        break;
       
       case MoveType.StartNewRound:
-        return this.handleStartNewRound();
+        result = this.handleStartNewRound();
+        stateChanges.push(`New round started`);
+        break;
       
       default:
-        return { success: false, error: 'Invalid move type', state: this.state };
+        result = { success: false, error: 'Invalid move type', state: this.state };
+        stateChanges.push(`Invalid move type: ${move.type}`);
     }
+
+    // Update turn state after successful move
+    if (result.success) {
+      this.syncTurnState();
+      stateChanges.push(`Turn state synced: ${this.state.currentPlayerId} in ${this.state.phase}`);
+    }
+
+    return {
+      ...result,
+      stateChanges
+    };
   }
 
   private handleTakeUpcard(playerId: string): { success: boolean; error?: string; state: GameState } {
