@@ -37,20 +37,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameError: null,
 
   setGameState: (gameState) => {
-    console.log('[GAME_STORE] Setting game state:', gameState);
-    console.log('[GAME_STORE] Players:', gameState?.players?.map(p => `${p.id}(${p.username})`));
-    console.log('[GAME_STORE] Current player ID:', gameState?.currentPlayerId);
-    const currentUser = useAuthStore.getState().user;
-    console.log('[GAME_STORE] Current user:', currentUser?.id, currentUser?.username);
-    
-    // Debug: Force logging of player identification
-    if (gameState?.players && currentUser) {
-      const myPlayer = gameState.players.find(p => p.id === currentUser.id);
-      const opponent = gameState.players.find(p => p.id !== currentUser.id);
-      console.log('[GAME_STORE] DEBUG - My player:', myPlayer?.id, myPlayer?.username);
-      console.log('[GAME_STORE] DEBUG - Opponent:', opponent?.id, opponent?.username);
-    }
-    
     set({ gameState, waitingState: null });
   },
   
