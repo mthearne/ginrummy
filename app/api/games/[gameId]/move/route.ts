@@ -91,9 +91,13 @@ export async function POST(
 
       // Make the player's move
       console.log('Processing player move:', move.type, 'by player:', decoded.userId);
+      console.log('Current game state - Phase:', gameEngine.getState().phase, 'Current player:', gameEngine.getState().currentPlayerId);
+      console.log('Move validation - Move player:', move.playerId, 'Current player:', gameEngine.getState().currentPlayerId, 'Match:', move.playerId === gameEngine.getState().currentPlayerId);
+      
       const moveResult = gameEngine.makeMove(move);
       
       if (!moveResult.success) {
+        console.log('Move failed with error:', moveResult.error);
         return NextResponse.json(
           { error: moveResult.error || 'Invalid move' },
           { status: 400 }
