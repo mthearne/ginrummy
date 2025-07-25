@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
           },
           {
             status: {
-              not: 'CANCELLED'
+              in: ['WAITING', 'ACTIVE']
             }
           }
         ]
