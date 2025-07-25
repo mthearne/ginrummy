@@ -5,6 +5,7 @@ import { GameEventsService } from '../services/gameEvents';
 
 export class PersistentGameCache {
   private memoryCache = new Map<string, GinRummyGame>();
+  private saveCounter = 0;
 
   /**
    * Get game engine from cache or database
@@ -43,10 +44,15 @@ export class PersistentGameCache {
       
       if (gameStateData) {
         // Restore from stored state (preferred path)
-        console.log(`Restoring game ${gameId} from stored state`);
+        console.log(`\n=== LOADING GAME STATE ===`);
+        console.log(`Game ID: ${gameId}`);
         console.log(`Restored timestamp: ${gameStateData._saveTimestamp || 'NOT FOUND'}`);
+        console.log(`Restored phase: ${gameStateData.phase}`);
+        console.log(`Restored current player: ${gameStateData.currentPlayerId}`);
+        console.log(`Restored deck size: ${gameStateData.deck?.length || 'NO DECK'}`);
+        console.log(`Restored player 1 hand: ${gameStateData.players?.[0]?.hand?.length || 0} cards`);
+        console.log(`Restored player 2 hand: ${gameStateData.players?.[1]?.hand?.length || 0} cards`);
         console.log(`Restored debug:`, gameStateData._saveDebug || 'NOT FOUND');
-        console.log(`Restored phase: ${gameStateData.phase}, player: ${gameStateData.currentPlayerId}`);
         const gameEngine = this.restoreGameFromState(gameId, gameStateData, game);
         this.memoryCache.set(gameId, gameEngine);
         
@@ -148,11 +154,16 @@ export class PersistentGameCache {
         }
       };
       
-      console.log(`Saving game ${gameId} state to database with ${stateWithDeck.deck.length} deck cards`);
-      console.log(`Saving state - Phase: ${gameState.phase}, CurrentPlayer: ${gameState.currentPlayerId}`);
+      this.saveCounter++;
+      console.log(`\n=== SAVING GAME STATE #${this.saveCounter} ===`);
+      console.log(`Game ID: ${gameId}`);
       console.log(`Save timestamp: ${stateWithDeck._saveTimestamp}`);
-      console.log(`Save debug data:`, stateWithDeck._saveDebug);
+      console.log(`Phase: ${gameState.phase}`);
+      console.log(`Current player: ${gameState.currentPlayerId}`);
+      console.log(`Deck cards: ${stateWithDeck.deck.length}`);
+      console.log(`Save caller stack:`, new Error().stack?.split('\n').slice(1, 4).join(' -> '));
       console.log(`Player 1 hand size: ${gameState.players[0]?.hand?.length}, Player 2 hand size: ${gameState.players[1]?.hand?.length}`);
+      console.log(`=== END SAVE #${this.saveCounter} ===\n`);
       
       await prisma.game.update({
         where: { id: gameId },
