@@ -44,6 +44,9 @@ export class PersistentGameCache {
       if (gameStateData) {
         // Restore from stored state (preferred path)
         console.log(`Restoring game ${gameId} from stored state`);
+        console.log(`Restored timestamp: ${gameStateData._saveTimestamp || 'NOT FOUND'}`);
+        console.log(`Restored debug:`, gameStateData._saveDebug || 'NOT FOUND');
+        console.log(`Restored phase: ${gameStateData.phase}, player: ${gameStateData.currentPlayerId}`);
         const gameEngine = this.restoreGameFromState(gameId, gameStateData, game);
         this.memoryCache.set(gameId, gameEngine);
         
@@ -57,7 +60,13 @@ export class PersistentGameCache {
           stockCount: gameStateData.stockPileCount || 0,
           lastSaveTimestamp: gameStateData._saveTimestamp || 'unknown',
           savedPhase: gameStateData._saveDebug?.phase || 'unknown',
-          savedCurrentPlayer: gameStateData._saveDebug?.currentPlayerId || 'unknown'
+          savedCurrentPlayer: gameStateData._saveDebug?.currentPlayerId || 'unknown',
+          rawSaveDebug: gameStateData._saveDebug || null,
+          fullStoredState: {
+            phase: gameStateData.phase,
+            currentPlayerId: gameStateData.currentPlayerId,
+            hasTimestamp: !!gameStateData._saveTimestamp
+          }
         };
         
         return gameEngine;
@@ -141,6 +150,8 @@ export class PersistentGameCache {
       
       console.log(`Saving game ${gameId} state to database with ${stateWithDeck.deck.length} deck cards`);
       console.log(`Saving state - Phase: ${gameState.phase}, CurrentPlayer: ${gameState.currentPlayerId}`);
+      console.log(`Save timestamp: ${stateWithDeck._saveTimestamp}`);
+      console.log(`Save debug data:`, stateWithDeck._saveDebug);
       console.log(`Player 1 hand size: ${gameState.players[0]?.hand?.length}, Player 2 hand size: ${gameState.players[1]?.hand?.length}`);
       
       await prisma.game.update({
