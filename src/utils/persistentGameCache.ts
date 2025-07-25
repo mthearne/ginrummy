@@ -93,12 +93,19 @@ export class PersistentGameCache {
     // Store actual games in database (with backwards compatibility)
     try {
       const gameState = gameEngine.getState();
-      console.log(`Saving game ${gameId} state to database`);
+      
+      // Include the internal deck state to preserve card IDs
+      const stateWithDeck = {
+        ...gameState,
+        deck: (gameEngine as any).deck || []
+      };
+      
+      console.log(`Saving game ${gameId} state to database with ${stateWithDeck.deck.length} deck cards`);
       
       await prisma.game.update({
         where: { id: gameId },
         data: { 
-          gameState: gameState as any,
+          gameState: stateWithDeck as any,
           status: gameState.gameOver ? 'FINISHED' : 'ACTIVE'
         }
       });
@@ -300,51 +307,31 @@ export class PersistentGameCache {
       currentState.players[1].username = gameRecord.player2.username;
     }
 
-    // 6. Skip internal turn state sync - let game engine manage its own consistency
-    // this.syncInternalTurnState(gameEngine, currentState);
+    // 6. Sync internal turn state to ensure consistency after restoration
+    this.syncInternalTurnState(gameEngine, currentState);
   }
 
   /**
    * Reconstruct the internal deck based on game state
+   * CRITICAL: We must preserve the original cards to avoid changing card IDs
    */
   private reconstructDeck(gameEngine: any, gameState: any): void {
     try {
-      // Get all cards that should be in hands and discard pile
-      const usedCards = new Set<string>();
-      
-      // Add cards from player hands
-      for (const player of gameState.players) {
-        if (player.hand && Array.isArray(player.hand)) {
-          for (const card of player.hand) {
-            usedCards.add(`${card.suit}-${card.rank}`);
-          }
-        }
-      }
-      
-      // Add cards from discard pile
-      if (gameState.discardPile && Array.isArray(gameState.discardPile)) {
-        for (const card of gameState.discardPile) {
-          usedCards.add(`${card.suit}-${card.rank}`);
-        }
+      // If we have stored deck data, restore it directly
+      if (gameState.deck && Array.isArray(gameState.deck)) {
+        console.log('Restoring deck from stored state with', gameState.deck.length, 'cards');
+        gameEngine.deck = gameState.deck;
+        gameState.stockPileCount = gameState.deck.length;
+        return;
       }
 
-      // Create full deck and remove used cards
-      const { createDeck } = require('@gin-rummy/common');
-      const fullDeck = createDeck();
-      const remainingCards = fullDeck.filter(card => 
-        !usedCards.has(`${card.suit}-${card.rank}`)
-      );
-
-      // Update internal deck (this is a hack since deck is private)
-      // We access it through the game engine's private property
-      if (gameEngine.deck !== undefined) {
-        gameEngine.deck = remainingCards;
-      }
-
-      console.log(`Reconstructed deck with ${remainingCards.length} cards (expected: ${gameState.stockPileCount})`);
+      // Fallback: Don't reconstruct the deck at all to avoid changing card IDs
+      // Just trust the stored stockPileCount - this prevents cards from changing
+      console.log('No stored deck found, keeping existing deck to preserve card IDs');
+      console.log('Stock count from stored state:', gameState.stockPileCount);
       
-      // Update stock count to match actual deck
-      gameState.stockPileCount = remainingCards.length;
+      // Don't modify the deck or cards - this was causing the cards to change
+      // The existing deck in gameEngine will be used as-is
       
     } catch (error) {
       console.warn('Failed to reconstruct deck:', error);
@@ -357,14 +344,21 @@ export class PersistentGameCache {
    */
   private syncInternalTurnState(gameEngine: any, gameState: any): void {
     try {
-      // Access turn state if available (this is a hack since turnState is private)
-      if (gameEngine.turnState !== undefined) {
-        gameEngine.turnState.currentPlayerId = gameState.currentPlayerId;
-        gameEngine.turnState.phase = gameState.phase;
-        gameEngine.turnState.isProcessing = false;
-        gameEngine.turnState.lockTimestamp = 0;
-        gameEngine.turnState.moveQueue = [];
-        console.log(`Turn state synced: currentPlayer=${gameState.currentPlayerId}, phase=${gameState.phase}`);
+      // Use the game engine's built-in sync method if available
+      if (typeof gameEngine.forceTurnStateSync === 'function') {
+        gameEngine.forceTurnStateSync();
+        console.log(`Turn state synced via forceTurnStateSync: currentPlayer=${gameState.currentPlayerId}, phase=${gameState.phase}`);
+      } else {
+        // Fallback: directly access turn state if available (this is a hack since turnState is private)
+        if (gameEngine.turnState !== undefined) {
+          gameEngine.turnState.currentPlayerId = gameState.currentPlayerId;
+          gameEngine.turnState.phase = gameState.phase;
+          gameEngine.turnState.isProcessing = false;
+          gameEngine.turnState.lockTimestamp = 0;
+          gameEngine.turnState.moveQueue = [];
+          gameEngine.turnState.isLoading = false; // Clear loading state
+          console.log(`Turn state synced directly: currentPlayer=${gameState.currentPlayerId}, phase=${gameState.phase}`);
+        }
       }
     } catch (error) {
       console.warn('Failed to sync turn state:', error);
