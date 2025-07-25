@@ -24,8 +24,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         
         try {
           // Verify tokens by getting user profile
-          // Use a direct axios call to bypass the refresh interceptor during initialization
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/auth/me`, {
+          // Use a direct fetch call to bypass the refresh interceptor during initialization
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 
+                        (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:3001');
+          
+          console.log('Auth verification URL:', `${apiUrl}/auth/me`);
+          
+          const response = await fetch(`${apiUrl}/auth/me`, {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json'
