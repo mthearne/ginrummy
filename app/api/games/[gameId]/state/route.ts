@@ -85,38 +85,26 @@ export async function GET(
       }
       
       if (!gameEngine) {
-        // Initialize the game engine with proper cards and game logic
-        console.log('Initializing new AI game:', gameId);
-        gameEngine = new GinRummyGame(gameId, game.player1Id, 'ai-player', true);
-        const initialState = gameEngine.getState();
-        
-        // Set player names from database
-        initialState.players[0].username = game.player1!.username;
-        initialState.players[1].username = 'AI Opponent';
-        
-        // Process initial AI moves for new games (AI gets first upcard decision)
-        if (initialState.currentPlayerId === 'ai-player' && initialState.phase === 'upcard_decision') {
-          console.log('Processing initial AI upcard decision');
-          await processInitialAIMoves(gameEngine);
-        }
-        
-        // Cache the game engine in persistent storage (with fallback)
-        try {
-          await persistentGameCache.set(gameId, gameEngine);
-        } catch (error) {
-          console.log('Persistent cache failed, using fallback cache:', error.message);
-          await fallbackGameCache.set(gameId, gameEngine);
-        }
-        
-        // Update game to active status in database if still waiting
-        if (game.status === 'WAITING') {
-          await prisma.game.update({
-            where: { id: gameId },
-            data: {
-              status: 'ACTIVE'
-            }
-          });
-        }
+        // This should not happen if the game exists in the database
+        // The persistent cache should now handle initialization from database records
+        console.error(`AI game engine still null after cache attempts for gameId: ${gameId}`);
+        return NextResponse.json(
+          { 
+            error: 'Game state could not be loaded or initialized. Please try refreshing the page.',
+            code: 'GAME_INITIALIZATION_FAILED'
+          },
+          { status: 500 }
+        );
+      }
+      
+      // Update game to active status in database if still waiting
+      if (game.status === 'WAITING' as any) {
+        await prisma.game.update({
+          where: { id: gameId },
+          data: {
+            status: 'ACTIVE' as any
+          }
+        });
       }
 
       // Check if AI needs to move when state is loaded
@@ -164,36 +152,26 @@ export async function GET(
     }
     
     if (!gameEngine) {
-      // Initialize the PvP game engine with proper cards and game logic
-      console.log('Initializing new PvP game:', gameId);
-      gameEngine = new GinRummyGame(gameId, game.player1Id, game.player2Id || 'player2', false);
-      const initialState = gameEngine.getState();
-      
-      // Set player names from database
-      if (game.player1) {
-        initialState.players[0].username = game.player1.username;
-      }
-      if (game.player2) {
-        initialState.players[1].username = game.player2.username;
-      }
-      
-      // Cache the game engine in persistent storage (with fallback)
-      try {
-        await persistentGameCache.set(gameId, gameEngine);
-      } catch (error) {
-        console.log('PvP persistent cache failed, using fallback cache:', error.message);
-        await fallbackGameCache.set(gameId, gameEngine);
-      }
-      
-      // Update game to active status in database if still waiting
-      if (game.status === 'WAITING' as any) {
-        await prisma.game.update({
-          where: { id: gameId },
-          data: {
-            status: 'ACTIVE' as any
-          }
-        });
-      }
+      // This should not happen if the game exists in the database
+      // The persistent cache should now handle initialization from database records
+      console.error(`PvP game engine still null after cache attempts for gameId: ${gameId}`);
+      return NextResponse.json(
+        { 
+          error: 'Game state could not be loaded or initialized. Please try refreshing the page.',
+          code: 'GAME_INITIALIZATION_FAILED'
+        },
+        { status: 500 }
+      );
+    }
+    
+    // Update game to active status in database if still waiting
+    if (game.status === 'WAITING' as any) {
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          status: 'ACTIVE' as any
+        }
+      });
     }
 
     return NextResponse.json({

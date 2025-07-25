@@ -37,16 +37,32 @@ export class PersistentGameCache {
         return null;
       }
 
-      // If game state is stored, restore it (backwards compatible)
+      // Check if game state is stored in database
       const gameStateData = (game as any).gameState;
+      
       if (gameStateData) {
+        // Restore from stored state (preferred path)
         console.log(`Restoring game ${gameId} from stored state`);
         const gameEngine = this.restoreGameFromState(gameId, gameStateData, game);
         this.memoryCache.set(gameId, gameEngine);
         return gameEngine;
       } else {
-        console.log(`Game ${gameId} has no stored state (field may not exist yet)`);
-        return null;
+        // Game exists in database but no gameState yet - initialize from database record
+        console.log(`Game ${gameId} found in database but no stored state - initializing from record`);
+        const gameEngine = this.initializeGameFromRecord(gameId, game);
+        
+        // Cache the initialized game and save initial state to database
+        this.memoryCache.set(gameId, gameEngine);
+        
+        // Save initial state to database immediately
+        try {
+          await this.set(gameId, gameEngine);
+          console.log(`Initial game state saved to database for ${gameId}`);
+        } catch (error) {
+          console.warn(`Failed to save initial game state for ${gameId}:`, error);
+        }
+        
+        return gameEngine;
       }
     } catch (error) {
       console.error(`Error loading game ${gameId} from database:`, error);
@@ -328,6 +344,54 @@ export class PersistentGameCache {
       console.warn('Failed to sync turn state:', error);
       // Continue without turn state sync if it fails
     }
+  }
+
+  /**
+   * Initialize a fresh game from database record when no gameState exists yet
+   */
+  private initializeGameFromRecord(gameId: string, gameRecord: any): GinRummyGame {
+    console.log(`Initializing fresh game ${gameId} from database record`);
+    
+    // Create new game engine based on game type
+    const gameEngine = gameRecord.vsAI 
+      ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
+      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false);
+    
+    const initialState = gameEngine.getState();
+    
+    // Set player names from database
+    if (gameRecord.player1 && initialState.players[0]) {
+      initialState.players[0].username = gameRecord.player1.username;
+    }
+    
+    if (gameRecord.vsAI && initialState.players[1]) {
+      initialState.players[1].username = 'AI Opponent';
+    } else if (gameRecord.player2 && initialState.players[1]) {
+      initialState.players[1].username = gameRecord.player2.username;
+    }
+    
+    // For AI games, process initial AI moves if needed
+    if (gameRecord.vsAI && initialState.currentPlayerId === 'ai-player' && initialState.phase === 'upcard_decision') {
+      console.log(`Processing initial AI upcard decision for newly initialized game ${gameId}`);
+      try {
+        // Process the initial AI upcard decision
+        const aiMove = gameEngine.getAISuggestion();
+        if (aiMove) {
+          console.log(`AI making initial move: ${aiMove.type} for game ${gameId}`);
+          const moveResult = gameEngine.makeMove(aiMove);
+          if (moveResult.success) {
+            console.log(`AI initial move successful for game ${gameId}, new phase: ${moveResult.state.phase}`);
+          } else {
+            console.error(`AI initial move failed for game ${gameId}:`, moveResult.error);
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing initial AI moves for game ${gameId}:`, error);
+      }
+    }
+    
+    console.log(`Fresh game ${gameId} initialized successfully`);
+    return gameEngine;
   }
 
   /**
