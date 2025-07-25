@@ -205,10 +205,18 @@ export async function POST(
       console.log('AI should process moves:', aiShouldProcess);
       
       if (aiShouldProcess) {
-        console.log('Processing AI moves synchronously to prevent turn desync...');
+        console.log('AI will think before processing moves...');
+        
+        // Add thinking delay to simulate AI consideration
+        const thinkingTime = 1500 + Math.random() * 1000; // 1.5-2.5 seconds
+        console.log(`AI thinking for ${Math.round(thinkingTime)}ms`);
+        
+        await new Promise(resolve => setTimeout(resolve, thinkingTime));
+        
+        console.log('AI finished thinking, processing moves synchronously...');
         try {
           const aiResults = gameEngine.processAIMoves();
-          console.log('AI processed', aiResults.length, 'moves synchronously');
+          console.log('AI processed', aiResults.length, 'moves after thinking');
         } catch (aiError) {
           console.error('AI processing failed:', aiError);
         }
@@ -231,12 +239,13 @@ export async function POST(
         console.log('Game state saved to fallback cache');
       }
 
-      // Return response with game state after all processing
+      // Return response with game state after all processing (including AI thinking)
       return NextResponse.json({
         success: true,
         gameState: finalGameState,
         debug: {
           aiProcessedMoves: aiShouldProcess,
+          aiThinkingComplete: aiShouldProcess,
           synchronousProcessing: true,
           finalState: {
             currentPlayerId: finalGameState.currentPlayerId,
