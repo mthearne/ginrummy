@@ -51,7 +51,10 @@ export class PersistentGameCache {
         (gameEngine as any)._debugInfo = {
           restorationMethod: 'database_restore',
           hadStoredState: true,
-          cardCount: gameStateData.players?.[0]?.hand?.length || 0
+          cardCount: gameStateData.players?.[0]?.hand?.length || 0,
+          hasDeckData: !!(gameStateData.deck && Array.isArray(gameStateData.deck)),
+          deckSize: gameStateData.deck?.length || 0,
+          stockCount: gameStateData.stockPileCount || 0
         };
         
         return gameEngine;
@@ -347,6 +350,7 @@ export class PersistentGameCache {
       // If we have stored deck data, restore it directly
       if (gameState.deck && Array.isArray(gameState.deck)) {
         console.log('Restoring deck from stored state with', gameState.deck.length, 'cards');
+        console.log('First few deck cards:', gameState.deck.slice(0, 3).map(c => c.id));
         gameEngine.deck = gameState.deck;
         gameState.stockPileCount = gameState.deck.length;
         return;
