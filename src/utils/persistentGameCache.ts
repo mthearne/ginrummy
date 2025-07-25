@@ -191,6 +191,12 @@ export class PersistentGameCache {
       ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
     
+    // Set loading state to prevent AI processing during restoration
+    if (typeof gameEngine.setLoadingState === 'function') {
+      gameEngine.setLoadingState(true);
+      console.log('Set loading state to prevent AI interference during restoration');
+    }
+    
     // Get the fresh state for comparison
     const freshState = gameEngine.getState();
     console.log(`Restoring from fresh state with ${freshState.stockPileCount} stock cards`);
@@ -203,6 +209,12 @@ export class PersistentGameCache {
       // Validate the restored state
       this.validateRestoredState(gameEngine, storedState);
       console.log(`Game state validation passed for ${gameId}`);
+      
+      // Clear loading state now that restoration is complete
+      if (typeof gameEngine.setLoadingState === 'function') {
+        gameEngine.setLoadingState(false);
+        console.log('Cleared loading state after successful restoration');
+      }
       
     } catch (error) {
       console.error(`Game restoration failed for ${gameId}:`, error);
@@ -220,6 +232,12 @@ export class PersistentGameCache {
         state.players[1].username = 'AI Opponent';
       } else if (gameRecord.player2) {
         state.players[1].username = gameRecord.player2.username;
+      }
+      
+      // Clear loading state after fallback restoration
+      if (typeof gameEngine.setLoadingState === 'function') {
+        gameEngine.setLoadingState(false);
+        console.log('Cleared loading state after fallback restoration');
       }
     }
 
@@ -282,8 +300,8 @@ export class PersistentGameCache {
       currentState.players[1].username = gameRecord.player2.username;
     }
 
-    // 6. Sync internal turn state (if accessible)
-    this.syncInternalTurnState(gameEngine, currentState);
+    // 6. Skip internal turn state sync - let game engine manage its own consistency
+    // this.syncInternalTurnState(gameEngine, currentState);
   }
 
   /**
@@ -346,6 +364,7 @@ export class PersistentGameCache {
         gameEngine.turnState.isProcessing = false;
         gameEngine.turnState.lockTimestamp = 0;
         gameEngine.turnState.moveQueue = [];
+        console.log(`Turn state synced: currentPlayer=${gameState.currentPlayerId}, phase=${gameState.phase}`);
       }
     } catch (error) {
       console.warn('Failed to sync turn state:', error);
@@ -363,6 +382,12 @@ export class PersistentGameCache {
     const gameEngine = gameRecord.vsAI 
       ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false);
+    
+    // Set loading state during initialization to prevent race conditions
+    if (typeof gameEngine.setLoadingState === 'function') {
+      gameEngine.setLoadingState(true);
+      console.log('Set loading state during fresh game initialization');
+    }
     
     const initialState = gameEngine.getState();
     
@@ -395,6 +420,12 @@ export class PersistentGameCache {
       } catch (error) {
         console.error(`Error processing initial AI moves for game ${gameId}:`, error);
       }
+    }
+    
+    // Clear loading state after initialization is complete
+    if (typeof gameEngine.setLoadingState === 'function') {
+      gameEngine.setLoadingState(false);
+      console.log('Cleared loading state after fresh game initialization');
     }
     
     console.log(`Fresh game ${gameId} initialized successfully`);

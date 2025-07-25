@@ -107,14 +107,12 @@ export async function GET(
         });
       }
 
-      // Check if AI needs to move when state is loaded
+      // TEMPORARILY DISABLED: Check if AI needs to move when state is loaded
+      // This was causing turn state desynchronization issues
       const currentState = gameEngine.getState();
       if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
-        console.log('AI turn detected when loading state, starting background AI processing');
-        // Process AI moves asynchronously to avoid blocking the response
-        processAIMovesFromStateAsync(gameId, gameEngine).catch(error => {
-          console.error('Background AI processing from state error:', error);
-        });
+        console.log('AI turn detected when loading state - skipping processing to avoid desync');
+        // TODO: Process AI moves via separate async mechanism to avoid race conditions
       }
 
       // Save updated game state after AI moves (with fallback)
@@ -216,81 +214,6 @@ async function processInitialAIMoves(gameEngine: any): Promise<void> {
   console.log('AI initial move successful, new phase:', moveResult.state.phase, 'next player:', moveResult.state.currentPlayerId);
 }
 
-/**
- * Process AI moves asynchronously when loading state and it's AI's turn
- */
-async function processAIMovesFromStateAsync(gameId: string, gameEngine: any): Promise<void> {
-  try {
-    console.log('Starting background AI processing from state load for game:', gameId);
-    
-    let movesProcessed = 0;
-    const maxMoves = 5;
-    
-    while (movesProcessed < maxMoves) {
-      const currentState = gameEngine.getState();
-      
-      if (currentState.currentPlayerId !== 'ai-player' || currentState.gameOver) {
-        console.log('AI turn complete from state. Current player:', currentState.currentPlayerId, 'Game over:', currentState.gameOver);
-        break;
-      }
-      
-      console.log(`Processing AI move ${movesProcessed + 1} from state for phase:`, currentState.phase);
-      
-      const aiMove = gameEngine.getAISuggestion();
-      if (!aiMove) {
-        console.log('No AI move suggestion available for phase:', currentState.phase);
-        break;
-      }
-      
-      // Add thinking delay for natural AI behavior
-      const thinkingDelay = Math.random() * 3500 + 500; // 500ms to 4000ms (same as move endpoint)
-      console.log(`AI thinking for ${Math.round(thinkingDelay)}ms before making move from state:`, aiMove.type);
-      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
-      
-      console.log('AI making move from state:', aiMove.type);
-      const aiMoveResult = gameEngine.makeMove(aiMove);
-      
-      if (!aiMoveResult.success) {
-        console.error('AI move from state failed:', aiMoveResult.error);
-        break;
-      }
-      
-      console.log('AI move from state successful, new phase:', aiMoveResult.state.phase, 'next player:', aiMoveResult.state.currentPlayerId);
-      movesProcessed++;
-      
-      // Add small delay between moves
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
-      // Prevent infinite loops
-      if (movesProcessed >= maxMoves) {
-        console.log('Max AI moves reached from state, stopping');
-        break;
-      }
-    }
-    
-    console.log(`AI processed ${movesProcessed} moves from state load`);
-    
-    // Save updated game state and set completion flag
-    try {
-      await persistentGameCache.set(gameId, gameEngine);
-    } catch (error) {
-      console.log('Background AI cache save failed, using fallback cache:', error.message);
-      await fallbackGameCache.set(gameId, gameEngine);
-    }
-    
-    // Set completion flag for polling using fallback cache only
-    const completionKey = `${gameId}_ai_complete`;
-    const completionData = gameEngine.getState();
-    try {
-      // Only use fallback cache for completion flags to avoid persistence issues
-      await fallbackGameCache.set(completionKey, completionData as any);
-      console.log('AI completion flag set successfully from state for game:', gameId);
-    } catch (error) {
-      console.error('Failed to set AI completion flag from state:', error);
-    }
-    
-  } catch (error) {
-    console.error('AI processing from state failed:', error);
-  }
-}
+// Removed processAIMovesFromStateAsync function - using synchronous AI processing during state load
+// to prevent race conditions between state loading and AI move processing
 

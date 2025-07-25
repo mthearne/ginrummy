@@ -31,6 +31,7 @@ interface TurnState {
   isProcessing: boolean;
   lockTimestamp: number;
   moveQueue: GameMove[];
+  isLoading?: boolean; // Flag to prevent AI processing during state restoration
 }
 
 /**
@@ -109,7 +110,8 @@ export class GinRummyGame {
       phase: GamePhase.UpcardDecision,
       isProcessing: false,
       lockTimestamp: 0,
-      moveQueue: []
+      moveQueue: [],
+      isLoading: false
     };
 
     this.dealInitialCards();
@@ -695,13 +697,15 @@ export class GinRummyGame {
            this.state.currentPlayerId === 'ai-player' && 
            !this.state.gameOver &&
            this.state.phase !== GamePhase.GameOver &&
-           this.state.phase !== GamePhase.RoundOver;
+           this.state.phase !== GamePhase.RoundOver &&
+           !this.turnState.isLoading; // Don't process AI moves during state loading
            
     console.log('Should process AI moves check:');
     console.log('- vsAI:', this.state.vsAI);
     console.log('- currentPlayerId:', this.state.currentPlayerId);
     console.log('- gameOver:', this.state.gameOver);
     console.log('- phase:', this.state.phase);
+    console.log('- isLoading:', this.turnState.isLoading);
     console.log('- result:', should);
     
     return should;
@@ -731,6 +735,21 @@ export class GinRummyGame {
    */
   public isProcessing(): boolean {
     return this.turnState.isProcessing;
+  }
+
+  /**
+   * Force synchronization of turn state with game state
+   * Used by cache restoration to ensure consistency
+   */
+  public forceTurnStateSync(): void {
+    this.syncTurnState();
+  }
+
+  /**
+   * Set loading state to prevent AI processing during state restoration
+   */
+  public setLoadingState(isLoading: boolean): void {
+    this.turnState.isLoading = isLoading;
   }
 
   /**
