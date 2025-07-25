@@ -46,6 +46,14 @@ export class PersistentGameCache {
         console.log(`Restoring game ${gameId} from stored state`);
         const gameEngine = this.restoreGameFromState(gameId, gameStateData, game);
         this.memoryCache.set(gameId, gameEngine);
+        
+        // Add debug info to the game engine
+        (gameEngine as any)._debugInfo = {
+          restorationMethod: 'database_restore',
+          hadStoredState: true,
+          cardCount: gameStateData.players?.[0]?.hand?.length || 0
+        };
+        
         return gameEngine;
       } else {
         // Game exists in database but no gameState yet - this could be a problem
@@ -63,6 +71,13 @@ export class PersistentGameCache {
         // Initialize from database record - this creates a fresh game!
         console.log(`Initializing fresh game from record - THIS RESETS THE GAME!`);
         const gameEngine = this.initializeGameFromRecord(gameId, game);
+        
+        // Add debug info to the game engine
+        (gameEngine as any)._debugInfo = {
+          restorationMethod: 'fresh_initialization',
+          hadStoredState: false,
+          reason: 'no_gameState_in_database'
+        };
         
         // Cache the initialized game and save initial state to database
         this.memoryCache.set(gameId, gameEngine);

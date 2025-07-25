@@ -124,7 +124,14 @@ export async function GET(
       }
 
       return NextResponse.json({
-        gameState: gameEngine.getState()
+        gameState: gameEngine.getState(),
+        debug: {
+          restorationMethod: 'ai_persistent_cache',
+          cacheHit: true,
+          aiProcessingSkipped: true,
+          timestamp: new Date().toISOString(),
+          gameEngineDebug: (gameEngine as any)._debugInfo || null
+        }
       });
     }
 
@@ -182,7 +189,13 @@ export async function GET(
     }
 
     return NextResponse.json({
-      gameState: gameEngine.getState()
+      gameState: gameEngine.getState(),
+      debug: {
+        restorationMethod: 'persistent_cache',
+        cacheHit: true,
+        timestamp: new Date().toISOString(),
+        gameEngineDebug: (gameEngine as any)._debugInfo || null
+      }
     });
 
   } catch (error) {
