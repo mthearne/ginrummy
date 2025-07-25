@@ -54,7 +54,10 @@ export class PersistentGameCache {
           cardCount: gameStateData.players?.[0]?.hand?.length || 0,
           hasDeckData: !!(gameStateData.deck && Array.isArray(gameStateData.deck)),
           deckSize: gameStateData.deck?.length || 0,
-          stockCount: gameStateData.stockPileCount || 0
+          stockCount: gameStateData.stockPileCount || 0,
+          lastSaveTimestamp: gameStateData._saveTimestamp || 'unknown',
+          savedPhase: gameStateData._saveDebug?.phase || 'unknown',
+          savedCurrentPlayer: gameStateData._saveDebug?.currentPlayerId || 'unknown'
         };
         
         return gameEngine;
@@ -127,10 +130,18 @@ export class PersistentGameCache {
       // Include the internal deck state to preserve card IDs
       const stateWithDeck = {
         ...gameState,
-        deck: (gameEngine as any).deck || []
+        deck: (gameEngine as any).deck || [],
+        _saveTimestamp: new Date().toISOString(),
+        _saveDebug: {
+          phase: gameState.phase,
+          currentPlayerId: gameState.currentPlayerId,
+          stockCount: gameState.stockPileCount
+        }
       };
       
       console.log(`Saving game ${gameId} state to database with ${stateWithDeck.deck.length} deck cards`);
+      console.log(`Saving state - Phase: ${gameState.phase}, CurrentPlayer: ${gameState.currentPlayerId}`);
+      console.log(`Player 1 hand size: ${gameState.players[0]?.hand?.length}, Player 2 hand size: ${gameState.players[1]?.hand?.length}`);
       
       await prisma.game.update({
         where: { id: gameId },
