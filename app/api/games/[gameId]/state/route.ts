@@ -97,12 +97,14 @@ export async function GET(
         );
       }
       
-      // Update game to active status in database if still waiting
+      // Update game to active status in database if still waiting - PRESERVE gameState!
       if (game.status === 'WAITING' as any) {
+        console.log(`Updating game ${gameId} status to ACTIVE - preserving existing gameState`);
         await prisma.game.update({
           where: { id: gameId },
           data: {
             status: 'ACTIVE' as any
+            // DO NOT clear gameState - it should remain as-is
           }
         });
       }
@@ -164,12 +166,14 @@ export async function GET(
       );
     }
     
-    // Update game to active status in database if still waiting
+    // Update game to active status in database if still waiting - PRESERVE gameState!
     if (game.status === 'WAITING' as any) {
+      console.log(`Updating PvP game ${gameId} status to ACTIVE - preserving existing gameState`);
       await prisma.game.update({
         where: { id: gameId },
         data: {
           status: 'ACTIVE' as any
+          // DO NOT clear gameState - it should remain as-is
         }
       });
     }

@@ -41,6 +41,14 @@ export class PersistentGameCache {
 
       // Check if game state is stored in database
       const gameStateData = (game as any).gameState;
+      console.log(`Database query result for ${gameId}:`);
+      console.log(`  - Game found: ${!!game}`);
+      console.log(`  - GameState field exists: ${gameStateData !== null && gameStateData !== undefined}`);
+      console.log(`  - GameState type: ${typeof gameStateData}`);
+      if (gameStateData) {
+        console.log(`  - GameState has _saveTimestamp: ${!!gameStateData._saveTimestamp}`);
+        console.log(`  - GameState phase: ${gameStateData.phase}`);
+      }
       
       if (gameStateData) {
         // Restore from stored state (preferred path)
@@ -220,6 +228,9 @@ export class PersistentGameCache {
    * Remove game from cache and database
    */
   async delete(gameId: string): Promise<boolean> {
+    console.log(`\n!!! DELETE CALLED FOR GAME ${gameId} !!!`);
+    console.log(`Delete caller stack:`, new Error().stack?.split('\n').slice(1, 5).join(' -> '));
+    
     // Remove from memory
     const wasInMemory = this.memoryCache.delete(gameId);
 
