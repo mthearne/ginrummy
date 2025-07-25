@@ -33,10 +33,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setUser(userData);
           setTokens(accessToken, refreshToken);
         } catch (verifyError) {
-          console.warn('Token verification failed, but keeping tokens for now:', verifyError.message);
-          // Keep the tokens but don't set user data
-          // This allows API calls to be made with potentially valid tokens
-          setTokens(accessToken, refreshToken);
+          console.warn('Token verification failed, clearing expired tokens:', verifyError.message);
+          // Clear invalid/expired tokens immediately
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          logout();
         }
 
       } catch (error) {
