@@ -12,13 +12,15 @@ const FlyingAnimal: React.FC<FlyingAnimalProps> = ({
   duration = 3000,
   animal
 }) => {
-  const [position, setPosition] = useState({ x: -150, y: 50 });
+  const [position, setPosition] = useState({ x: -200, y: 50 });
   const [windowWidth, setWindowWidth] = useState(0);
+  const [windowHeight, setWindowHeight] = useState(0);
   const [selectedAnimal, setSelectedAnimal] = useState<CelebrationAnimal>('unicorn');
 
   useEffect(() => {
     const updateWindowSize = () => {
       setWindowWidth(window.innerWidth);
+      setWindowHeight(window.innerHeight);
     };
 
     updateWindowSize();
@@ -28,20 +30,23 @@ const FlyingAnimal: React.FC<FlyingAnimalProps> = ({
 
   useEffect(() => {
     if (!active) {
-      setPosition({ x: -150, y: 50 });
+      setPosition({ x: -200, y: 50 });
       return;
     }
 
     // Set the animal to use
     setSelectedAnimal(animal || getRandomAnimal());
 
-    // Random vertical position
-    const randomY = Math.random() * 200 + 50; // Between 50px and 250px from top
-    setPosition({ x: -150, y: randomY });
+    // Calculate animal size (1/3 of screen height)
+    const animalSize = Math.max(windowHeight / 3, 200); // At least 200px
+    
+    // Random vertical position, accounting for larger animal size
+    const randomY = Math.random() * (windowHeight - animalSize - 100) + 50;
+    setPosition({ x: -animalSize, y: randomY });
 
     const startTime = Date.now();
-    const endX = windowWidth + 150;
-    const totalDistance = endX - (-150);
+    const endX = windowWidth + animalSize;
+    const totalDistance = endX - (-animalSize);
 
     const animateAnimal = () => {
       const elapsed = Date.now() - startTime;
@@ -52,7 +57,7 @@ const FlyingAnimal: React.FC<FlyingAnimalProps> = ({
         ? 2 * progress * progress 
         : 1 - Math.pow(-2 * progress + 2, 3) / 2;
       
-      const currentX = -150 + (totalDistance * easeProgress);
+      const currentX = -animalSize + (totalDistance * easeProgress);
       
       // Add slight vertical bobbing motion
       const bobbing = Math.sin(elapsed * 0.01) * 10;
@@ -69,9 +74,12 @@ const FlyingAnimal: React.FC<FlyingAnimalProps> = ({
     return () => {
       cancelAnimationFrame(animationFrame);
     };
-  }, [active, duration, windowWidth, animal]);
+  }, [active, duration, windowWidth, windowHeight, animal]);
 
   if (!active) return null;
+
+  // Calculate animal size (1/3 of screen height, minimum 200px)
+  const animalSize = Math.max(windowHeight / 3, 200);
 
   return (
     <div
@@ -93,8 +101,8 @@ const FlyingAnimal: React.FC<FlyingAnimalProps> = ({
       >
         <AnimalComponent 
           animal={selectedAnimal} 
-          size={120}
-          className="drop-shadow-lg"
+          size={animalSize}
+          className="drop-shadow-xl"
         />
       </div>
       
