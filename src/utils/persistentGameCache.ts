@@ -262,7 +262,12 @@ export class PersistentGameCache {
     
     try {
       // Restore game state using proper reconstruction instead of Object.assign
+      console.log(`Starting reconstruction for ${gameId} - stored phase: ${storedState.phase}, currentPlayer: ${storedState.currentPlayerId}`);
       this.reconstructGameState(gameEngine, storedState, gameRecord);
+      
+      // Verify the phase was actually set correctly
+      const restoredState = gameEngine.getState();
+      console.log(`After reconstruction - actual phase: ${restoredState.phase}, currentPlayer: ${restoredState.currentPlayerId}`);
       console.log(`Game state restored successfully for ${gameId}`);
       
       // Validate the restored state
@@ -298,6 +303,18 @@ export class PersistentGameCache {
         gameEngine.setLoadingState(false);
         console.log('Cleared loading state after fallback restoration');
       }
+    }
+
+    // FINAL VERIFICATION: Check if the state is correct after all restoration steps
+    const finalState = gameEngine.getState();
+    console.log(`FINAL STATE CHECK for ${gameId}:`);
+    console.log(`  - Phase: ${finalState.phase} (expected: ${storedState.phase})`);
+    console.log(`  - CurrentPlayer: ${finalState.currentPlayerId} (expected: ${storedState.currentPlayerId})`);
+    console.log(`  - Phase match: ${finalState.phase === storedState.phase}`);
+    console.log(`  - Player match: ${finalState.currentPlayerId === storedState.currentPlayerId}`);
+    
+    if (finalState.phase !== storedState.phase) {
+      console.error(`PHASE MISMATCH DETECTED! Game engine reset phase from ${storedState.phase} to ${finalState.phase}`);
     }
 
     return gameEngine;
@@ -397,13 +414,18 @@ export class PersistentGameCache {
    */
   private syncInternalTurnState(gameEngine: any, gameState: any): void {
     try {
+      console.log(`SYNC: Before sync - gameState phase: ${gameState.phase}, currentPlayer: ${gameState.currentPlayerId}`);
+      
       // Use the game engine's built-in sync method if available
       if (typeof gameEngine.forceTurnStateSync === 'function') {
         gameEngine.forceTurnStateSync();
-        console.log(`Turn state synced via forceTurnStateSync: currentPlayer=${gameState.currentPlayerId}, phase=${gameState.phase}`);
+        const postSyncState = gameEngine.getState();
+        console.log(`Turn state synced via forceTurnStateSync: gameState phase=${gameState.phase} -> actual phase=${postSyncState.phase}`);
+        console.log(`Turn state synced via forceTurnStateSync: gameState currentPlayer=${gameState.currentPlayerId} -> actual currentPlayer=${postSyncState.currentPlayerId}`);
       } else {
         // Fallback: directly access turn state if available (this is a hack since turnState is private)
         if (gameEngine.turnState !== undefined) {
+          console.log(`SYNC: Setting turnState directly - phase: ${gameState.phase}, currentPlayer: ${gameState.currentPlayerId}`);
           gameEngine.turnState.currentPlayerId = gameState.currentPlayerId;
           gameEngine.turnState.phase = gameState.phase;
           gameEngine.turnState.isProcessing = false;
