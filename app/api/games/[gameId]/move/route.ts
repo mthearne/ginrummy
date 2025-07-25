@@ -202,7 +202,11 @@ export async function POST(
       const aiShouldProcess = currentState.currentPlayerId === 'ai-player' && !currentState.gameOver;
       
       console.log('\n=== AI PROCESSING CHECK ===');
-      console.log('AI should process moves:', aiShouldProcess);
+      console.log('Current state after player move:');
+      console.log('- currentPlayerId:', currentState.currentPlayerId);
+      console.log('- phase:', currentState.phase);
+      console.log('- gameOver:', currentState.gameOver);
+      console.log('- AI should process moves:', aiShouldProcess);
       
       if (aiShouldProcess) {
         console.log('AI will think before processing moves...');
@@ -215,8 +219,19 @@ export async function POST(
         
         console.log('AI finished thinking, processing moves synchronously...');
         try {
+          const stateBeforeAI = gameEngine.getState();
+          console.log('State before AI processing:');
+          console.log('- currentPlayerId:', stateBeforeAI.currentPlayerId);
+          console.log('- phase:', stateBeforeAI.phase);
+          
           const aiResults = gameEngine.processAIMoves();
           console.log('AI processed', aiResults.length, 'moves after thinking');
+          
+          const stateAfterAI = gameEngine.getState();
+          console.log('State after AI processing:');
+          console.log('- currentPlayerId:', stateAfterAI.currentPlayerId);
+          console.log('- phase:', stateAfterAI.phase);
+          
         } catch (aiError) {
           console.error('AI processing failed:', aiError);
         }
