@@ -162,6 +162,21 @@ export async function GET(request: NextRequest) {
     // Exclude PvE games from public lobby - they should only appear in "My Games"
     where.vsAI = false;
 
+    // Exclude games where the current user is already a participant
+    where.AND = [
+      {
+        player1Id: {
+          not: decoded.userId
+        }
+      },
+      {
+        OR: [
+          { player2Id: null },
+          { player2Id: { not: decoded.userId } }
+        ]
+      }
+    ];
+
     // Get games from database
     const [games, total] = await Promise.all([
       prisma.game.findMany({
