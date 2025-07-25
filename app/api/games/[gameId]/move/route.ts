@@ -5,6 +5,7 @@ import { GinRummyGame } from '@gin-rummy/common';
 import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 import { GamePhase } from '@gin-rummy/common';
+import { GameEventsService } from '../../../../../src/services/gameEvents';
 
 export async function POST(
   request: NextRequest,
@@ -143,6 +144,9 @@ export async function POST(
       console.log('Turn state before move:', gameEngine.getTurnState());
       console.log('Processing lock status:', gameEngine.isProcessing());
       
+      // Capture state before move for logging
+      const gameStateBefore = gameEngine.getState();
+      
       const moveResult = gameEngine.makeMove(move);
       
       if (!moveResult.success) {
@@ -170,6 +174,28 @@ export async function POST(
       console.log('State changes:', moveResult.stateChanges);
       console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
       console.log('Turn state after move:', gameEngine.getTurnState());
+
+      // Log the move to database
+      try {
+        await GameEventsService.logMove(gameId, decoded.userId, move, gameStateBefore, moveResult.state);
+        
+        // Log round/game end events if applicable
+        if (moveResult.state.phase === 'round_over' && gameStateBefore.phase !== 'round_over') {
+          await GameEventsService.logRoundEnd(gameId, {
+            winner: moveResult.state.winner,
+            knockType: moveResult.state.knockType,
+            scores: moveResult.state.roundScores,
+            finalHands: moveResult.state.players?.map(p => ({ id: p.id, hand: p.hand, melds: p.melds }))
+          });
+        }
+        
+        if (moveResult.state.gameOver && !gameStateBefore.gameOver) {
+          await GameEventsService.logGameEnd(gameId, moveResult.state);
+        }
+        
+      } catch (error) {
+        console.warn('Failed to log move/events to database:', error);
+      }
 
       // Check if AI should think (but don't process moves yet)
       const currentState = gameEngine.getState();
@@ -289,6 +315,9 @@ export async function POST(
     console.log('Move:', move.type, 'by player:', decoded.userId);
     console.log('Game state - Phase:', retrievedState.phase, 'Current player:', retrievedState.currentPlayerId);
     
+    // Capture state before move for logging
+    const pvpGameStateBefore = gameEngine.getState();
+    
     const moveResult = gameEngine.makeMove(move);
     
     if (!moveResult.success) {
@@ -302,6 +331,28 @@ export async function POST(
     console.log('\n=== PVP PLAYER MOVE SUCCESS ===');
     console.log('State changes:', moveResult.stateChanges);
     console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
+
+    // Log the PvP move to database
+    try {
+      await GameEventsService.logMove(gameId, decoded.userId, move, pvpGameStateBefore, moveResult.state);
+      
+      // Log round/game end events if applicable
+      if (moveResult.state.phase === 'round_over' && pvpGameStateBefore.phase !== 'round_over') {
+        await GameEventsService.logRoundEnd(gameId, {
+          winner: moveResult.state.winner,
+          knockType: moveResult.state.knockType,
+          scores: moveResult.state.roundScores,
+          finalHands: moveResult.state.players?.map(p => ({ id: p.id, hand: p.hand, melds: p.melds }))
+        });
+      }
+      
+      if (moveResult.state.gameOver && !pvpGameStateBefore.gameOver) {
+        await GameEventsService.logGameEnd(gameId, moveResult.state);
+      }
+      
+    } catch (error) {
+      console.warn('Failed to log PvP move/events to database:', error);
+    }
 
     // Save game state to persistent storage
     const finalGameState = gameEngine.getState();

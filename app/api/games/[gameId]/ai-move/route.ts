@@ -3,6 +3,7 @@ import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { GinRummyGame } from '@gin-rummy/common';
 import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
+import { GameEventsService } from '../../../../../src/services/gameEvents';
 
 /**
  * Process AI moves after thinking delay
@@ -93,6 +94,9 @@ export async function POST(
     console.log('\n=== AI PROCESSING START (After Thinking) ===');
     console.log('Pre-AI state - Phase:', currentState.phase, 'Current player:', currentState.currentPlayerId);
     
+    // Capture state before AI moves for logging
+    const stateBeforeAI = gameEngine.getState();
+    
     try {
       const startTime = Date.now();
       const aiResults = gameEngine.processAIMoves();
@@ -113,6 +117,33 @@ export async function POST(
       
       const finalState = gameEngine.getState();
       console.log('Final state - Phase:', finalState.phase, 'Current player:', finalState.currentPlayerId);
+      
+      // Log AI moves to database (simplified - log each successful AI result)
+      try {
+        for (const [index, result] of aiResults.entries()) {
+          if (result.success && result.move) {
+            await GameEventsService.logMove(gameId, null, result.move, stateBeforeAI, result.state);
+            console.log(`Logged AI move ${index + 1}: ${result.move.type}`);
+          }
+        }
+        
+        // Log round/game end events if applicable
+        if (finalState.phase === 'round_over' && stateBeforeAI.phase !== 'round_over') {
+          await GameEventsService.logRoundEnd(gameId, {
+            winner: finalState.winner,
+            knockType: finalState.knockType,
+            scores: finalState.roundScores,
+            finalHands: finalState.players?.map(p => ({ id: p.id, hand: p.hand, melds: p.melds }))
+          });
+        }
+        
+        if (finalState.gameOver && !stateBeforeAI.gameOver) {
+          await GameEventsService.logGameEnd(gameId, finalState);
+        }
+        
+      } catch (error) {
+        console.warn('Failed to log AI moves to database:', error);
+      }
       
       // Save the updated game state
       try {

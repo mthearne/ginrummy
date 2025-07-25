@@ -1,6 +1,7 @@
 // Database-backed persistent game cache for serverless environments
 import { GinRummyGame } from '@gin-rummy/common';
 import { prisma } from './database';
+import { GameEventsService } from '../services/gameEvents';
 
 export class PersistentGameCache {
   private memoryCache = new Map<string, GinRummyGame>();
@@ -58,6 +59,12 @@ export class PersistentGameCache {
         try {
           await this.set(gameId, gameEngine);
           console.log(`Initial game state saved to database for ${gameId}`);
+          
+          // Log game start event (don't await to avoid blocking)
+          GameEventsService.logGameStart(gameId, gameEngine.getState()).catch(error => {
+            console.warn(`Failed to log game start for ${gameId}:`, error);
+          });
+          
         } catch (error) {
           console.warn(`Failed to save initial game state for ${gameId}:`, error);
         }
