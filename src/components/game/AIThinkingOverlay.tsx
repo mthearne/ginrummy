@@ -88,6 +88,7 @@ export default function AIThinkingOverlay() {
             />
           ))}
         </div>
+      </div>
     </div>
   );
 }
