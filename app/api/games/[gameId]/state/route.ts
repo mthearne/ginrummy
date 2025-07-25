@@ -115,13 +115,8 @@ export async function GET(
         // TODO: Process AI moves via separate async mechanism to avoid race conditions
       }
 
-      // Save updated game state after AI moves (with fallback)
-      try {
-        await persistentGameCache.set(gameId, gameEngine);
-      } catch (error) {
-        console.log('Persistent cache failed, using fallback cache:', error.message);
-        await fallbackGameCache.set(gameId, gameEngine);
-      }
+      // Don't save state here - we're just loading, not updating
+      // Saving here was overwriting newer state with older restored state
 
       return NextResponse.json({
         gameState: gameEngine.getState(),
@@ -179,14 +174,8 @@ export async function GET(
       });
     }
 
-    // Save PvP game state to ensure it persists for future loads
-    try {
-      await persistentGameCache.set(gameId, gameEngine);
-      console.log('PvP game state saved after load to ensure persistence');
-    } catch (error) {
-      console.log('Failed to save PvP game state after load:', error.message);
-      await fallbackGameCache.set(gameId, gameEngine);
-    }
+    // Don't save PvP state here - we're just loading, not updating
+    // Saving here was overwriting newer state with older restored state
 
     return NextResponse.json({
       gameState: gameEngine.getState(),
