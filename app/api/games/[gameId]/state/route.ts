@@ -172,6 +172,15 @@ export async function GET(
       });
     }
 
+    // Save PvP game state to ensure it persists for future loads
+    try {
+      await persistentGameCache.set(gameId, gameEngine);
+      console.log('PvP game state saved after load to ensure persistence');
+    } catch (error) {
+      console.log('Failed to save PvP game state after load:', error.message);
+      await fallbackGameCache.set(gameId, gameEngine);
+    }
+
     return NextResponse.json({
       gameState: gameEngine.getState()
     });

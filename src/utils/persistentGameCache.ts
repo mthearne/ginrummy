@@ -48,8 +48,20 @@ export class PersistentGameCache {
         this.memoryCache.set(gameId, gameEngine);
         return gameEngine;
       } else {
-        // Game exists in database but no gameState yet - initialize from database record
-        console.log(`Game ${gameId} found in database but no stored state - initializing from record`);
+        // Game exists in database but no gameState yet - this could be a problem
+        console.warn(`Game ${gameId} found in database but no stored state - this might indicate incomplete save`);
+        console.log('Game record:', {
+          id: game.id,
+          status: game.status,
+          vsAI: game.vsAI,
+          player1Id: game.player1Id,
+          player2Id: game.player2Id,
+          createdAt: game.createdAt,
+          updatedAt: game.updatedAt
+        });
+        
+        // Initialize from database record - this creates a fresh game!
+        console.log(`Initializing fresh game from record - THIS RESETS THE GAME!`);
         const gameEngine = this.initializeGameFromRecord(gameId, game);
         
         // Cache the initialized game and save initial state to database
