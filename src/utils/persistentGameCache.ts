@@ -158,34 +158,210 @@ export class PersistentGameCache {
   }
 
   /**
-   * Restore game engine from stored state
+   * Restore game engine from stored state with proper internal state reconstruction
    */
   private restoreGameFromState(gameId: string, storedState: any, gameRecord: any): GinRummyGame {
+    console.log(`Starting proper restoration for game ${gameId}`);
+    
     // Create new game engine based on game type
     const gameEngine = gameRecord.vsAI 
       ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
     
-    // Restore the stored state
-    // Note: This is a simplified restoration - in a full implementation,
-    // you'd need to properly reconstruct the entire game state including deck
-    const state = gameEngine.getState();
+    // Get the fresh state for comparison
+    const freshState = gameEngine.getState();
+    console.log(`Restoring from fresh state with ${freshState.stockPileCount} stock cards`);
     
-    // Copy stored state properties
-    Object.assign(state, storedState);
-    
-    // Ensure player names are correct
-    if (gameRecord.player1) {
-      state.players[0].username = gameRecord.player1.username;
-    }
-    
-    if (gameRecord.vsAI) {
-      state.players[1].username = 'AI Opponent';
-    } else if (gameRecord.player2) {
-      state.players[1].username = gameRecord.player2.username;
+    try {
+      // Restore game state using proper reconstruction instead of Object.assign
+      this.reconstructGameState(gameEngine, storedState, gameRecord);
+      console.log(`Game state restored successfully for ${gameId}`);
+      
+      // Validate the restored state
+      this.validateRestoredState(gameEngine, storedState);
+      console.log(`Game state validation passed for ${gameId}`);
+      
+    } catch (error) {
+      console.error(`Game restoration failed for ${gameId}:`, error);
+      // Fall back to Object.assign for backwards compatibility
+      console.log(`Falling back to legacy restoration for ${gameId}`);
+      const state = gameEngine.getState();
+      Object.assign(state, storedState);
+      
+      // Ensure player names are correct (legacy fallback)
+      if (gameRecord.player1) {
+        state.players[0].username = gameRecord.player1.username;
+      }
+      
+      if (gameRecord.vsAI) {
+        state.players[1].username = 'AI Opponent';
+      } else if (gameRecord.player2) {
+        state.players[1].username = gameRecord.player2.username;
+      }
     }
 
     return gameEngine;
+  }
+
+  /**
+   * Properly reconstruct game state with internal consistency
+   */
+  private reconstructGameState(gameEngine: any, storedState: any, gameRecord: any): void {
+    const currentState = gameEngine.getState();
+    
+    // 1. Restore basic game properties
+    currentState.id = storedState.id;
+    currentState.status = storedState.status;
+    currentState.phase = storedState.phase;
+    currentState.currentPlayerId = storedState.currentPlayerId;
+    currentState.turnTimer = storedState.turnTimer || 30;
+    currentState.isPrivate = storedState.isPrivate || false;
+    currentState.vsAI = storedState.vsAI;
+    currentState.gameOver = storedState.gameOver || false;
+    currentState.winner = storedState.winner;
+    currentState.roundScores = storedState.roundScores;
+
+    // 2. Restore players with validation
+    if (storedState.players && Array.isArray(storedState.players)) {
+      for (let i = 0; i < Math.min(currentState.players.length, storedState.players.length); i++) {
+        const player = currentState.players[i];
+        const storedPlayer = storedState.players[i];
+        
+        // Restore player properties
+        player.id = storedPlayer.id;
+        player.username = storedPlayer.username;
+        player.hand = storedPlayer.hand || [];
+        player.handSize = storedPlayer.handSize || player.hand.length;
+        player.score = storedPlayer.score || 0;
+        player.hasKnocked = storedPlayer.hasKnocked || false;
+        player.hasGin = storedPlayer.hasGin || false;
+        player.deadwood = storedPlayer.deadwood || 0;
+        player.melds = storedPlayer.melds || [];
+        player.lastDrawnCardId = storedPlayer.lastDrawnCardId;
+      }
+    }
+
+    // 3. Restore discard pile and stock count
+    currentState.discardPile = storedState.discardPile || [];
+    currentState.stockPileCount = storedState.stockPileCount || 0;
+
+    // 4. Reconstruct internal deck state
+    this.reconstructDeck(gameEngine, currentState);
+
+    // 5. Restore player names from database records
+    if (gameRecord.player1 && currentState.players[0]) {
+      currentState.players[0].username = gameRecord.player1.username;
+    }
+    
+    if (gameRecord.vsAI && currentState.players[1]) {
+      currentState.players[1].username = 'AI Opponent';
+    } else if (gameRecord.player2 && currentState.players[1]) {
+      currentState.players[1].username = gameRecord.player2.username;
+    }
+
+    // 6. Sync internal turn state (if accessible)
+    this.syncInternalTurnState(gameEngine, currentState);
+  }
+
+  /**
+   * Reconstruct the internal deck based on game state
+   */
+  private reconstructDeck(gameEngine: any, gameState: any): void {
+    try {
+      // Get all cards that should be in hands and discard pile
+      const usedCards = new Set<string>();
+      
+      // Add cards from player hands
+      for (const player of gameState.players) {
+        if (player.hand && Array.isArray(player.hand)) {
+          for (const card of player.hand) {
+            usedCards.add(`${card.suit}-${card.rank}`);
+          }
+        }
+      }
+      
+      // Add cards from discard pile
+      if (gameState.discardPile && Array.isArray(gameState.discardPile)) {
+        for (const card of gameState.discardPile) {
+          usedCards.add(`${card.suit}-${card.rank}`);
+        }
+      }
+
+      // Create full deck and remove used cards
+      const { createDeck } = require('@gin-rummy/common');
+      const fullDeck = createDeck();
+      const remainingCards = fullDeck.filter(card => 
+        !usedCards.has(`${card.suit}-${card.rank}`)
+      );
+
+      // Update internal deck (this is a hack since deck is private)
+      // We access it through the game engine's private property
+      if (gameEngine.deck !== undefined) {
+        gameEngine.deck = remainingCards;
+      }
+
+      console.log(`Reconstructed deck with ${remainingCards.length} cards (expected: ${gameState.stockPileCount})`);
+      
+      // Update stock count to match actual deck
+      gameState.stockPileCount = remainingCards.length;
+      
+    } catch (error) {
+      console.warn('Failed to reconstruct deck:', error);
+      // Keep the original deck if reconstruction fails
+    }
+  }
+
+  /**
+   * Sync internal turn state with game state
+   */
+  private syncInternalTurnState(gameEngine: any, gameState: any): void {
+    try {
+      // Access turn state if available (this is a hack since turnState is private)
+      if (gameEngine.turnState !== undefined) {
+        gameEngine.turnState.currentPlayerId = gameState.currentPlayerId;
+        gameEngine.turnState.phase = gameState.phase;
+        gameEngine.turnState.isProcessing = false;
+        gameEngine.turnState.lockTimestamp = 0;
+        gameEngine.turnState.moveQueue = [];
+      }
+    } catch (error) {
+      console.warn('Failed to sync turn state:', error);
+      // Continue without turn state sync if it fails
+    }
+  }
+
+  /**
+   * Validate that the restored state is consistent
+   */
+  private validateRestoredState(gameEngine: any, storedState: any): void {
+    const currentState = gameEngine.getState();
+    
+    // Check that basic properties match
+    if (currentState.id !== storedState.id) {
+      throw new Error(`Game ID mismatch: ${currentState.id} !== ${storedState.id}`);
+    }
+    
+    // Check that stock count is reasonable
+    if (currentState.stockPileCount < 0 || currentState.stockPileCount > 52) {
+      throw new Error(`Invalid stock count: ${currentState.stockPileCount}`);
+    }
+    
+    // Check that players exist
+    if (!currentState.players || currentState.players.length !== 2) {
+      throw new Error(`Invalid players array: ${currentState.players?.length}`);
+    }
+    
+    // Validate card counts (optional - can be expensive)
+    let totalCards = currentState.stockPileCount;
+    totalCards += (currentState.discardPile?.length || 0);
+    for (const player of currentState.players) {
+      totalCards += (player.hand?.length || 0);
+    }
+    
+    if (totalCards !== 52) {
+      console.warn(`Card count validation failed: ${totalCards} total cards (expected 52)`);
+      // Don't throw error for card count issues, just warn
+    }
   }
 }
 
