@@ -197,42 +197,16 @@ export async function POST(
         console.warn('Failed to log move/events to database:', error);
       }
 
-      // Process AI moves immediately if it's AI's turn - this prevents turn desync
+      // Check if AI should think (but don't process moves yet - let frontend handle AI thinking)
       const currentState = gameEngine.getState();
-      const aiShouldProcess = currentState.currentPlayerId === 'ai-player' && !currentState.gameOver;
+      const aiShouldThink = currentState.currentPlayerId === 'ai-player' && !currentState.gameOver;
       
-      console.log('\n=== AI PROCESSING CHECK ===');
-      console.log('AI should process moves:', aiShouldProcess);
-      
-      if (aiShouldProcess) {
-        console.log('Processing AI moves synchronously to prevent turn desync...');
-        try {
-          // Store initial state before AI processing for logging
-          const stateBeforeAI = gameEngine.getState();
-          
-          const aiResults = gameEngine.processAIMoves();
-          console.log('AI processed', aiResults.length, 'moves synchronously');
-          
-          // Log AI moves to database (simplified - we don't have access to individual moves)
-          if (aiResults.length > 0) {
-            try {
-              const finalAIState = gameEngine.getState();
-              // Log a summary of AI processing rather than individual moves
-              console.log('AI processing completed, final state:', {
-                phase: finalAIState.phase,
-                currentPlayerId: finalAIState.currentPlayerId,
-                moves: aiResults.length
-              });
-            } catch (logError) {
-              console.warn('Failed to log AI processing summary:', logError);
-            }
-          }
-        } catch (aiError) {
-          console.error('AI processing failed:', aiError);
-        }
+      console.log('\n=== MOVE PROCESSING COMPLETE ===');
+      console.log('AI should think:', aiShouldThink);
+      if (aiShouldThink) {
+        console.log('AI will think before making moves (handled by frontend)');
       }
-      
-      console.log('=== MOVE PROCESSING COMPLETE ===\n');
+      console.log('=== ATOMIC MOVE PROCESSING END ===\n');
 
       // Save final game state after all processing (including AI moves)
       const finalGameState = gameEngine.getState();
@@ -249,13 +223,14 @@ export async function POST(
         console.log('Game state saved to fallback cache');
       }
 
-      // Return final response with complete game state after all processing
+      // Return response with game state and AI thinking indicator
       return NextResponse.json({
         success: true,
         gameState: finalGameState,
         debug: {
-          aiProcessedMoves: aiShouldProcess,
-          finalState: {
+          aiShouldThink: aiShouldThink,
+          playerMoveComplete: true,
+          currentState: {
             currentPlayerId: finalGameState.currentPlayerId,
             phase: finalGameState.phase,
             gameOver: finalGameState.gameOver
