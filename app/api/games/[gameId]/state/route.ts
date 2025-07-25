@@ -153,42 +153,51 @@ export async function GET(
       });
     }
 
-    // For active PvP games, return basic game state
-    return NextResponse.json({
-      gameState: {
-        id: game.id,
-        status: game.status,
-        vsAI: game.vsAI,
-        players: [
-          game.player1 ? {
-            id: game.player1.id,
-            username: game.player1.username,
-            score: game.player1Score,
-            hand: [], // Would need game engine for actual cards
-            handSize: 10,
-            deadwood: 0,
-            hasKnocked: false,
-            hasGin: false,
-            melds: [],
-          } : null,
-          game.player2 ? {
-            id: game.player2.id,
-            username: game.player2.username,
-            score: game.player2Score,
-            hand: [],
-            handSize: 10,
-            deadwood: 0,
-            hasKnocked: false,
-            hasGin: false,
-            melds: [],
-          } : null,
-        ].filter(Boolean),
-        currentPlayerId: game.player1Id,
-        phase: 'draw',
-        turnTimer: 30,
-        stockPileCount: 31,
-        discardPile: [],
+    // For active PvP games, use persistent cached state or initialize new game
+    let gameEngine: any;
+    
+    try {
+      gameEngine = await persistentGameCache.get(gameId);
+    } catch (error) {
+      console.log('PvP persistent cache failed, trying fallback cache:', error.message);
+      gameEngine = await fallbackGameCache.get(gameId);
+    }
+    
+    if (!gameEngine) {
+      // Initialize the PvP game engine with proper cards and game logic
+      console.log('Initializing new PvP game:', gameId);
+      gameEngine = new GinRummyGame(gameId, game.player1Id, game.player2Id || 'player2', false);
+      const initialState = gameEngine.getState();
+      
+      // Set player names from database
+      if (game.player1) {
+        initialState.players[0].username = game.player1.username;
       }
+      if (game.player2) {
+        initialState.players[1].username = game.player2.username;
+      }
+      
+      // Cache the game engine in persistent storage (with fallback)
+      try {
+        await persistentGameCache.set(gameId, gameEngine);
+      } catch (error) {
+        console.log('PvP persistent cache failed, using fallback cache:', error.message);
+        await fallbackGameCache.set(gameId, gameEngine);
+      }
+      
+      // Update game to active status in database if still waiting
+      if (game.status === 'WAITING' as any) {
+        await prisma.game.update({
+          where: { id: gameId },
+          data: {
+            status: 'ACTIVE' as any
+          }
+        });
+      }
+    }
+
+    return NextResponse.json({
+      gameState: gameEngine.getState()
     });
 
   } catch (error) {

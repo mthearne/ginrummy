@@ -27,12 +27,13 @@ export class PersistentGameCache {
       const game = await prisma.game.findUnique({
         where: { id: gameId },
         include: {
-          player1: { select: { id: true, username: true } }
+          player1: { select: { id: true, username: true } },
+          player2: { select: { id: true, username: true } }
         }
       });
 
-      if (!game || !game.vsAI) {
-        console.log(`Game ${gameId} not found or not AI game`);
+      if (!game) {
+        console.log(`Game ${gameId} not found`);
         return null;
       }
 
@@ -115,7 +116,7 @@ export class PersistentGameCache {
         select: { id: true, vsAI: true }
       });
 
-      return !!(game?.vsAI);
+      return !!game;
     } catch (error) {
       console.error(`Error checking game ${gameId} existence:`, error);
       return false;
@@ -160,8 +161,10 @@ export class PersistentGameCache {
    * Restore game engine from stored state
    */
   private restoreGameFromState(gameId: string, storedState: any, gameRecord: any): GinRummyGame {
-    // Create new game engine
-    const gameEngine = new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true);
+    // Create new game engine based on game type
+    const gameEngine = gameRecord.vsAI 
+      ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
+      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
     
     // Restore the stored state
     // Note: This is a simplified restoration - in a full implementation,
@@ -175,7 +178,12 @@ export class PersistentGameCache {
     if (gameRecord.player1) {
       state.players[0].username = gameRecord.player1.username;
     }
-    state.players[1].username = 'AI Opponent';
+    
+    if (gameRecord.vsAI) {
+      state.players[1].username = 'AI Opponent';
+    } else if (gameRecord.player2) {
+      state.players[1].username = gameRecord.player2.username;
+    }
 
     return gameEngine;
   }

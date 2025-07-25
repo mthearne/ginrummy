@@ -217,11 +217,112 @@ export async function POST(
       });
     }
 
-    // For PvP games, this would need different handling
-    return NextResponse.json(
-      { error: 'PvP games not yet implemented' },
-      { status: 501 }
-    );
+    // For PvP games, use persistent cache system
+    let gameEngine;
+    let retrievalAttempts = 0;
+    const maxRetrievalAttempts = 3;
+    
+    while (retrievalAttempts < maxRetrievalAttempts && !gameEngine) {
+      retrievalAttempts++;
+      
+      try {
+        gameEngine = await persistentGameCache.get(gameId);
+        if (gameEngine) {
+          console.log(`PvP game engine retrieved from persistent cache on attempt ${retrievalAttempts}`);
+          break;
+        }
+      } catch (error) {
+        console.log(`PvP persistent cache attempt ${retrievalAttempts} failed:`, error.message);
+      }
+      
+      try {
+        gameEngine = await fallbackGameCache.get(gameId);
+        if (gameEngine) {
+          console.log(`PvP game engine retrieved from fallback cache on attempt ${retrievalAttempts}`);
+          break;
+        }
+      } catch (error) {
+        console.log(`PvP fallback cache attempt ${retrievalAttempts} failed:`, error.message);
+      }
+      
+      // Brief delay before retry to handle potential race conditions
+      if (retrievalAttempts < maxRetrievalAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+    
+    if (!gameEngine) {
+      console.log('PvP game engine not found in any cache after', maxRetrievalAttempts, 'attempts for gameId:', gameId);
+      
+      return NextResponse.json(
+        { 
+          error: 'Game state not found. Please refresh the page to reload the game.',
+          code: 'GAME_STATE_LOST'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate retrieved game state consistency
+    const retrievedState = gameEngine.getState();
+    if (!retrievedState || !retrievedState.id || retrievedState.id !== gameId) {
+      console.error('Retrieved PvP game state is invalid or doesn\'t match gameId:', gameId);
+      return NextResponse.json(
+        { 
+          error: 'Game state corruption detected. Please refresh the page.',
+          code: 'GAME_STATE_CORRUPT'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Debug player ID mapping for PvP
+    console.log('PvP Player ID mapping verification:');
+    console.log('- Database player1Id:', game.player1Id);
+    console.log('- Database player2Id:', game.player2Id);
+    console.log('- Game engine player IDs:', retrievedState.players?.map(p => ({ id: p.id, username: p.username })));
+    console.log('- Move playerId:', move.playerId);
+    console.log('- Current game player:', retrievedState.currentPlayerId);
+
+    // Make the player's move
+    console.log('\n=== PVP MOVE PROCESSING START ===');
+    console.log('Move:', move.type, 'by player:', decoded.userId);
+    console.log('Game state - Phase:', retrievedState.phase, 'Current player:', retrievedState.currentPlayerId);
+    
+    const moveResult = gameEngine.makeMove(move);
+    
+    if (!moveResult.success) {
+      console.log('PvP move failed with error:', moveResult.error);
+      return NextResponse.json(
+        { error: moveResult.error || 'Invalid move' },
+        { status: 400 }
+      );
+    }
+
+    console.log('\n=== PVP PLAYER MOVE SUCCESS ===');
+    console.log('State changes:', moveResult.stateChanges);
+    console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
+
+    // Save game state to persistent storage
+    const finalGameState = gameEngine.getState();
+    console.log('\n=== SAVING PVP FINAL STATE ===');
+    console.log('Final state - Phase:', finalGameState.phase, 'Current player:', finalGameState.currentPlayerId);
+    console.log('Game over:', finalGameState.gameOver);
+    
+    try {
+      await persistentGameCache.set(gameId, gameEngine);
+      console.log('PvP game state saved to persistent cache successfully');
+    } catch (error) {
+      console.log('PvP persistent cache save failed, using fallback cache:', error.message);
+      await fallbackGameCache.set(gameId, gameEngine);
+      console.log('PvP game state saved to fallback cache');
+    }
+
+    // Return final response
+    return NextResponse.json({
+      success: true,
+      gameState: finalGameState
+    });
 
   } catch (error) {
     console.error('Make move error:', error);
