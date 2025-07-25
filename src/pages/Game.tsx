@@ -508,7 +508,9 @@ export default function Game() {
           {/* Game Board */}
           <div className="lg:col-span-3 space-y-4">
             {/* Opponent */}
-            <div className="bg-white rounded-lg p-4">
+            <div className="bg-white rounded-lg p-4 relative">
+              {/* AI Thinking Overlay */}
+              <AIThinkingOverlay />
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <div>
@@ -895,8 +897,6 @@ export default function Game() {
       <Confetti active={showConfetti} duration={3000} />
       <FlyingAnimal active={showFlyingAnimal} duration={3000} />
       
-      {/* AI Thinking Overlay */}
-      <AIThinkingOverlay />
     </div>
   );
 }

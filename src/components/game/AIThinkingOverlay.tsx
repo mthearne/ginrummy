@@ -60,9 +60,9 @@ export default function AIThinkingOverlay() {
   }
 
   return (
-    <div className="absolute inset-0 z-50 pointer-events-none">
+    <div className="absolute top-2 right-2 z-50 pointer-events-none">
       {/* Thinking bubble positioned over AI's card area */}
-      <div className="absolute top-4 left-4 bg-white bg-opacity-95 backdrop-blur-sm rounded-lg shadow-lg p-3 max-w-xs border border-gray-200">
+      <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-lg shadow-lg p-3 max-w-xs border border-gray-200">
         <div className="flex items-center space-x-2 mb-2">
           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
           <span className="text-xs font-medium text-gray-700">AI Thinking...</span>
@@ -88,7 +88,6 @@ export default function AIThinkingOverlay() {
             />
           ))}
         </div>
-      </div>
     </div>
   );
 }
