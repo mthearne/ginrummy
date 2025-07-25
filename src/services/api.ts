@@ -55,13 +55,24 @@ api.interceptors.response.use(
 
         const { accessToken } = response.data;
         localStorage.setItem('accessToken', accessToken);
+        
+        // Update the token in the auth store too
+        const authStore = useAuthStore.getState();
+        if (authStore.refreshToken) {
+          authStore.setTokens(accessToken, authStore.refreshToken);
+        }
 
         // Retry the original request with new token
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed, logout user
-        useAuthStore.getState().logout();
+        console.warn('Token refresh failed, logging out user:', refreshError.message);
+        const authStore = useAuthStore.getState();
+        authStore.logout();
+        
+        // Force page reload to ensure clean state
+        console.log('Redirecting to login after token refresh failure');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }

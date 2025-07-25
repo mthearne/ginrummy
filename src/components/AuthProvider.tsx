@@ -24,9 +24,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         
         try {
           // Verify tokens by getting user profile
-          const response = await authAPI.getProfile();
-          const userData = response.data;
+          // Use a direct axios call to bypass the refresh interceptor during initialization
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
 
+          if (!response.ok) {
+            throw new Error(`Auth verification failed: ${response.status}`);
+          }
+
+          const userData = await response.json();
           console.log('Auth verified, setting user data:', userData.username);
           
           // Set the user and tokens in the store
@@ -34,10 +44,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setTokens(accessToken, refreshToken);
         } catch (verifyError) {
           console.warn('Token verification failed, clearing expired tokens:', verifyError.message);
+          
           // Clear invalid/expired tokens immediately
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           logout();
+          
+          console.log('Logout called, user should be null now');
         }
 
       } catch (error) {
