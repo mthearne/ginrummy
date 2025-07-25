@@ -197,16 +197,24 @@ export async function POST(
         console.warn('Failed to log move/events to database:', error);
       }
 
-      // Check if AI should think (but don't process moves yet - let frontend handle AI thinking)
+      // Process AI moves immediately if it's AI's turn - this prevents turn desync
       const currentState = gameEngine.getState();
-      const aiShouldThink = currentState.currentPlayerId === 'ai-player' && !currentState.gameOver;
+      const aiShouldProcess = currentState.currentPlayerId === 'ai-player' && !currentState.gameOver;
       
-      console.log('\n=== MOVE PROCESSING COMPLETE ===');
-      console.log('AI should think:', aiShouldThink);
-      if (aiShouldThink) {
-        console.log('AI will think before making moves (handled by frontend)');
+      console.log('\n=== AI PROCESSING CHECK ===');
+      console.log('AI should process moves:', aiShouldProcess);
+      
+      if (aiShouldProcess) {
+        console.log('Processing AI moves synchronously to prevent turn desync...');
+        try {
+          const aiResults = gameEngine.processAIMoves();
+          console.log('AI processed', aiResults.length, 'moves synchronously');
+        } catch (aiError) {
+          console.error('AI processing failed:', aiError);
+        }
       }
-      console.log('=== ATOMIC MOVE PROCESSING END ===\n');
+      
+      console.log('=== MOVE PROCESSING COMPLETE ===\n');
 
       // Save final game state after all processing (including AI moves)
       const finalGameState = gameEngine.getState();
@@ -223,14 +231,14 @@ export async function POST(
         console.log('Game state saved to fallback cache');
       }
 
-      // Return response with game state and AI thinking indicator
+      // Return response with game state after all processing
       return NextResponse.json({
         success: true,
         gameState: finalGameState,
         debug: {
-          aiShouldThink: aiShouldThink,
-          playerMoveComplete: true,
-          currentState: {
+          aiProcessedMoves: aiShouldProcess,
+          synchronousProcessing: true,
+          finalState: {
             currentPlayerId: finalGameState.currentPlayerId,
             phase: finalGameState.phase,
             gameOver: finalGameState.gameOver
