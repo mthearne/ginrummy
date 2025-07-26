@@ -67,6 +67,21 @@ export class PersistentGameCache {
         console.log(`Restored player 2 hand: ${gameStateData.players?.[1]?.hand?.length || 0} cards`);
         console.log(`Restored debug:`, gameStateData._saveDebug || 'NOT FOUND');
         const gameEngine = this.restoreGameFromState(gameId, gameStateData, game);
+        
+        // IMMEDIATE card count check after restoration
+        const restoredState = gameEngine.getState();
+        const player1HandSize = restoredState.players[0]?.hand?.length || 0;
+        const player2HandSize = restoredState.players[1]?.hand?.length || 0;
+        console.log(`IMMEDIATE CHECK: Player hands after restoration - P1: ${player1HandSize}, P2: ${player2HandSize}`);
+        
+        if (player1HandSize > 11 || player2HandSize > 11) {
+          console.error(`🚨 EXCESSIVE CARDS DETECTED AFTER RESTORATION!`);
+          console.error(`Player 1: ${player1HandSize} cards, Player 2: ${player2HandSize} cards`);
+          console.error(`Player 1 hand:`, restoredState.players[0]?.hand?.map(c => c.id));
+          console.error(`Player 2 hand:`, restoredState.players[1]?.hand?.map(c => c.id));
+          throw new Error(`Excessive cards detected: P1=${player1HandSize}, P2=${player2HandSize}`);
+        }
+        
         this.memoryCache.set(gameId, gameEngine);
         
         // Add debug info to the game engine
@@ -307,9 +322,15 @@ export class PersistentGameCache {
       console.log(`After reconstruction - actual phase: ${restoredState.phase}, currentPlayer: ${restoredState.currentPlayerId}`);
       console.log(`Game state restored successfully for ${gameId}`);
       
-      // Validate the restored state
-      this.validateRestoredState(gameEngine, storedState);
-      console.log(`Game state validation passed for ${gameId}`);
+      // Validate the restored state - CRITICAL for detecting duplicates
+      try {
+        this.validateRestoredState(gameEngine, storedState);
+        console.log(`✅ Game state validation passed for ${gameId}`);
+      } catch (validationError) {
+        console.error(`❌ GAME STATE VALIDATION FAILED for ${gameId}:`, validationError.message);
+        // Don't let the game continue with invalid state
+        throw validationError;
+      }
       
       // Clear loading state now that restoration is complete
       if (typeof gameEngine.setLoadingState === 'function') {
