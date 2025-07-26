@@ -61,6 +61,8 @@ export class PersistentGameCache {
         console.log(`Restored phase: ${gameStateData.phase}`);
         console.log(`Restored current player: ${gameStateData.currentPlayerId}`);
         console.log(`Restored deck size: ${gameStateData.deck?.length || 'NO DECK'}`);
+        console.log(`Restored discard pile: ${gameStateData.discardPile?.length || 0} cards`);
+        console.log(`Restored upcard: ${gameStateData.discardPile?.[0]?.id || 'NO UPCARD'}`);
         console.log(`Restored player 1 hand: ${gameStateData.players?.[0]?.hand?.length || 0} cards`);
         console.log(`Restored player 2 hand: ${gameStateData.players?.[1]?.hand?.length || 0} cards`);
         console.log(`Restored debug:`, gameStateData._saveDebug || 'NOT FOUND');
@@ -180,6 +182,8 @@ export class PersistentGameCache {
       console.log(`Phase: ${gameState.phase}`);
       console.log(`Current player: ${gameState.currentPlayerId}`);
       console.log(`Deck cards: ${stateWithDeck.deck.length}`);
+      console.log(`Discard pile: ${gameState.discardPile?.length || 0} cards`);
+      console.log(`Upcard being saved: ${gameState.discardPile?.[0]?.id || 'NO UPCARD'}`);
       console.log(`Save caller stack:`, new Error().stack?.split('\n').slice(1, 4).join(' -> '));
       console.log(`Player 1 hand size: ${gameState.players[0]?.hand?.length}, Player 2 hand size: ${gameState.players[1]?.hand?.length}`);
       console.log(`=== END SAVE #${this.saveCounter} ===\n`);
