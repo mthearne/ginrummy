@@ -219,6 +219,7 @@ export async function POST(
       console.log('\n=== AI PROCESSING CHECK ===');
       console.log('Current state after player move:');
       console.log('- currentPlayerId:', currentState.currentPlayerId);
+      console.log('- currentPlayerId === "ai-player":', currentState.currentPlayerId === 'ai-player');
       console.log('- phase:', currentState.phase);
       console.log('- gameOver:', currentState.gameOver);
       console.log('- AI should process moves:', aiShouldProcess);
@@ -269,18 +270,25 @@ export async function POST(
         console.log('Game state saved to fallback cache');
       }
 
+      // Get the truly final state after all processing
+      const trulyFinalState = gameEngine.getState();
+      
       // Return response with game state after all processing (including AI thinking)
       return NextResponse.json({
         success: true,
-        gameState: finalGameState,
+        gameState: trulyFinalState,
         debug: {
           aiProcessedMoves: aiShouldProcess,
           aiThinkingComplete: aiShouldProcess,
           synchronousProcessing: true,
-          finalState: {
-            currentPlayerId: finalGameState.currentPlayerId,
-            phase: finalGameState.phase,
-            gameOver: finalGameState.gameOver
+          beforeAI: {
+            currentPlayerId: currentState.currentPlayerId,
+            phase: currentState.phase
+          },
+          afterAI: {
+            currentPlayerId: trulyFinalState.currentPlayerId,
+            phase: trulyFinalState.phase,
+            gameOver: trulyFinalState.gameOver
           }
         }
       });
