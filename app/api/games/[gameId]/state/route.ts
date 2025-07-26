@@ -109,16 +109,50 @@ export async function GET(
         });
       }
 
-      // TEMPORARILY DISABLED: Check if AI needs to move when state is loaded
-      // This was causing turn state desynchronization issues
+      // Check if AI needs to move when state is loaded
       const currentState = gameEngine.getState();
+      let aiProcessedMoves = false;
+      
       if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
-        console.log('AI turn detected when loading state - skipping processing to avoid desync');
-        // TODO: Process AI moves via separate async mechanism to avoid race conditions
+        console.log('AI turn detected when loading state - processing AI moves synchronously');
+        console.log(`AI state: phase=${currentState.phase}, currentPlayer=${currentState.currentPlayerId}`);
+        
+        try {
+          // Process AI moves immediately and synchronously to prevent race conditions
+          const aiResults = gameEngine.processAIMoves();
+          console.log(`AI processed ${aiResults.length} moves after state load`);
+          
+          if (aiResults.length > 0) {
+            aiProcessedMoves = true;
+          }
+          
+          // Log successful AI moves
+          aiResults.forEach((result, index) => {
+            if (result.success) {
+              console.log(`AI move ${index + 1} SUCCESS: ${result.move?.type}`);
+            } else {
+              console.error(`AI move ${index + 1} FAILED: ${result.error}`);
+            }
+          });
+          
+          const stateAfterAI = gameEngine.getState();
+          console.log(`State after AI processing: phase=${stateAfterAI.phase}, currentPlayer=${stateAfterAI.currentPlayerId}`);
+          
+        } catch (error) {
+          console.error('AI processing failed during state load:', error);
+        }
       }
 
-      // Don't save state here - we're just loading, not updating
-      // Saving here was overwriting newer state with older restored state
+      // Save state if AI actually processed moves during load
+      if (aiProcessedMoves) {
+        try {
+          await persistentGameCache.set(gameId, gameEngine);
+          console.log('Game state saved after AI processing during load');
+        } catch (error) {
+          console.log('Failed to save state after AI processing:', error.message);
+          await fallbackGameCache.set(gameId, gameEngine);
+        }
+      }
 
       return NextResponse.json({
         gameState: gameEngine.getState(),
