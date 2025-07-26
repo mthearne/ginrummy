@@ -428,6 +428,21 @@ export class PersistentGameCache {
   private reconstructGameState(gameEngine: any, storedState: any, gameRecord: any): void {
     const currentState = gameEngine.getState();
     
+    // IMMEDIATE CHECK: Validate stored state before reconstruction
+    if (storedState.players) {
+      const p1Cards = storedState.players[0]?.hand?.length || 0;
+      const p2Cards = storedState.players[1]?.hand?.length || 0;
+      console.log(`STORED STATE VALIDATION: P1=${p1Cards} cards, P2=${p2Cards} cards`);
+      
+      if (p1Cards > 11 || p2Cards > 11) {
+        console.error(`🚨 CORRUPTED STORED STATE DETECTED!`);
+        console.error(`Stored player hands: P1=${p1Cards}, P2=${p2Cards}`);
+        console.error(`P1 hand:`, storedState.players[0]?.hand?.map((c: any) => c.id));
+        console.error(`P2 hand:`, storedState.players[1]?.hand?.map((c: any) => c.id));
+        throw new Error(`Corrupted stored state: P1=${p1Cards}, P2=${p2Cards} cards`);
+      }
+    }
+    
     // 1. Restore basic game properties
     currentState.id = storedState.id;
     currentState.status = storedState.status;

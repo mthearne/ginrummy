@@ -157,6 +157,22 @@ export async function GET(
       // Get final state after all processing (including AI moves)
       const finalGameState = gameEngine.getState();
       
+      // CRITICAL: Final validation before sending to frontend
+      const p1Cards = finalGameState.players[0]?.hand?.length || 0;
+      const p2Cards = finalGameState.players[1]?.hand?.length || 0;
+      
+      if (p1Cards > 11 || p2Cards > 11) {
+        console.error(`🚨 PREVENTING CORRUPTED STATE FROM REACHING FRONTEND!`);
+        console.error(`Player hands: P1=${p1Cards}, P2=${p2Cards}`);
+        console.error(`P1 hand:`, finalGameState.players[0]?.hand?.map(c => c.id));
+        console.error(`P2 hand:`, finalGameState.players[1]?.hand?.map(c => c.id));
+        
+        return NextResponse.json({
+          error: `Game state corrupted: Player has ${p1Cards > 11 ? p1Cards : p2Cards} cards instead of 10-11. Please refresh to reinitialize.`,
+          code: 'CORRUPTED_GAME_STATE'
+        }, { status: 500 });
+      }
+      
       return NextResponse.json({
         gameState: finalGameState,
         debug: {
