@@ -559,16 +559,72 @@ export class PersistentGameCache {
       throw new Error(`Invalid players array: ${currentState.players?.length}`);
     }
     
-    // Validate card counts (optional - can be expensive)
-    let totalCards = currentState.stockPileCount;
-    totalCards += (currentState.discardPile?.length || 0);
-    for (const player of currentState.players) {
-      totalCards += (player.hand?.length || 0);
+    // CRITICAL: Check for duplicate cards
+    const allCards: string[] = [];
+    
+    // Collect all cards from all sources
+    const deck = (gameEngine as any).deck || [];
+    const discardPile = currentState.discardPile || [];
+    
+    // Add deck cards
+    deck.forEach((card: any) => allCards.push(card.id));
+    
+    // Add discard pile cards
+    discardPile.forEach((card: any) => allCards.push(card.id));
+    
+    // Add player hand cards
+    currentState.players.forEach((player: any, playerIndex: number) => {
+      if (player.hand) {
+        player.hand.forEach((card: any) => {
+          allCards.push(card.id);
+        });
+      }
+    });
+    
+    // Check for duplicates
+    const uniqueCards = new Set(allCards);
+    if (uniqueCards.size !== allCards.length) {
+      console.error(`🚨 DUPLICATE CARDS DETECTED!`);
+      console.error(`Total cards: ${allCards.length}, Unique cards: ${uniqueCards.size}`);
+      
+      // Find duplicates
+      const cardCounts = new Map<string, number>();
+      allCards.forEach(cardId => {
+        cardCounts.set(cardId, (cardCounts.get(cardId) || 0) + 1);
+      });
+      
+      const duplicates = Array.from(cardCounts.entries()).filter(([_, count]) => count > 1);
+      console.error(`Duplicate cards:`, duplicates);
+      
+      // Log where each duplicate card appears
+      duplicates.forEach(([cardId, count]) => {
+        console.error(`Card ${cardId} appears ${count} times:`);
+        
+        // Check deck
+        if (deck.some((c: any) => c.id === cardId)) {
+          console.error(`  - In deck`);
+        }
+        
+        // Check discard pile
+        if (discardPile.some((c: any) => c.id === cardId)) {
+          console.error(`  - In discard pile`);
+        }
+        
+        // Check player hands
+        currentState.players.forEach((player: any, playerIndex: number) => {
+          if (player.hand?.some((c: any) => c.id === cardId)) {
+            console.error(`  - In player ${playerIndex + 1} hand`);
+          }
+        });
+      });
+      
+      throw new Error(`Duplicate cards detected: ${duplicates.map(([id]) => id).join(', ')}`);
     }
     
-    if (totalCards !== 52) {
-      console.warn(`Card count validation failed: ${totalCards} total cards (expected 52)`);
-      // Don't throw error for card count issues, just warn
+    // Validate total card count
+    if (allCards.length !== 52) {
+      console.warn(`Total card count: ${allCards.length} (expected 52)`);
+      console.warn(`Deck: ${deck.length}, Discard: ${discardPile.length}, Player1: ${currentState.players[0]?.hand?.length || 0}, Player2: ${currentState.players[1]?.hand?.length || 0}`);
     }
   }
 }
