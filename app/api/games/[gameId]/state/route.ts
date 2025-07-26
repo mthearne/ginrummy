@@ -154,13 +154,19 @@ export async function GET(
         }
       }
 
+      // Get final state after all processing (including AI moves)
+      const finalGameState = gameEngine.getState();
+      
       return NextResponse.json({
-        gameState: gameEngine.getState(),
+        gameState: finalGameState,
         debug: {
           restorationMethod: 'ai_persistent_cache',
           cacheHit: true,
-          aiProcessingSkipped: true,
+          aiProcessingSkipped: false,
+          aiProcessedMoves: aiProcessedMoves,
           timestamp: new Date().toISOString(),
+          finalPhase: finalGameState.phase,
+          finalCurrentPlayer: finalGameState.currentPlayerId,
           gameEngineDebug: (gameEngine as any)._debugInfo || null
         }
       });

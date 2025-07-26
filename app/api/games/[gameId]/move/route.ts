@@ -164,6 +164,21 @@ export async function POST(
           console.error('- State changes:', moveResult.stateChanges);
         }
         
+        // Enhanced error logging for upcard phase issues
+        if (moveResult.error?.includes('upcard decision phase')) {
+          console.error('UPCARD PHASE DEBUG:');
+          console.error('- Move type:', move.type);
+          console.error('- Backend game phase:', retrievedState.phase);
+          console.error('- Backend current player:', retrievedState.currentPlayerId);
+          console.error('- Move player ID:', move.playerId);
+          console.error('- User ID from token:', decoded.userId);
+          console.error('- Game state when move attempted:', JSON.stringify({
+            phase: retrievedState.phase,
+            currentPlayerId: retrievedState.currentPlayerId,
+            gameOver: retrievedState.gameOver
+          }));
+        }
+        
         return NextResponse.json(
           { error: moveResult.error || 'Invalid move' },
           { status: 400 }
