@@ -265,9 +265,17 @@ export async function POST(
         await persistentGameCache.set(gameId, gameEngine);
         console.log('Game state saved to persistent cache successfully');
       } catch (error) {
-        console.log('Persistent cache save failed, using fallback cache:', error.message);
-        await fallbackGameCache.set(gameId, gameEngine);
-        console.log('Game state saved to fallback cache');
+        console.error('❌ CRITICAL: Persistent cache save failed for game:', gameId, error.message);
+        console.error('❌ State will not persist across refreshes!');
+        
+        // Still try fallback but log it as critical issue
+        try {
+          await fallbackGameCache.set(gameId, gameEngine);
+          console.warn('⚠️  Fallback cache used (memory-only) - state will be lost on refresh');
+        } catch (fallbackError) {
+          console.error('❌ Both persistent and fallback saves failed:', fallbackError.message);
+          // Don't throw - let the response return, but user needs to know
+        }
       }
 
       // Get the truly final state after all processing

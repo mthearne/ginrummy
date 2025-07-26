@@ -220,6 +220,20 @@ export class PersistentGameCache {
       console.log(`Player 1 hand size: ${gameState.players[0]?.hand?.length}, Player 2 hand size: ${gameState.players[1]?.hand?.length}`);
       console.log(`=== END SAVE #${this.saveCounter} ===\n`);
       
+      // Check for concurrent updates by comparing timestamps
+      const existingGame = await prisma.game.findUnique({
+        where: { id: gameId },
+        select: { gameState: true, updatedAt: true }
+      });
+      
+      const existingTimestamp = (existingGame?.gameState as any)?._saveTimestamp;
+      const newTimestamp = stateWithDeck._saveTimestamp;
+      
+      if (existingTimestamp && existingTimestamp > newTimestamp) {
+        console.warn(`⚠️  Skipping save for ${gameId}: existing state is newer (${existingTimestamp} > ${newTimestamp})`);
+        return; // Don't overwrite newer state with older state
+      }
+      
       await prisma.game.update({
         where: { id: gameId },
         data: { 
@@ -228,21 +242,32 @@ export class PersistentGameCache {
         }
       });
       
-      console.log(`✅ Game state saved to database successfully for ${gameId}`);
+      console.log(`✅ Game state saved to database successfully for ${gameId} at ${newTimestamp}`);
+      
+      // Update memory cache with the saved version to ensure consistency
+      this.memoryCache.set(gameId, gameEngine);
     } catch (error) {
-      console.error(`Error saving game ${gameId} to database:`, error);
-      // If gameState field doesn't exist, just update status for backwards compatibility
-      try {
-        const gameState = gameEngine.getState();
-        await prisma.game.update({
-          where: { id: gameId },
-          data: { 
-            status: gameState.gameOver ? 'FINISHED' : 'ACTIVE'
-          }
-        });
-        console.log(`Fallback save successful for game ${gameId} (status only)`);
-      } catch (fallbackError) {
-        console.error(`Fallback save also failed for game ${gameId}:`, fallbackError);
+      console.error(`❌ CRITICAL: Database save failed for game ${gameId}:`, error);
+      
+      // Check if it's a schema issue (gameState field doesn't exist) vs a real database error
+      if (error.message?.includes('gameState') || error.message?.includes('column')) {
+        console.warn(`⚠️  Attempting fallback save (status only) due to schema incompatibility`);
+        try {
+          const gameState = gameEngine.getState();
+          await prisma.game.update({
+            where: { id: gameId },
+            data: { 
+              status: gameState.gameOver ? 'FINISHED' : 'ACTIVE'
+            }
+          });
+          console.warn(`⚠️  Fallback save successful for game ${gameId} (status only) - GAME STATE NOT SAVED!`);
+        } catch (fallbackError) {
+          console.error(`❌ Fallback save also failed for game ${gameId}:`, fallbackError);
+          throw fallbackError; // Re-throw to indicate complete failure
+        }
+      } else {
+        console.error(`❌ Real database error - not a schema issue`);
+        throw error; // Re-throw real database errors
       }
     }
   }
