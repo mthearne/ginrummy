@@ -13,8 +13,11 @@ export class PersistentGameCache {
   async get(gameId: string): Promise<GinRummyGame | null> {
     // First check memory cache
     if (this.memoryCache.has(gameId)) {
-      console.log(`Game ${gameId} found in memory cache`);
-      return this.memoryCache.get(gameId)!;
+      console.log(`✅ Game ${gameId} found in memory cache - using cached version`);
+      const cachedGame = this.memoryCache.get(gameId)!;
+      const cachedState = cachedGame.getState();
+      console.log(`Cached state: phase=${cachedState.phase}, upcard=${cachedState.discardPile?.[0]?.id || 'NO UPCARD'}`);
+      return cachedGame;
     }
 
     // For completion keys (e.g., "gameId_ai_complete"), only check memory cache
@@ -98,7 +101,9 @@ export class PersistentGameCache {
         });
         
         // Initialize from database record - this creates a fresh game!
-        console.log(`Initializing fresh game from record - THIS RESETS THE GAME!`);
+        console.log(`⚠️  INITIALIZING FRESH GAME FROM RECORD - THIS RESETS THE GAME!`);
+        console.log(`Game record status: ${game.status}, vsAI: ${game.vsAI}, createdAt: ${game.createdAt}`);
+        console.log(`This will create NEW cards and shuffle - upcard will change!`);
         const gameEngine = this.initializeGameFromRecord(gameId, game);
         
         // Add debug info to the game engine
@@ -113,8 +118,14 @@ export class PersistentGameCache {
         
         // Save initial state to database immediately
         try {
+          console.log(`SAVING INITIAL STATE for ${gameId}...`);
+          const initialState = gameEngine.getState();
+          console.log(`Initial state phase: ${initialState.phase}, currentPlayer: ${initialState.currentPlayerId}`);
+          console.log(`Initial upcard: ${initialState.discardPile?.[0]?.id || 'NO UPCARD'}`);
+          console.log(`Initial player hand: ${initialState.players[0]?.hand?.slice(0, 3).map(c => c.id).join(', ')}...`);
+          
           await this.set(gameId, gameEngine);
-          console.log(`Initial game state saved to database for ${gameId}`);
+          console.log(`✅ INITIAL GAME STATE SAVED SUCCESSFULLY for ${gameId}`);
           
           // Log game start event (don't await to avoid blocking)
           GameEventsService.logGameStart(gameId, gameEngine.getState()).catch(error => {
@@ -122,7 +133,7 @@ export class PersistentGameCache {
           });
           
         } catch (error) {
-          console.warn(`Failed to save initial game state for ${gameId}:`, error);
+          console.error(`❌ FAILED TO SAVE INITIAL GAME STATE for ${gameId}:`, error);
         }
         
         return gameEngine;
