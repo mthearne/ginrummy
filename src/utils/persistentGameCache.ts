@@ -143,6 +143,23 @@ export class PersistentGameCache {
           
           await this.set(gameId, gameEngine);
           console.log(`✅ INITIAL GAME STATE SAVED SUCCESSFULLY for ${gameId}`);
+      
+      // Verify the save actually worked by reading it back
+      try {
+        const verifyGame = await prisma.game.findUnique({
+          where: { id: gameId },
+          select: { gameState: true }
+        });
+        
+        if (verifyGame?.gameState) {
+          console.log(`✅ Save verification: gameState exists in database for ${gameId}`);
+          console.log(`Saved timestamp: ${(verifyGame.gameState as any)._saveTimestamp}`);
+        } else {
+          console.error(`❌ Save verification FAILED: No gameState found in database for ${gameId}`);
+        }
+      } catch (verifyError) {
+        console.error(`❌ Save verification ERROR for ${gameId}:`, verifyError);
+      }
           
           // Log game start event (don't await to avoid blocking)
           GameEventsService.logGameStart(gameId, gameEngine.getState()).catch(error => {
@@ -210,6 +227,8 @@ export class PersistentGameCache {
           status: gameState.gameOver ? 'FINISHED' : 'ACTIVE'
         }
       });
+      
+      console.log(`✅ Game state saved to database successfully for ${gameId}`);
     } catch (error) {
       console.error(`Error saving game ${gameId} to database:`, error);
       // If gameState field doesn't exist, just update status for backwards compatibility
