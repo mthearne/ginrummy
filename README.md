@@ -14,7 +14,7 @@ A comprehensive real-time multiplayer Gin Rummy implementation supporting PvP, P
 ## Tech Stack
 
 - **Backend:** Node 18 + TypeScript, Express, Socket.io
-- **Database:** PostgreSQL + Prisma ORM
+- **Database:** Supabase PostgreSQL + Prisma ORM
 - **Auth:** JWT (access + refresh) + bcrypt
 - **Frontend:** React 18 + Vite + TypeScript + TailwindCSS
 - **State:** Zustand
@@ -26,7 +26,7 @@ A comprehensive real-time multiplayer Gin Rummy implementation supporting PvP, P
 ### Prerequisites
 - Node.js 18+
 - PNPM
-- Docker & Docker Compose
+- Supabase account and project
 
 ### Installation & Setup
 
@@ -38,16 +38,19 @@ pnpm install
 
 # Set up environment
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your Supabase DATABASE_URL
 
-# Start all services
-docker-compose up
+# Run database migrations and seed data
+pnpm db:migrate
+pnpm db:seed
+
+# Start development servers
+pnpm dev
 ```
 
 The application will be available at:
 - **Web App:** http://localhost:3000
 - **API:** http://localhost:3001
-- **PostgreSQL:** localhost:5432
 
 ### Development
 

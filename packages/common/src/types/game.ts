@@ -35,6 +35,12 @@ export enum GameStatus {
   Finished = 'FINISHED',
 }
 
+export enum Difficulty {
+  Easy = 'easy',
+  Medium = 'medium',
+  Hard = 'hard',
+}
+
 export enum GamePhase {
   UpcardDecision = 'upcard_decision',
   Draw = 'draw',

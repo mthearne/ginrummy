@@ -3,10 +3,22 @@ import bcrypt from 'bcryptjs';
 import { RegisterSchema } from '@gin-rummy/common';
 import { prisma } from '../../../../src/utils/database';
 import { generateTokens } from '../../../../src/utils/jwt';
+import { safeParseJSON, createErrorResponse, createSuccessResponse, validateContentType } from '../../../../src/utils/request-helpers';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Validate content type
+    if (!validateContentType(request)) {
+      return createErrorResponse('Content-Type must be application/json', 415);
+    }
+
+    // Safely parse JSON with proper error handling
+    const parseResult = await safeParseJSON(request);
+    if (!parseResult.success) {
+      return createErrorResponse(parseResult.error!, 400);
+    }
+
+    const body = parseResult.data;
     
     // Validate request body
     const parsed = RegisterSchema.safeParse(body);
@@ -68,16 +80,21 @@ export async function POST(request: NextRequest) {
       username: user.username,
     });
 
-    return NextResponse.json({
+    return createSuccessResponse({
       user,
       ...tokens,
-    }, { status: 201 });
+    }, 201);
 
   } catch (error) {
     console.error('Registration error:', error);
-    return NextResponse.json(
-      { error: 'Registration failed' },
-      { status: 500 }
-    );
+    
+    let errorMessage = 'Registration failed';
+    if (error.message?.includes('Unique constraint failed')) {
+      errorMessage = 'Email or username already exists';
+    } else if (error.message?.includes('database')) {
+      errorMessage = 'Service temporarily unavailable';
+    }
+    
+    return createErrorResponse(errorMessage, 500, process.env.NODE_ENV === 'development' ? error.message : undefined);
   }
 }

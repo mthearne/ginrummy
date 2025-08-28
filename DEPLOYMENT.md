@@ -4,7 +4,7 @@
 
 ### Prerequisites
 1. Vercel account
-2. Production PostgreSQL database (recommended: Supabase, PlanetScale, or Railway)
+2. Supabase account and project
 
 ### Environment Variables Setup
 
@@ -13,7 +13,7 @@ Add these environment variables in your Vercel dashboard:
 #### Required Variables
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DATABASE_URL` | Production PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
+| `DATABASE_URL` | Supabase PostgreSQL connection string | `postgresql://postgres:[password]@db.[ref].supabase.co:5432/postgres` |
 | `JWT_SECRET` | Secret for JWT tokens (generate with `openssl rand -base64 32`) | `abc123...` |
 | `JWT_REFRESH_SECRET` | Secret for refresh tokens (generate with `openssl rand -base64 32`) | `def456...` |
 | `CORS_ORIGIN` | Your Vercel app domain | `https://your-app.vercel.app` |
@@ -29,12 +29,16 @@ Add these environment variables in your Vercel dashboard:
 
 ### Database Setup
 
-1. Create a production PostgreSQL database
-2. Run migrations:
+1. **Create a Supabase project**
+   - Sign up at [supabase.com](https://supabase.com)
+   - Create a new project
+   - Copy your connection string from Settings > Database
+
+2. **Run migrations:**
    ```bash
    npx prisma migrate deploy
    ```
-3. Seed with demo data (optional):
+3. **Seed with demo data (optional):**
    ```bash
    npx prisma db seed
    ```

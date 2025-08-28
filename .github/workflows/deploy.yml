@@ -1,0 +1,159 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual deployment
+
+jobs:
+  # Only deploy if all tests pass
+  test-before-deploy:
+    name: Validate Before Deploy
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: ginrummy_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Setup PNPM
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Generate Prisma client
+      run: pnpm db:generate
+      env:
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/ginrummy_test
+    
+    - name: Run database migrations
+      run: pnpm prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/ginrummy_test
+    
+    - name: Run all tests
+      run: pnpm test:ci
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/ginrummy_test
+        JWT_SECRET: test-secret-key-for-ci
+        JWT_REFRESH_SECRET: test-refresh-secret-key-for-ci
+    
+    - name: Build production
+      run: pnpm build
+      env:
+        NODE_ENV: production
+        DATABASE_URL: postgresql://user:pass@localhost:5432/dummy
+        JWT_SECRET: dummy-secret-for-build
+        JWT_REFRESH_SECRET: dummy-refresh-secret-for-build
+
+  # Deploy to Vercel
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    needs: [test-before-deploy]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Setup PNPM
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Install Vercel CLI
+      run: npm install -g vercel@latest
+    
+    - name: Pull Vercel Environment Information
+      run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    
+    - name: Build Project Artifacts
+      run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    
+    - name: Deploy Project Artifacts to Vercel
+      run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # Post-deployment health check
+  health-check:
+    name: Post-Deployment Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always() && needs.deploy.result == 'success'
+    
+    steps:
+    - name: Wait for deployment
+      run: sleep 30
+    
+    - name: Check health endpoint
+      run: |
+        for i in {1..5}; do
+          if curl -f https://gin-rummy-app.vercel.app/api/health; then
+            echo "✅ Production health check passed"
+            break
+          fi
+          echo "Waiting for production deployment... ($i/5)"
+          sleep 10
+        done
+    
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🎉 Deployment successful!"
+        echo "✅ All tests passed"
+        echo "✅ Build completed"  
+        echo "✅ Deployed to production"
+        echo "✅ Health check passed"
+        echo ""
+        echo "🌐 Production URL: https://gin-rummy-app.vercel.app"
+
+  # Notify if deployment fails
+  deployment-failed:
+    name: Deployment Failed
+    runs-on: ubuntu-latest
+    needs: [test-before-deploy, deploy, health-check]
+    if: always() && (needs.test-before-deploy.result == 'failure' || needs.deploy.result == 'failure' || needs.health-check.result == 'failure')
+    
+    steps:
+    - name: Deployment failure notification
+      run: |
+        echo "❌ Deployment failed!"
+        echo "Test validation: ${{ needs.test-before-deploy.result }}"
+        echo "Deployment: ${{ needs.deploy.result }}"
+        echo "Health check: ${{ needs.health-check.result }}"
+        exit 1

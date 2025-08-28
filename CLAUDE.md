@@ -24,7 +24,7 @@ ginrummy/
 ```bash
 pnpm install                    # Install all dependencies
 cp .env.example .env           # Set up environment variables
-docker-compose up postgres     # Start PostgreSQL
+# Update DATABASE_URL in .env with your Supabase connection string
 pnpm db:migrate                # Run database migrations
 pnpm db:seed                   # Seed demo data
 ```
@@ -53,16 +53,12 @@ pnpm type-check               # TypeScript type checking
 ```
 
 ### Docker
-```bash
-docker-compose up             # Start all services
-docker-compose up -d          # Start in background
-docker-compose down           # Stop all services
-```
+Docker is no longer required for local development. The application uses Supabase for the database.
 
 ## Architecture
 
 ### Tech Stack
-- **Backend:** Node.js 18, TypeScript, Express, Socket.io, Prisma, PostgreSQL
+- **Backend:** Node.js 18, TypeScript, Express, Socket.io, Prisma, Supabase PostgreSQL
 - **Frontend:** React 18, Vite, TypeScript, TailwindCSS, Zustand
 - **Shared:** PNPM workspaces for monorepo structure
 
@@ -72,7 +68,7 @@ docker-compose down           # Stop all services
 - **Auth System** (`apps/api/src/routes/auth.ts`): JWT-based authentication
 - **Game Store** (`apps/web/src/store/game.ts`): Client-side game state management
 
-### Database Schema
+### Database Schema (Supabase PostgreSQL)
 - `users` - User accounts with ELO ratings
 - `games` - Game metadata and results
 - `game_events` - Turn-by-turn action log for replays
@@ -88,6 +84,25 @@ docker-compose down           # Stop all services
 After running `pnpm db:seed`:
 - Username: `demo1`, Password: `password123`
 - Username: `demo2`, Password: `password123`
+
+## Supabase Setup
+
+### Creating a Supabase Project
+1. Go to [supabase.com](https://supabase.com) and create an account
+2. Create a new project
+3. Choose a region close to your location
+4. Set a strong database password
+
+### Getting Your Database URL
+1. In your Supabase dashboard, go to Settings > Database
+2. Copy the connection string under "Connection string"
+3. Replace `[YOUR-PASSWORD]` with your database password
+4. Update your `.env` file with this connection string
+
+### Example connection string format:
+```
+DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
+```
 
 ## Common Development Tasks
 

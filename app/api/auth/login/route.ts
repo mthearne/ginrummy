@@ -3,10 +3,22 @@ import bcrypt from 'bcryptjs';
 import { LoginSchema } from '@gin-rummy/common';
 import { prisma } from '../../../../src/utils/database';
 import { generateTokens } from '../../../../src/utils/jwt';
+import { safeParseJSON, createErrorResponse, createSuccessResponse, validateContentType } from '../../../../src/utils/request-helpers';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Validate content type
+    if (!validateContentType(request)) {
+      return createErrorResponse('Content-Type must be application/json', 415);
+    }
+
+    // Safely parse JSON with proper error handling
+    const parseResult = await safeParseJSON(request);
+    if (!parseResult.success) {
+      return createErrorResponse(parseResult.error!, 400);
+    }
+
+    const body = parseResult.data;
     
     // Validate request body
     const parsed = LoginSchema.safeParse(body);
@@ -50,7 +62,7 @@ export async function POST(request: NextRequest) {
     // Return user data without password
     const { password: _, ...userWithoutPassword } = user;
 
-    return NextResponse.json({
+    return createSuccessResponse({
       user: userWithoutPassword,
       ...tokens,
     });
@@ -65,21 +77,15 @@ export async function POST(request: NextRequest) {
     });
     
     // More specific error messages for different failure modes
-    let errorMessage = 'Login failed';
+    let errorMessage = 'Internal server error';
     if (error.message?.includes('database') || error.message?.includes('connect')) {
-      errorMessage = 'Database connection failed';
+      errorMessage = 'Service temporarily unavailable';
     } else if (error.message?.includes('bcrypt')) {
-      errorMessage = 'Password verification failed';
+      errorMessage = 'Authentication service error';
     } else if (error.message?.includes('jwt') || error.message?.includes('token')) {
-      errorMessage = 'Token generation failed';
+      errorMessage = 'Token service error';
     }
     
-    return NextResponse.json(
-      { 
-        error: errorMessage,
-        ...(process.env.NODE_ENV === 'development' && { details: error.message })
-      },
-      { status: 500 }
-    );
+    return createErrorResponse(errorMessage, 500, process.env.NODE_ENV === 'development' ? error.message : undefined);
   }
 }
