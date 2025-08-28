@@ -18,28 +18,18 @@ export function FriendInvitation({ gameId }: FriendInvitationProps) {
     loadFriends();
   }, []);
 
-  // Listen for friend-related events and refresh friends list
+  // Periodic refresh of friends list (since Socket.IO events are no longer available)
   useEffect(() => {
     if (!socket.isConnected()) return;
 
-    const socketInstance = socket.getSocket();
-    if (!socketInstance) return;
-
-    let refreshTimeout: NodeJS.Timeout | null = null;
-    
-    const handleFriendUpdate = () => {
-      console.log('Friend event received in FriendInvitation, scheduling refresh');
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      refreshTimeout = setTimeout(() => {
-        loadFriends();
-      }, 500);
-    };
-
-    socketInstance.on('friend_request_accepted', handleFriendUpdate);
+    // Poll for friend updates every 10 seconds
+    const pollInterval = setInterval(() => {
+      console.log('Polling for friend updates...');
+      loadFriends();
+    }, 10000);
 
     return () => {
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      socketInstance.off('friend_request_accepted', handleFriendUpdate);
+      clearInterval(pollInterval);
     };
   }, [socket.isConnected()]);
 

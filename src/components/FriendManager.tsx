@@ -17,32 +17,18 @@ export function FriendManager() {
     loadFriends();
   }, []);
 
-  // Listen for friend-related socket events and refresh data
+  // Periodic refresh for friend-related updates (since Socket.IO events are no longer available)
   useEffect(() => {
     if (!socket.isConnected()) return;
 
-    const socketInstance = socket.getSocket();
-    if (!socketInstance) return;
-
-    // Add a small delay to avoid too frequent refreshes
-    let refreshTimeout: NodeJS.Timeout | null = null;
-    
-    const handleFriendUpdate = () => {
-      console.log('Friend-related event received, scheduling refresh');
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      refreshTimeout = setTimeout(() => {
-        loadFriends();
-      }, 500);
-    };
-
-    // Listen for friend request events
-    socketInstance.on('friend_request', handleFriendUpdate);
-    socketInstance.on('friend_request_accepted', handleFriendUpdate);
+    // Poll for friend updates every 15 seconds
+    const pollInterval = setInterval(() => {
+      console.log('Polling for friend updates in FriendManager...');
+      loadFriends();
+    }, 15000);
 
     return () => {
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      socketInstance.off('friend_request', handleFriendUpdate);
-      socketInstance.off('friend_request_accepted', handleFriendUpdate);
+      clearInterval(pollInterval);
     };
   }, [socket.isConnected()]);
 

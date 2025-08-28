@@ -10,7 +10,7 @@
     "start": "next start",
     "preview": "next start",
     "test": "vitest",
-    "test:unit": "vitest run packages/common/tests/ src/components/ src/pages/ src/store/",
+    "test:unit": "vitest run packages/common/tests/ __tests__/",
     "test:api": "vitest run tests/api/",
     "test:integration": "vitest run tests/integration/",
     "test:social": "vitest run tests/social-features/",
