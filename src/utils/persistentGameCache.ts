@@ -628,14 +628,24 @@ export class PersistentGameCache {
           console.log(`AI making initial move: ${aiMove.type} for game ${gameId}`);
           const moveResult = gameEngine.makeMove(aiMove);
           if (moveResult.success) {
-            console.log(`AI initial move successful for game ${gameId}, new phase: ${moveResult.state.phase}`);
+            console.log(`AI initial move successful for game ${gameId}, new phase: ${moveResult.state.phase}, new current player: ${moveResult.state.currentPlayerId}`);
           } else {
             console.error(`AI initial move failed for game ${gameId}:`, moveResult.error);
           }
+        } else {
+          console.error(`No AI move available for game ${gameId} in upcard_decision phase`);
         }
       } catch (error) {
         console.error(`Error processing initial AI moves for game ${gameId}:`, error);
       }
+    } else {
+      console.log(`Skipping AI processing for game ${gameId}:`, {
+        vsAI: gameRecord.vsAI,
+        currentPlayerIsAI: initialState.currentPlayerId === aiPlayer?.id,
+        phase: initialState.phase,
+        currentPlayerId: initialState.currentPlayerId,
+        aiPlayerId: aiPlayer?.id
+      });
     }
     
     // Clear loading state after initialization is complete
