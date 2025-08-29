@@ -279,7 +279,16 @@ export async function POST(
       }
 
       // Get the truly final state after all processing (filtered for current player)
-      const trulyFinalState = gameEngine.getPlayerState(decoded.userId);
+      let trulyFinalState;
+      try {
+        trulyFinalState = gameEngine.getPlayerState(decoded.userId);
+      } catch (error) {
+        console.error('AI move: getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
+        const currentState = gameEngine.getState();
+        console.error('Available players:', currentState.players?.map(p => ({ id: p.id, username: p.username })));
+        // Fallback to full state but log the error
+        trulyFinalState = currentState;
+      }
       
       // Return response with game state after all processing (including AI thinking)
       return NextResponse.json({
@@ -429,9 +438,20 @@ export async function POST(
     }
 
     // Return final response (filtered for current player)
+    let finalPlayerState;
+    try {
+      finalPlayerState = gameEngine.getPlayerState(decoded.userId);
+    } catch (error) {
+      console.error('PvP move: getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
+      const currentState = gameEngine.getState();
+      console.error('Available players:', currentState.players?.map(p => ({ id: p.id, username: p.username })));
+      // Fallback to full state but log the error
+      finalPlayerState = currentState;
+    }
+
     return NextResponse.json({
       success: true,
-      gameState: gameEngine.getPlayerState(decoded.userId)
+      gameState: finalPlayerState
     });
 
   } catch (error) {

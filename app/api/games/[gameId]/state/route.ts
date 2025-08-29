@@ -173,8 +173,18 @@ export async function GET(
         }, { status: 500 });
       }
       
+      let playerState;
+      try {
+        playerState = gameEngine.getPlayerState(decoded.userId);
+      } catch (error) {
+        console.error('getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
+        console.error('Available players:', finalGameState.players?.map(p => ({ id: p.id, username: p.username })));
+        // Fallback to full state but log the error
+        playerState = finalGameState;
+      }
+
       return NextResponse.json({
-        gameState: gameEngine.getPlayerState(decoded.userId),
+        gameState: playerState,
         debug: {
           restorationMethod: 'ai_persistent_cache',
           cacheHit: true,
@@ -183,7 +193,8 @@ export async function GET(
           timestamp: new Date().toISOString(),
           finalPhase: finalGameState.phase,
           finalCurrentPlayer: finalGameState.currentPlayerId,
-          gameEngineDebug: (gameEngine as any)._debugInfo || null
+          gameEngineDebug: (gameEngine as any)._debugInfo || null,
+          playerStateError: playerState === finalGameState ? 'getPlayerState failed, using full state' : null
         }
       });
     }
@@ -237,13 +248,25 @@ export async function GET(
     // Don't save PvP state here - we're just loading, not updating
     // Saving here was overwriting newer state with older restored state
 
+    let playerState;
+    try {
+      playerState = gameEngine.getPlayerState(decoded.userId);
+    } catch (error) {
+      console.error('PvP getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
+      const currentState = gameEngine.getState();
+      console.error('Available players:', currentState.players?.map(p => ({ id: p.id, username: p.username })));
+      // Fallback to full state but log the error
+      playerState = currentState;
+    }
+
     return NextResponse.json({
-      gameState: gameEngine.getPlayerState(decoded.userId),
+      gameState: playerState,
       debug: {
         restorationMethod: 'persistent_cache',
         cacheHit: true,
         timestamp: new Date().toISOString(),
-        gameEngineDebug: (gameEngine as any)._debugInfo || null
+        gameEngineDebug: (gameEngine as any)._debugInfo || null,
+        playerStateError: playerState === gameEngine.getState() ? 'getPlayerState failed, using full state' : null
       }
     });
 
