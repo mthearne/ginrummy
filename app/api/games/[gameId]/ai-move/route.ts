@@ -184,7 +184,10 @@ export async function POST(
       
       // Create turn history entries for successful AI moves
       const aiTurnHistoryEntries: TurnHistoryEntry[] = [];
+      console.log('🔍 AI Turn History Debug - aiResults:', aiResults.map(r => ({ success: r.success, move: r.move, hasMove: !!r.move })));
+      
       for (const [index, result] of aiResults.entries()) {
+        console.log(`🔍 AI Turn History Debug - Result ${index + 1}:`, { success: result.success, move: result.move, hasMove: !!result.move });
         if (result.success && result.move) {
           const playerName = getPlayerNameFromGameState(result.move.playerId, finalState);
           // Use global sequential turn counter
