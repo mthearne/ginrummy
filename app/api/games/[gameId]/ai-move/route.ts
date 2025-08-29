@@ -187,9 +187,8 @@ export async function POST(
       for (const [index, result] of aiResults.entries()) {
         if (result.success && result.move) {
           const playerName = getPlayerNameFromGameState(result.move.playerId, finalState);
-          // Use a sequential turn number instead of timestamp
-          const turnNumber = Math.floor(Date.now() / 1000) % 10000 + index; // Sequential number + index for multiple AI moves
-          const turnHistoryEntry = createTurnHistoryEntry(result.move, result.state, turnNumber, playerName);
+          // Use global sequential turn counter
+          const turnHistoryEntry = createTurnHistoryEntry(result.move, result.state, null, playerName);
           aiTurnHistoryEntries.push(turnHistoryEntry);
           console.log(`🔍 AI Move ${index + 1}: Created turn history entry:`, turnHistoryEntry);
           console.log(`🔍 AI Move ${index + 1}: Player name resolved as:`, playerName, 'for playerId:', result.move.playerId);

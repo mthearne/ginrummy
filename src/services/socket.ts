@@ -149,12 +149,9 @@ class SocketService {
         const isAITurn = isAIGame && data.gameState.currentPlayerId !== currentUserId;
         
         if (isAITurn) {
-          console.log('🤖 AI turn detected, will refresh state after AI processing');
-          // Wait for AI to process, then refresh
-          setTimeout(() => {
-            console.log('🤖 Refreshing state after AI turn');
-            this.joinGameViaAPI(move.gameId!);
-          }, 3000); // Wait 3 seconds for AI to complete
+          console.log('🤖 AI turn detected, triggering AI thinking process to capture turn history');
+          // Trigger AI thinking process to capture turn history entries
+          this.handleAIThinking(move.gameId!);
         }
       }
 

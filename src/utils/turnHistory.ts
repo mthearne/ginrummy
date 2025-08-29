@@ -10,12 +10,17 @@ export interface TurnHistoryEntry {
   timestamp: string;
 }
 
+// Global turn counter to ensure sequential turn numbers
+let globalTurnCounter = 1;
+
 export function createTurnHistoryEntry(
   move: GameMove,
   gameState: GameState,
-  turnNumber: number,
+  turnNumber: number | null,
   playerName: string
 ): TurnHistoryEntry {
+  // Use global counter if turnNumber is not provided or is invalid
+  const finalTurnNumber = (turnNumber && turnNumber > 0 && turnNumber < 10000) ? turnNumber : globalTurnCounter++;
   const action = move.type;
   let description = '';
 
@@ -57,7 +62,7 @@ export function createTurnHistoryEntry(
 
   return {
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    turnNumber,
+    turnNumber: finalTurnNumber,
     playerId: move.playerId,
     playerName,
     action,

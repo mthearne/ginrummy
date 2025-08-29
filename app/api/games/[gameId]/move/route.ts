@@ -175,9 +175,8 @@ export async function POST(
       if (moveResult.success) {
         const currentState = gameEngine.getState();
         const playerName = getPlayerNameFromGameState(correctedMove.playerId, currentState);
-        // Use a sequential turn number instead of timestamp
-        const turnNumber = Math.floor(Date.now() / 1000) % 10000; // Convert to smaller sequential number
-        turnHistoryEntry = createTurnHistoryEntry(correctedMove, currentState, turnNumber, playerName);
+        // Use global sequential turn counter
+        turnHistoryEntry = createTurnHistoryEntry(correctedMove, currentState, null, playerName);
         console.log('🔍 STEP 3: Created turn history entry:', turnHistoryEntry);
         console.log('🔍 STEP 3: Player name resolved as:', playerName, 'for playerId:', correctedMove.playerId);
       }
@@ -432,9 +431,8 @@ export async function POST(
     if (moveResult.success) {
       const currentState = gameEngine.getState();
       const playerName = getPlayerNameFromGameState(pvpCorrectedMove.playerId, currentState);
-      // Use a sequential turn number instead of timestamp
-      const turnNumber = Math.floor(Date.now() / 1000) % 10000; // Convert to smaller sequential number
-      pvpTurnHistoryEntry = createTurnHistoryEntry(pvpCorrectedMove, currentState, turnNumber, playerName);
+      // Use global sequential turn counter
+      pvpTurnHistoryEntry = createTurnHistoryEntry(pvpCorrectedMove, currentState, null, playerName);
       console.log('🔍 PvP: Created turn history entry:', pvpTurnHistoryEntry);
       console.log('🔍 PvP: Player name resolved as:', playerName, 'for playerId:', pvpCorrectedMove.playerId);
     }
