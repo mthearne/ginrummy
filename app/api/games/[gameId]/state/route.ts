@@ -9,6 +9,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { gameId: string } }
 ) {
+  const { gameId } = params;
+  console.log(`🚨 STATE ENDPOINT DEBUG: GET /api/games/${gameId}/state called`);
+  console.log(`🚨 STATE ENDPOINT DEBUG: Timestamp: ${new Date().toISOString()}`);
+  
   try {
     // Get token from Authorization header
     const authHeader = request.headers.get('authorization');
