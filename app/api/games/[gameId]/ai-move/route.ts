@@ -33,7 +33,16 @@ export async function POST(
     }
 
     const { gameId } = params;
-    const { thoughts } = await request.json();
+    
+    let thoughts: any = null;
+    try {
+      if (request.headers.get('content-type')?.includes('application/json')) {
+        const body = await request.json();
+        thoughts = body?.thoughts ?? null;
+      }
+    } catch {
+      // No/invalid JSON is fine; we don't require it
+    }
     
     console.log('AI Move API called for game:', gameId);
     console.log('AI thoughts received:', thoughts);

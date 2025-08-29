@@ -249,12 +249,16 @@ export async function POST(
       if (shouldTriggerAI) {
         console.log('Triggering async AI processing via /ai-move endpoint');
         // Don't await - let it process in background for better UX
-        fetch(`${request.url.replace('/move', '/ai-move')}`, {
+        const aiUrl = new URL(request.url);
+        aiUrl.pathname = aiUrl.pathname.replace(/\/move$/, '/ai-move');
+        
+        fetch(aiUrl.toString(), {
           method: 'POST',
           headers: {
             'Authorization': request.headers.get('authorization') || '',
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({ thoughts: null })
         }).catch(error => {
           console.error('Failed to trigger AI move:', error);
         });
