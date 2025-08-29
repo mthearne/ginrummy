@@ -529,8 +529,10 @@ export class PersistentGameCache {
     
     console.log('🔍 Final player usernames:', currentState.players.map(p => ({ id: p.id, username: p.username })));
 
-    // 6. Sync internal turn state to ensure consistency after restoration
-    this.syncInternalTurnState(gameEngine, currentState);
+    // 6. Skip internal turn state sync during restoration - it corrupts the restored state
+    console.log('🔍 SKIPPING syncInternalTurnState to preserve restored game state');
+    console.log('🔍 Restored state should be used as-is from database');
+    // this.syncInternalTurnState(gameEngine, currentState);
   }
 
   /**
