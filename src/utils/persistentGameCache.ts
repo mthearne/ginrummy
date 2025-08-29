@@ -53,7 +53,7 @@ export class PersistentGameCache {
       console.log(`🔍 DATABASE DEBUG: Found game record with ID: ${game.id}`);
       console.log(`🔍 DATABASE DEBUG: Game status: ${game.status}, vsAI: ${game.vsAI}`);
       console.log(`🔍 DATABASE DEBUG: Players: ${game.player1?.username || 'NO P1'} vs ${game.player2?.username || 'NO P2'}`);
-      console.log(`🔍 DATABASE DEBUG: Has game_state field: ${!!game.game_state}`);
+      console.log(`🔍 DATABASE DEBUG: Has gameState field: ${!!game.gameState}`);
 
       // Check if game state is stored in database
       const gameStateData = (game as any).gameState;
