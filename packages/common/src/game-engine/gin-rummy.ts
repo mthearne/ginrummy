@@ -823,7 +823,15 @@ export class GinRummyGame {
    * Get current game state
    */
   public getState(): GameState {
-    return { ...this.state };
+    return { 
+      ...this.state,
+      players: this.state.players.map(p => ({
+        ...p,
+        hand: [...(p.hand || [])],
+        melds: p.melds ? [...p.melds] : []
+      })),
+      discardPile: [...(this.state.discardPile || [])]
+    };
   }
 
   /**
@@ -842,13 +850,22 @@ export class GinRummyGame {
                              this.state.phase === GamePhase.GameOver;
     
     if (shouldRevealCards) {
-      // Show all cards and melds when round/game is over
-      playerState.players = playerState.players.map(p => ({ ...p }));
+      // Show all cards and melds when round/game is over - deep copy to avoid reference sharing
+      playerState.players = playerState.players.map(p => ({ 
+        ...p, 
+        hand: [...(p.hand || [])],
+        melds: p.melds ? [...p.melds] : []
+      }));
     } else {
       // Hide opponent's hand - only show hand size during active gameplay
       playerState.players = playerState.players.map(p => {
         if (p.id === playerId) {
-          return { ...p };
+          // Deep copy for the requesting player's data
+          return { 
+            ...p,
+            hand: [...(p.hand || [])],
+            melds: p.melds ? [...p.melds] : []
+          };
         } else {
           return {
             ...p,

@@ -227,16 +227,12 @@ export async function POST(
           playerState = gameEngine.getPlayerState(humanPlayer.id);
           console.log('🔍 STEP 5: Returning player-specific state for human player:', humanPlayer.id);
           
-          // Fix duplicate cards issue by deduplicating player hands
+          // Log hand sizes to debug missing cards issue
           if (playerState && playerState.players) {
             playerState.players.forEach((player: any) => {
               if (player.hand && Array.isArray(player.hand)) {
-                const uniqueCards = new Map();
-                player.hand.forEach((card: any) => {
-                  uniqueCards.set(card.id, card);
-                });
-                player.hand = Array.from(uniqueCards.values());
-                console.log(`🔍 Deduplicated ${player.id} hand: ${player.hand.length} unique cards`);
+                console.log(`🔍 AI Move - Player ${player.id} hand: ${player.hand.length} cards`);
+                console.log(`🔍 AI Move - Card IDs:`, player.hand.map((c: any) => c.id));
               }
             });
           }
