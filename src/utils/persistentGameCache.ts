@@ -615,14 +615,31 @@ export class PersistentGameCache {
         console.log(`AI (${aiPlayerId}) needs to make initial upcard decision`);
         
         try {
-          // Force the AI to process its move
-          const aiResults = gameEngine.processAIMoves();
-          console.log(`AI processed ${aiResults.length} initial moves`);
-          
-          if (aiResults.length > 0 && aiResults[0].success) {
-            console.log(`AI initial move successful, new phase: ${aiResults[0].state?.phase}, new current player: ${aiResults[0].state?.currentPlayerId}`);
+          // Use single AI move instead of processAIMoves to avoid potential loops
+          const aiMove = gameEngine.getAISuggestion();
+          if (aiMove) {
+            console.log(`AI making single initial move: ${aiMove.type}`);
+            const moveResult = gameEngine.makeMove(aiMove);
+            
+            if (moveResult.success) {
+              console.log(`AI initial move SUCCESS: ${aiMove.type}, new phase: ${moveResult.state.phase}, new current player: ${moveResult.state.currentPlayerId}`);
+              
+              // If AI took upcard, it needs to discard next
+              if (aiMove.type === 'take_upcard' && moveResult.state.phase === 'discard') {
+                console.log(`AI took upcard, now needs to discard`);
+                const discardMove = gameEngine.getAISuggestion();
+                if (discardMove) {
+                  const discardResult = gameEngine.makeMove(discardMove);
+                  if (discardResult.success) {
+                    console.log(`AI discard SUCCESS: ${discardMove.type}, final phase: ${discardResult.state.phase}, final current player: ${discardResult.state.currentPlayerId}`);
+                  }
+                }
+              }
+            } else {
+              console.error(`AI initial move FAILED:`, moveResult.error);
+            }
           } else {
-            console.error(`AI initial move failed:`, aiResults[0]?.error);
+            console.error(`No AI move suggestion available for upcard decision`);
           }
         } catch (error) {
           console.error(`Error processing AI initial moves:`, error);
