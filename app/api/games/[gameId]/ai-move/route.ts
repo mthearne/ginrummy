@@ -161,7 +161,9 @@ export async function POST(
     
     try {
       const startTime = Date.now();
+      console.log('🔍 STEP 5: About to call gameEngine.processAIMoves()');
       const aiResults = gameEngine.processAIMoves();
+      console.log('🔍 STEP 5: gameEngine.processAIMoves() completed, results:', aiResults?.length || 0);
       const endTime = Date.now();
       
       console.log('🔍 STEP 5: AI processing completed in', endTime - startTime, 'ms');
@@ -263,6 +265,13 @@ export async function POST(
       }
 
       console.log('🔍 STEP 5: AI moves complete, returning updated game state');
+      console.log('🔍 STEP 5: Final response data:', {
+        success: true,
+        aiMoves: aiResults.length,
+        aiTurnHistoryEntries: aiTurnHistoryEntries.length,
+        gameStatePhase: playerState?.phase,
+        gameStateCurrentPlayer: playerState?.currentPlayerId
+      });
       return NextResponse.json({
         success: true,
         gameState: playerState,
