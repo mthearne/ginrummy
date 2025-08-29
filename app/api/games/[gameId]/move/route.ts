@@ -278,8 +278,8 @@ export async function POST(
         }
       }
 
-      // Get the truly final state after all processing
-      const trulyFinalState = gameEngine.getState();
+      // Get the truly final state after all processing (filtered for current player)
+      const trulyFinalState = gameEngine.getPlayerState(decoded.userId);
       
       // Return response with game state after all processing (including AI thinking)
       return NextResponse.json({
@@ -428,10 +428,10 @@ export async function POST(
       console.log('PvP game state saved to fallback cache');
     }
 
-    // Return final response
+    // Return final response (filtered for current player)
     return NextResponse.json({
       success: true,
-      gameState: finalGameState
+      gameState: gameEngine.getPlayerState(decoded.userId)
     });
 
   } catch (error) {

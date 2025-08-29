@@ -174,7 +174,7 @@ export async function GET(
       }
       
       return NextResponse.json({
-        gameState: finalGameState,
+        gameState: gameEngine.getPlayerState(decoded.userId),
         debug: {
           restorationMethod: 'ai_persistent_cache',
           cacheHit: true,
@@ -238,7 +238,7 @@ export async function GET(
     // Saving here was overwriting newer state with older restored state
 
     return NextResponse.json({
-      gameState: gameEngine.getState(),
+      gameState: gameEngine.getPlayerState(decoded.userId),
       debug: {
         restorationMethod: 'persistent_cache',
         cacheHit: true,
