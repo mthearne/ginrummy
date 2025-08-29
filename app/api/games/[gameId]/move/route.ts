@@ -144,15 +144,21 @@ export async function POST(
       console.log('Turn state before move:', gameEngine.getTurnState());
       console.log('Processing lock status:', gameEngine.isProcessing());
       
+      console.log('🔍 STEP 3: Processing human move');
+      console.log('🔍 Move details:', { type: move.type, playerId: move.playerId, cardId: move.cardId });
+      console.log('🔍 Game state before move:', { phase: retrievedState.phase, currentPlayerId: retrievedState.currentPlayerId });
+
       // Map JWT user ID to actual game engine player ID
       const userPlayer = retrievedState.players?.find(p => p.id === decoded.userId);
       if (!userPlayer) {
-        console.error('User not found in game players:', decoded.userId);
+        console.error('🔍 STEP 3 FAILED: User not found in game players:', decoded.userId);
         return NextResponse.json(
           { error: 'Access denied. User not a player in this game.' },
           { status: 403 }
         );
       }
+      
+      console.log('🔍 Player ID mapping:', { tokenUserId: decoded.userId, gamePlayerId: userPlayer.id });
       
       // Override move.playerId with the mapped player ID from game engine
       const correctedMove = { ...move, playerId: userPlayer.id };
@@ -164,7 +170,7 @@ export async function POST(
       const moveResult = gameEngine.makeMove(correctedMove);
       
       if (!moveResult.success) {
-        console.log('Move failed with error:', moveResult.error);
+        console.log('🔍 STEP 3 FAILED: Move execution failed:', moveResult.error);
         console.log('Turn state after failed move:', gameEngine.getTurnState());
         
         // Enhanced error logging for debugging
@@ -199,10 +205,10 @@ export async function POST(
         );
       }
 
-      console.log('\n=== PLAYER MOVE SUCCESS ===');
-      console.log('State changes:', moveResult.stateChanges);
-      console.log('New game state - Phase:', moveResult.state.phase, 'Current player:', moveResult.state.currentPlayerId);
-      console.log('Turn state after move:', gameEngine.getTurnState());
+      console.log('🔍 STEP 3 SUCCESS: Human move completed');
+      console.log('🔍 State changes:', moveResult.stateChanges);
+      console.log('🔍 New game state:', { phase: moveResult.state.phase, currentPlayerId: moveResult.state.currentPlayerId });
+      console.log('🔍 Turn state after move:', gameEngine.getTurnState());
 
       // Log the move to database
       try {
@@ -237,7 +243,8 @@ export async function POST(
       const aiPlayer = game.vsAI ? currentState.players?.find(p => p.id !== decoded.userId) : null;
       const shouldTriggerAI = game.vsAI && aiPlayer && currentState.currentPlayerId === aiPlayer.id && !currentState.gameOver;
       
-      console.log('🤖 AI Processing Debug:', {
+      console.log('🔍 STEP 4: Checking if AI should move next');
+      console.log('🔍 AI trigger analysis:', {
         vsAI: game.vsAI,
         currentPlayerId: currentState.currentPlayerId,
         aiPlayer: aiPlayer ? { id: aiPlayer.id, username: aiPlayer.username } : null,
@@ -248,6 +255,7 @@ export async function POST(
       });
       
       if (shouldTriggerAI) {
+        console.log('🔍 STEP 4: AI should move - triggering /ai-move endpoint');
         console.log('Triggering async AI processing via /ai-move endpoint');
         // Don't await - let it process in background for better UX
         const aiUrl = new URL(request.url);
@@ -261,8 +269,10 @@ export async function POST(
           },
           body: JSON.stringify({ thoughts: null })
         }).catch(error => {
-          console.error('Failed to trigger AI move:', error);
+          console.error('🔍 STEP 4 FAILED: Failed to trigger AI move:', error);
         });
+      } else {
+        console.log('🔍 STEP 4: AI move NOT triggered - reason above');
       }
 
       // Save final game state after player move

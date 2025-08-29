@@ -44,8 +44,8 @@ export async function POST(
       // No/invalid JSON is fine; we don't require it
     }
     
-    console.log('AI Move API called for game:', gameId);
-    console.log('AI thoughts received:', thoughts);
+    console.log('🔍 STEP 5: AI Move API called for game:', gameId);
+    console.log('🔍 AI thoughts received:', thoughts);
 
     // Get game engine from cache
     let gameEngine;
@@ -81,7 +81,7 @@ export async function POST(
     }
     
     if (!gameEngine) {
-      console.log('Game engine not found in any cache for AI move processing');
+      console.log('🔍 STEP 5 FAILED: Game engine not found in any cache for AI move processing');
       return NextResponse.json(
         { 
           error: 'Game state not found',
@@ -90,9 +90,16 @@ export async function POST(
         { status: 400 }
       );
     }
+    
+    console.log('🔍 STEP 5: Game engine loaded successfully');
 
     // Verify it's actually AI's turn
     const currentState = gameEngine.getState();
+    console.log('🔍 STEP 5: Current game state:', { 
+      phase: currentState.phase, 
+      currentPlayerId: currentState.currentPlayerId,
+      gameOver: currentState.gameOver 
+    });
     
     // Deduplicate AI per turn and avoid reentrancy
     const lastAiTurnId = (gameEngine as any).lastAiTurnId ?? -1;
@@ -147,10 +154,14 @@ export async function POST(
     // Capture state before AI moves for logging
     const stateBeforeAI = gameEngine.getState();
     
+    console.log('🔍 STEP 5: Starting AI move processing...');
+    
     try {
       const startTime = Date.now();
       const aiResults = gameEngine.processAIMoves();
       const endTime = Date.now();
+      
+      console.log('🔍 STEP 5: AI processing completed in', endTime - startTime, 'ms');
       
       console.log('\n=== AI PROCESSING COMPLETE ===');
       console.log('Processing time:', endTime - startTime, 'ms');

@@ -75,12 +75,16 @@ export async function GET(
 
     // For AI games, use persistent cached state or initialize new game
     if (game.vsAI) {
+      console.log('🔍 STEP 1: Loading AI game state for gameId:', gameId);
+      console.log('🔍 Game record:', { vsAI: game.vsAI, status: game.status, player1Id: game.player1Id, player2Id: game.player2Id });
+      
       let gameEngine: any;
       
       try {
         gameEngine = await persistentGameCache.get(gameId);
+        console.log('🔍 STEP 1 SUCCESS: Game engine loaded from cache');
       } catch (error) {
-        console.log('Persistent cache failed, trying fallback cache:', error.message);
+        console.log('🔍 STEP 1 FALLBACK: Persistent cache failed, trying fallback cache:', error.message);
         gameEngine = await fallbackGameCache.get(gameId);
       }
       
