@@ -4,7 +4,7 @@ import { GinRummyGame } from '@gin-rummy/common';
 import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 import { GameEventsService } from '../../../../../src/services/gameEvents';
-import { createTurnHistoryEntry, getPlayerNameFromGameState } from '../../../../../src/utils/turnHistory';
+import { createTurnHistoryEntry, getPlayerNameFromGameState, TurnHistoryEntry } from '../../../../../src/utils/turnHistory';
 
 /**
  * Process AI moves after thinking delay
@@ -183,7 +183,7 @@ export async function POST(
       console.log('Final state - Phase:', finalState.phase, 'Current player:', finalState.currentPlayerId);
       
       // Create turn history entries for successful AI moves
-      const aiTurnHistoryEntries = [];
+      const aiTurnHistoryEntries: TurnHistoryEntry[] = [];
       for (const [index, result] of aiResults.entries()) {
         if (result.success && result.move) {
           const playerName = getPlayerNameFromGameState(result.move.playerId, finalState);

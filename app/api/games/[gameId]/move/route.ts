@@ -6,7 +6,7 @@ import { persistentGameCache } from '../../../../../src/utils/persistentGameCach
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 import { GamePhase } from '@gin-rummy/common';
 import { GameEventsService } from '../../../../../src/services/gameEvents';
-import { createTurnHistoryEntry, getPlayerNameFromGameState } from '../../../../../src/utils/turnHistory';
+import { createTurnHistoryEntry, getPlayerNameFromGameState, TurnHistoryEntry } from '../../../../../src/utils/turnHistory';
 
 export async function POST(
   request: NextRequest,
@@ -171,7 +171,7 @@ export async function POST(
       const moveResult = gameEngine.makeMove(correctedMove);
       
       // Create turn history entry for successful moves
-      let turnHistoryEntry = null;
+      let turnHistoryEntry: TurnHistoryEntry | null = null;
       if (moveResult.success) {
         const currentState = gameEngine.getState();
         const playerName = getPlayerNameFromGameState(correctedMove.playerId, currentState);
@@ -426,7 +426,7 @@ export async function POST(
     const moveResult = gameEngine.makeMove(pvpCorrectedMove);
     
     // Create turn history entry for successful PvP moves
-    let pvpTurnHistoryEntry = null;
+    let pvpTurnHistoryEntry: TurnHistoryEntry | null = null;
     if (moveResult.success) {
       const currentState = gameEngine.getState();
       const playerName = getPlayerNameFromGameState(pvpCorrectedMove.playerId, currentState);
