@@ -492,15 +492,25 @@ export class PersistentGameCache {
     this.reconstructDeck(gameEngine, currentState);
 
     // 5. Restore player names from database records
+    console.log('🔍 USERNAME DEBUG - Setting player names from database records');
+    console.log('🔍 gameRecord.player1:', gameRecord.player1);
+    console.log('🔍 gameRecord.player2:', gameRecord.player2);
+    console.log('🔍 gameRecord.vsAI:', gameRecord.vsAI);
+    
     if (gameRecord.player1 && currentState.players[0]) {
       currentState.players[0].username = gameRecord.player1.username;
+      console.log('🔍 Set player1 username:', gameRecord.player1.username);
     }
     
     if (gameRecord.vsAI && currentState.players[1]) {
       currentState.players[1].username = 'AI Opponent';
+      console.log('🔍 Set AI opponent username: AI Opponent');
     } else if (gameRecord.player2 && currentState.players[1]) {
       currentState.players[1].username = gameRecord.player2.username;
+      console.log('🔍 Set player2 username:', gameRecord.player2.username);
     }
+    
+    console.log('🔍 Final player usernames:', currentState.players.map(p => ({ id: p.id, username: p.username })));
 
     // 6. Sync internal turn state to ensure consistency after restoration
     this.syncInternalTurnState(gameEngine, currentState);
@@ -593,15 +603,25 @@ export class PersistentGameCache {
     const initialState = gameEngine.getState();
     
     // Set player names from database
+    console.log('🔍 FRESH GAME USERNAME DEBUG - Setting player names from database records');
+    console.log('🔍 gameRecord.player1:', gameRecord.player1);
+    console.log('🔍 gameRecord.player2:', gameRecord.player2);
+    console.log('🔍 gameRecord.vsAI:', gameRecord.vsAI);
+    
     if (gameRecord.player1 && initialState.players[0]) {
       initialState.players[0].username = gameRecord.player1.username;
+      console.log('🔍 FRESH: Set player1 username:', gameRecord.player1.username);
     }
     
     if (gameRecord.vsAI && initialState.players[1]) {
       initialState.players[1].username = AI_USERNAME;
+      console.log('🔍 FRESH: Set AI opponent username:', AI_USERNAME);
     } else if (gameRecord.player2 && initialState.players[1]) {
       initialState.players[1].username = gameRecord.player2.username;
+      console.log('🔍 FRESH: Set player2 username:', gameRecord.player2.username);
     }
+    
+    console.log('🔍 FRESH: Final player usernames:', initialState.players.map(p => ({ id: p.id, username: p.username })));
     
     // For AI games, ALWAYS process initial AI moves
     if (gameRecord.vsAI) {
