@@ -49,40 +49,24 @@ export default function Game() {
       return;
     }
 
-    console.log(`[NAV DEBUG] Socket connected: ${socket.isConnected()}`);
-    if (socket.isConnected()) {
-      console.log(`[NAV DEBUG] Joining game: ${gameId}`);
-      socket.joinGame(gameId);
-    }
+    // Socket.io removed - using REST API only
 
     return () => {
       if (gameId) {
-        console.log(`[NAV DEBUG] Leaving game: ${gameId}`);
-        socket.leaveGame(gameId);
+        console.log(`[NAV DEBUG] Component unmounting for game: ${gameId}`);
+        // No socket cleanup needed since we use REST API only
       }
     };
-  }, [gameId, user, socket, router]);
+  }, [gameId]);
 
-  // Join game when socket connects or when dependencies change
+  // Load game state directly via REST API (no socket dependency)
   useEffect(() => {
-    console.log(`[NAV DEBUG] Socket connection effect - gameId: ${gameId}, connected: ${isConnected}, hasGameState: ${!!gameState}, hasWaitingState: ${!!waitingState}`);
-    if (gameId && user && isConnected && !gameState && !waitingState) {
-      console.log(`[NAV DEBUG] Socket connected, joining game: ${gameId}`);
+    console.log(`[NAV DEBUG] Loading game via REST API - gameId: ${gameId}, hasGameState: ${!!gameState}, hasWaitingState: ${!!waitingState}`);
+    if (gameId && user && !gameState && !waitingState) {
+      console.log(`[NAV DEBUG] Loading game state via REST API: ${gameId}`);
       socket.joinGame(gameId);
     }
-  }, [gameId, user, isConnected, gameState, waitingState, socket]);
-
-  // Also try joining after a delay if we still don't have game state
-  useEffect(() => {
-    if (gameId && user && isConnected && !gameState && !waitingState) {
-      const retryTimer = setTimeout(() => {
-        console.log(`[NAV DEBUG] Retrying join game after delay: ${gameId}`);
-        socket.joinGame(gameId);
-      }, 1000);
-      
-      return () => clearTimeout(retryTimer);
-    }
-  }, [gameId, user, isConnected, gameState, waitingState, socket]);
+  }, [gameId, user, gameState, waitingState, socket]);
 
   // Track AI status during AI turns
   useEffect(() => {
