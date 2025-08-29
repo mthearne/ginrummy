@@ -22,7 +22,7 @@ const nextConfig = {
   webpack: (config) => {
     // Exclude test files and directories from build
     config.module.rules.push({
-      test: /\/tests\/|\/tests$/,
+      test: /\/tests\/|\/tests$|playwright\.config\.(ts|js)$/,
       use: 'ignore-loader'
     });
     

@@ -45,6 +45,9 @@
     "tests/**/*",
     "__tests__/**/*",
     "**/*.test.*",
-    "**/*.spec.*"
+    "**/*.spec.*",
+    "playwright.config.ts",
+    "playwright-report/**",
+    "test-results/**"
   ]
 }
