@@ -345,9 +345,10 @@ export class PersistentGameCache {
     console.log(`Starting proper restoration for game ${gameId}`);
     
     // Create new game engine based on game type
-    // For AI games, player2Id should always be set now, but fallback to error if missing
+    // For new AI games, player2Id should be set. Log details if missing for debugging.
     if (gameRecord.vsAI && !gameRecord.player2Id) {
-      throw new Error(`AI game ${gameId} missing player2Id - this should not happen with updated game creation`);
+      console.error(`AI game ${gameId} missing player2Id during restoration! Game record:`, JSON.stringify(gameRecord, null, 2));
+      throw new Error(`AI game ${gameId} missing player2Id - AI user creation may have failed`);
     }
     
     const gameEngine = gameRecord.vsAI 
@@ -573,9 +574,10 @@ export class PersistentGameCache {
     console.log(`Initializing fresh game ${gameId} from database record`);
     
     // Create new game engine based on game type
-    // For AI games, player2Id should always be set now, but error if missing
+    // For new AI games, player2Id should be set. Log details if missing for debugging.
     if (gameRecord.vsAI && !gameRecord.player2Id) {
-      throw new Error(`AI game ${gameId} missing player2Id - this should not happen with updated game creation`);
+      console.error(`NEW AI game ${gameId} missing player2Id! Game record:`, JSON.stringify(gameRecord, null, 2));
+      throw new Error(`AI game ${gameId} missing player2Id - AI user creation may have failed`);
     }
     
     const gameEngine = gameRecord.vsAI 
@@ -596,7 +598,7 @@ export class PersistentGameCache {
     }
     
     if (gameRecord.vsAI && initialState.players[1]) {
-      initialState.players[1].username = 'AI Opponent';
+      initialState.players[1].username = AI_USERNAME;
     } else if (gameRecord.player2 && initialState.players[1]) {
       initialState.players[1].username = gameRecord.player2.username;
     }
