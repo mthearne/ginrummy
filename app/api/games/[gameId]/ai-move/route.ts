@@ -99,7 +99,17 @@ export async function POST(
     console.log('🔍 STEP 5: Current game state:', { 
       phase: currentState.phase, 
       currentPlayerId: currentState.currentPlayerId,
-      gameOver: currentState.gameOver 
+      gameOver: currentState.gameOver,
+      players: currentState.players?.map(p => ({ id: p.id, username: p.username }))
+    });
+    
+    // Identify human and AI players
+    const humanId = decoded.userId;
+    const aiPlayer = currentState.players?.find(p => p.id !== humanId);
+    console.log('🔍 STEP 5: Player identification:', { 
+      humanId, 
+      aiPlayerId: aiPlayer?.id,
+      currentTurn: currentState.currentPlayerId === aiPlayer?.id ? 'AI' : 'Human'
     });
     
     // Skip deduplication for now - it's preventing AI from moving
@@ -178,6 +188,12 @@ export async function POST(
           console.log(`AI move ${index + 1} SUCCESS:`, result.stateChanges);
         } else {
           console.error(`AI move ${index + 1} FAILED:`, result.error);
+          // Log specific details for draw_discard failures
+          if (result.move && result.move.type === 'draw_discard') {
+            const currentState = gameEngine.getState();
+            console.error(`🚨 Draw discard failed - Discard pile length: ${currentState.discardPile?.length || 0}`);
+            console.error(`🚨 Discard pile contents:`, currentState.discardPile?.map(c => c.id) || []);
+          }
         }
       });
       
