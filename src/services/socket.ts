@@ -124,8 +124,10 @@ class SocketService {
         
         // Add turn history entry if provided
         if (data.turnHistoryEntry) {
-          console.log('Adding turn history entry:', data.turnHistoryEntry);
+          console.log('🔍 Socket: Adding human turn history entry:', data.turnHistoryEntry);
           useGameStore.getState().addTurnHistoryEntry(data.turnHistoryEntry);
+        } else {
+          console.log('🔍 Socket: No turn history entry found in move response:', data);
         }
         
         // Handle AI thinking if needed
@@ -226,10 +228,13 @@ class SocketService {
       
       // Add AI turn history entries if provided
       if (aiMoveData.aiTurnHistoryEntries && Array.isArray(aiMoveData.aiTurnHistoryEntries)) {
-        console.log('Adding AI turn history entries:', aiMoveData.aiTurnHistoryEntries);
+        console.log('🔍 Socket: Adding AI turn history entries:', aiMoveData.aiTurnHistoryEntries);
         aiMoveData.aiTurnHistoryEntries.forEach((entry: any) => {
+          console.log('🔍 Socket: Adding AI turn history entry:', entry);
           useGameStore.getState().addTurnHistoryEntry(entry);
         });
+      } else {
+        console.log('🔍 Socket: No AI turn history entries found in response:', aiMoveData);
       }
       
     } catch (error) {

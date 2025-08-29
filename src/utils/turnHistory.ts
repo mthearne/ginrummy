@@ -68,5 +68,7 @@ export function createTurnHistoryEntry(
 
 export function getPlayerNameFromGameState(playerId: string, gameState: GameState): string {
   const player = gameState.players?.find(p => p.id === playerId);
+  console.log(`🔍 Turn History - Looking for player ${playerId} in:`, gameState.players?.map(p => ({ id: p.id, username: p.username })));
+  console.log(`🔍 Turn History - Found player:`, player);
   return player?.username || 'Unknown Player';
 }
