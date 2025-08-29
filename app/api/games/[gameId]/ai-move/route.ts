@@ -137,9 +137,7 @@ export async function POST(
         );
       }
     }
-    // Identify AI as "the other player" relative to the authenticated human
-    const humanId = decoded.userId;
-    const aiPlayer = currentState.players?.find(p => p.id !== humanId);
+    // Use the already identified AI player from above
     if (!aiPlayer) {
       return NextResponse.json(
         { error: 'AI player not found', code: 'AI_NOT_FOUND' },
