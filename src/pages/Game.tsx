@@ -250,10 +250,11 @@ export default function Game() {
   const handleDrawStock = () => {
     if (!gameId || !user) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.DrawStock,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       gameId: gameId,
     });
   };
@@ -261,10 +262,11 @@ export default function Game() {
   const handleDrawDiscard = () => {
     if (!gameId || !user || !gameState?.discardPile?.length) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.DrawDiscard,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       gameId: gameId,
     });
   };
@@ -272,10 +274,11 @@ export default function Game() {
   const handleDiscard = () => {
     if (!gameId || !user || selectedCards.length !== 1) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.Discard,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       cardId: selectedCards[0],
       gameId: gameId,
     });
@@ -285,10 +288,11 @@ export default function Game() {
   const handleKnock = () => {
     if (!gameId || !user || selectedCards.length !== 1) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.Knock,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       cardId: selectedCards[0],
       melds: myPlayer?.melds || [],
       gameId: gameId,
@@ -299,10 +303,11 @@ export default function Game() {
   const handleGin = () => {
     if (!gameId || !user || selectedCards.length !== 1) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.Gin,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       cardId: selectedCards[0],
       melds: myPlayer?.melds || [],
       gameId: gameId,
@@ -313,10 +318,11 @@ export default function Game() {
   const handleTakeUpcard = () => {
     if (!gameId || !user) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.TakeUpcard,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       gameId: gameId,
     });
   };
@@ -324,10 +330,11 @@ export default function Game() {
   const handlePassUpcard = () => {
     if (!gameId || !user) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.PassUpcard,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       gameId: gameId,
     });
   };
@@ -335,10 +342,11 @@ export default function Game() {
   const handleStartNewRound = () => {
     if (!gameId || !user) return;
     const myPlayer = getMyPlayer();
+    if (!myPlayer?.id) return;
     
     socket.makeMove({
       type: MoveType.StartNewRound,
-      playerId: myPlayer?.id || user.id,
+      playerId: myPlayer.id,
       gameId: gameId,
     });
   };

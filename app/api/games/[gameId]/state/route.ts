@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { GinRummyGame } from '@gin-rummy/common';
-import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
+import { persistentGameCache, AI_USERNAME } from '../../../../../src/utils/persistentGameCache';
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 
 export async function GET(
@@ -286,7 +286,8 @@ export async function GET(
 async function processInitialAIMoves(gameEngine: any): Promise<void> {
   const currentState = gameEngine.getState();
   
-  const aiPlayer = currentState.players?.find(p => p.username === 'AI Assistant');
+  // For initialization context, check if AI exists by username (only creation context)
+  const aiPlayer = currentState.players?.find(p => p.username === AI_USERNAME);
   if (currentState.currentPlayerId !== aiPlayer?.id || currentState.phase !== 'upcard_decision') {
     return; // Not AI's turn or not upcard decision phase
   }

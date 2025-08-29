@@ -1,7 +1,10 @@
 // Database-backed persistent game cache for serverless environments
-import { GinRummyGame, AI_PLAYER_ID } from '@gin-rummy/common';
+import { GinRummyGame } from '@gin-rummy/common';
 import { prisma } from './database';
 import { GameEventsService } from '../services/gameEvents';
+
+export const AI_PLAYER_ID = 'ai-player';
+export const AI_USERNAME  = 'AI Assistant';
 
 export class PersistentGameCache {
   private memoryCache = new Map<string, GinRummyGame>();
@@ -589,7 +592,7 @@ export class PersistentGameCache {
     }
     
     // For AI games, process initial AI moves if needed
-    const aiPlayer = initialState.players?.find(p => p.username === 'AI Assistant');
+    const aiPlayer = initialState.players?.find(p => p.username === AI_USERNAME);
     if (gameRecord.vsAI && initialState.currentPlayerId === aiPlayer?.id && initialState.phase === 'upcard_decision') {
       console.log(`Processing initial AI upcard decision for newly initialized game ${gameId}`);
       try {

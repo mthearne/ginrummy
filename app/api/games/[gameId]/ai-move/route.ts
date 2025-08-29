@@ -84,11 +84,42 @@ export async function POST(
 
     // Verify it's actually AI's turn
     const currentState = gameEngine.getState();
+    
+    // Deduplicate AI per turn and avoid reentrancy
+    const lastAiTurnId = (gameEngine as any).lastAiTurnId ?? -1;
+    if (typeof currentState.turnId === 'number') {
+      if (currentState.turnId === lastAiTurnId) {
+        return NextResponse.json({ success: true, deduped: true }, { status: 200 });
+      }
+      (gameEngine as any).lastAiTurnId = currentState.turnId;
+    }
+    if (typeof gameEngine.isProcessing === 'function' && gameEngine.isProcessing()) {
+      return NextResponse.json(
+        { error: 'Engine busy, try again', code: 'ENGINE_BUSY' },
+        { status: 409 }
+      );
+    }
+    // Identify AI as "the other player" relative to the authenticated human
     const humanId = decoded.userId;
     const aiPlayer = currentState.players?.find(p => p.id !== humanId);
-    if (!aiPlayer || currentState.currentPlayerId !== aiPlayer.id || currentState.gameOver) {
+    if (!aiPlayer) {
       return NextResponse.json(
-        { error: 'Not AI turn or game is over' },
+        { error: 'AI player not found', code: 'AI_NOT_FOUND' },
+        { status: 500 }
+      );
+    }
+    if (currentState.gameOver || currentState.currentPlayerId !== aiPlayer.id) {
+      return NextResponse.json(
+        {
+          error: 'Not AI turn or game is over',
+          code: 'NOT_AI_TURN',
+          details: {
+            currentPlayerId: currentState.currentPlayerId,
+            aiPlayerId: aiPlayer.id,
+            phase: currentState.phase,
+            gameOver: currentState.gameOver
+          }
+        },
         { status: 409 }
       );
     }

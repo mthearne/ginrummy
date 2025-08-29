@@ -60,9 +60,6 @@ export enum MoveType {
   StartNewRound = 'start_new_round',
 }
 
-// Shared constant for AI player ID fallback
-export const AI_PLAYER_ID = 'ai-player';
-
 export interface Meld {
   type: 'run' | 'set';
   cards: Card[];
