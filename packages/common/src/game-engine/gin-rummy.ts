@@ -665,7 +665,18 @@ export class GinRummyGame {
    * Validate move with turn state
    */
   private validateMoveWithTurnState(move: GameMove, player: PlayerState): { valid: boolean; error?: string } {
-    // Basic turn validation
+    // Special case for start_new_round moves
+    if (move.type === MoveType.StartNewRound) {
+      // For AI games, the human player can always start a new round
+      // For PvP games, either player can start a new round
+      if (this.state.phase !== GamePhase.RoundOver) {
+        return { valid: false, error: 'Can only start new round when current round is over' };
+      }
+      // Allow the move regardless of current player for round transitions
+      return { valid: true };
+    }
+
+    // Basic turn validation for all other moves
     if (move.playerId !== this.state.currentPlayerId) {
       return {
         valid: false,
