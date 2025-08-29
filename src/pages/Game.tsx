@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth';
 import { useSocket } from '../services/socket';
 import { Card as CardComponent } from '../components/ui/Card';
 import { FriendInvitation } from '../components/FriendInvitation';
+import { TurnHistory } from '../components/game/TurnHistory';
 import Confetti from '../components/ui/Confetti';
 import FlyingAnimal from '../components/ui/FlyingAnimal';
 import AIThinkingOverlay from '../components/game/AIThinkingOverlay';
@@ -846,6 +847,9 @@ export default function Game() {
 
           {/* Game Info & Chat */}
           <div className="space-y-4">
+            {/* Turn History */}
+            <TurnHistory />
+            
             {/* Game Info */}
             <div className="bg-blue-50 rounded-lg p-4">
               <h3 className="font-semibold mb-2">Game Info</h3>

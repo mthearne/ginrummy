@@ -2,11 +2,22 @@ import { create } from 'zustand';
 import { GameState, ChatMessage, GameWaitingInfo } from '@gin-rummy/common';
 import { useAuthStore } from './auth';
 
+export interface TurnHistoryEntry {
+  id: string;
+  turnNumber: number;
+  playerId: string;
+  playerName: string;
+  action: string;
+  description: string;
+  timestamp: string;
+}
+
 interface GameStore {
   gameState: Partial<GameState> | null;
   waitingState: GameWaitingInfo | null;
   selectedCards: string[];
   chatMessages: ChatMessage[];
+  turnHistory: TurnHistoryEntry[];
   isConnected: boolean;
   gameError: string | null;
   isAIThinking: boolean;
@@ -19,6 +30,8 @@ interface GameStore {
   deselectCard: (cardId: string) => void;
   clearSelection: () => void;
   addChatMessage: (message: ChatMessage) => void;
+  addTurnHistoryEntry: (entry: TurnHistoryEntry) => void;
+  setTurnHistory: (history: TurnHistoryEntry[]) => void;
   setConnected: (connected: boolean) => void;
   setGameError: (error: string | null) => void;
   setAIThinking: (thinking: boolean, thoughts: string[]) => void;
@@ -36,6 +49,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   waitingState: null,
   selectedCards: [],
   chatMessages: [],
+  turnHistory: [],
   isConnected: false,
   gameError: null,
   isAIThinking: false,
@@ -65,6 +79,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     set({ chatMessages: [...state.chatMessages, message] });
   },
+
+  addTurnHistoryEntry: (entry) => {
+    const state = get();
+    set({ turnHistory: [...state.turnHistory, entry] });
+  },
+
+  setTurnHistory: (turnHistory) => set({ turnHistory }),
   
   setConnected: (isConnected) => set({ isConnected }),
   
@@ -77,6 +98,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     waitingState: null,
     selectedCards: [],
     chatMessages: [],
+    turnHistory: [],
     isConnected: false,
     gameError: null,
   }),

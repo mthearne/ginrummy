@@ -4,6 +4,7 @@ import { GinRummyGame } from '@gin-rummy/common';
 import { persistentGameCache } from '../../../../../src/utils/persistentGameCache';
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 import { GameEventsService } from '../../../../../src/services/gameEvents';
+import { createTurnHistoryEntry, getPlayerNameFromGameState } from '../../../../../src/utils/turnHistory';
 
 /**
  * Process AI moves after thinking delay
@@ -181,6 +182,18 @@ export async function POST(
       const finalState = gameEngine.getState();
       console.log('Final state - Phase:', finalState.phase, 'Current player:', finalState.currentPlayerId);
       
+      // Create turn history entries for successful AI moves
+      const aiTurnHistoryEntries = [];
+      for (const [index, result] of aiResults.entries()) {
+        if (result.success && result.move) {
+          const playerName = getPlayerNameFromGameState(result.move.playerId, finalState);
+          const turnNumber = (finalState as any).turnId || (Date.now() + index); // Use turnId if available, fallback to timestamp + index
+          const turnHistoryEntry = createTurnHistoryEntry(result.move, result.state, turnNumber, playerName);
+          aiTurnHistoryEntries.push(turnHistoryEntry);
+          console.log(`🔍 AI Move ${index + 1}: Created turn history entry:`, turnHistoryEntry);
+        }
+      }
+      
       // Log AI moves to database (simplified - log each successful AI result)
       try {
         for (const [index, result] of aiResults.entries()) {
@@ -249,7 +262,8 @@ export async function POST(
       return NextResponse.json({
         success: true,
         gameState: playerState,
-        aiMoves: aiResults.map(r => ({ success: r.success, error: r.error }))
+        aiMoves: aiResults.map(r => ({ success: r.success, error: r.error })),
+        aiTurnHistoryEntries: aiTurnHistoryEntries
       });
       
     } catch (error) {

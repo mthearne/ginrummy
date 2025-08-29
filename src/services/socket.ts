@@ -122,6 +122,12 @@ class SocketService {
           gameId: data.gameState.id
         });
         
+        // Add turn history entry if provided
+        if (data.turnHistoryEntry) {
+          console.log('Adding turn history entry:', data.turnHistoryEntry);
+          useGameStore.getState().addTurnHistoryEntry(data.turnHistoryEntry);
+        }
+        
         // Handle AI thinking if needed
         if (data.debug?.aiShouldThink && move.gameId) {
           console.log('🤖 AI should think, starting thinking process');
@@ -216,6 +222,14 @@ class SocketService {
       useGameStore.getState().setAIThinking(false, []);
       if (aiMoveData.gameState) {
         useGameStore.getState().setGameState(aiMoveData.gameState);
+      }
+      
+      // Add AI turn history entries if provided
+      if (aiMoveData.aiTurnHistoryEntries && Array.isArray(aiMoveData.aiTurnHistoryEntries)) {
+        console.log('Adding AI turn history entries:', aiMoveData.aiTurnHistoryEntries);
+        aiMoveData.aiTurnHistoryEntries.forEach((entry: any) => {
+          useGameStore.getState().addTurnHistoryEntry(entry);
+        });
       }
       
     } catch (error) {

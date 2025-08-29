@@ -6,6 +6,7 @@ import { persistentGameCache } from '../../../../../src/utils/persistentGameCach
 import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
 import { GamePhase } from '@gin-rummy/common';
 import { GameEventsService } from '../../../../../src/services/gameEvents';
+import { createTurnHistoryEntry, getPlayerNameFromGameState } from '../../../../../src/utils/turnHistory';
 
 export async function POST(
   request: NextRequest,
@@ -169,6 +170,16 @@ export async function POST(
       
       const moveResult = gameEngine.makeMove(correctedMove);
       
+      // Create turn history entry for successful moves
+      let turnHistoryEntry = null;
+      if (moveResult.success) {
+        const currentState = gameEngine.getState();
+        const playerName = getPlayerNameFromGameState(correctedMove.playerId, currentState);
+        const turnNumber = (currentState as any).turnId || Date.now(); // Use turnId if available, fallback to timestamp
+        turnHistoryEntry = createTurnHistoryEntry(correctedMove, currentState, turnNumber, playerName);
+        console.log('🔍 STEP 3: Created turn history entry:', turnHistoryEntry);
+      }
+      
       if (!moveResult.success) {
         console.log('🔍 STEP 3 FAILED: Move execution failed:', moveResult.error);
         console.log('Turn state after failed move:', gameEngine.getTurnState());
@@ -314,6 +325,7 @@ export async function POST(
       return NextResponse.json({
         success: true,
         gameState: trulyFinalState,
+        turnHistoryEntry: turnHistoryEntry,
         debug: {
           aiTriggered: shouldTriggerAI,
           asynchronousAI: true,
@@ -413,6 +425,16 @@ export async function POST(
     
     const moveResult = gameEngine.makeMove(pvpCorrectedMove);
     
+    // Create turn history entry for successful PvP moves
+    let pvpTurnHistoryEntry = null;
+    if (moveResult.success) {
+      const currentState = gameEngine.getState();
+      const playerName = getPlayerNameFromGameState(pvpCorrectedMove.playerId, currentState);
+      const turnNumber = (currentState as any).turnId || Date.now(); // Use turnId if available, fallback to timestamp
+      pvpTurnHistoryEntry = createTurnHistoryEntry(pvpCorrectedMove, currentState, turnNumber, playerName);
+      console.log('🔍 PvP: Created turn history entry:', pvpTurnHistoryEntry);
+    }
+    
     if (!moveResult.success) {
       console.log('PvP move failed with error:', moveResult.error);
       return NextResponse.json(
@@ -476,7 +498,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      gameState: finalPlayerState
+      gameState: finalPlayerState,
+      turnHistoryEntry: pvpTurnHistoryEntry
     });
 
   } catch (error) {
