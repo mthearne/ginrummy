@@ -603,49 +603,33 @@ export class PersistentGameCache {
       initialState.players[1].username = gameRecord.player2.username;
     }
     
-    // For AI games, process initial AI moves if needed
-    let aiPlayer = initialState.players?.find(p => p.username === AI_USERNAME);
-    // Fallback: in AI games, player2 is always the AI
-    if (gameRecord.vsAI && !aiPlayer && initialState.players[1]) {
-      aiPlayer = initialState.players[1];
-      console.log(`Using player2 as AI fallback for game ${gameId}`);
-    }
-    
-    console.log(`AI processing check for game ${gameId}:`);
-    console.log(`- vsAI: ${gameRecord.vsAI}`);
-    console.log(`- currentPlayerId: ${initialState.currentPlayerId}`);
-    console.log(`- aiPlayer: ${JSON.stringify(aiPlayer)}`);
-    console.log(`- phase: ${initialState.phase}`);
-    console.log(`- AI_USERNAME: ${AI_USERNAME}`);
-    console.log(`- All players:`, initialState.players?.map(p => ({id: p.id, username: p.username})));
-    
-    if (gameRecord.vsAI && initialState.currentPlayerId === aiPlayer?.id && initialState.phase === 'upcard_decision') {
-      console.log(`Processing initial AI upcard decision for newly initialized game ${gameId}`);
-      try {
-        // Process the initial AI upcard decision
-        const aiMove = gameEngine.getAISuggestion();
-        if (aiMove) {
-          console.log(`AI making initial move: ${aiMove.type} for game ${gameId}`);
-          const moveResult = gameEngine.makeMove(aiMove);
-          if (moveResult.success) {
-            console.log(`AI initial move successful for game ${gameId}, new phase: ${moveResult.state.phase}, new current player: ${moveResult.state.currentPlayerId}`);
+    // For AI games, ALWAYS process initial AI moves
+    if (gameRecord.vsAI) {
+      console.log(`Processing AI initialization for game ${gameId}`);
+      
+      // In AI games, player2 is always the AI and starts first (as per game engine constructor)
+      const aiPlayerId = initialState.players[1]?.id;
+      
+      // Force AI to make initial upcard decision if it's the current player
+      if (initialState.currentPlayerId === aiPlayerId && initialState.phase === 'upcard_decision') {
+        console.log(`AI (${aiPlayerId}) needs to make initial upcard decision`);
+        
+        try {
+          // Force the AI to process its move
+          const aiResults = gameEngine.processAIMoves();
+          console.log(`AI processed ${aiResults.length} initial moves`);
+          
+          if (aiResults.length > 0 && aiResults[0].success) {
+            console.log(`AI initial move successful, new phase: ${aiResults[0].state?.phase}, new current player: ${aiResults[0].state?.currentPlayerId}`);
           } else {
-            console.error(`AI initial move failed for game ${gameId}:`, moveResult.error);
+            console.error(`AI initial move failed:`, aiResults[0]?.error);
           }
-        } else {
-          console.error(`No AI move available for game ${gameId} in upcard_decision phase`);
+        } catch (error) {
+          console.error(`Error processing AI initial moves:`, error);
         }
-      } catch (error) {
-        console.error(`Error processing initial AI moves for game ${gameId}:`, error);
+      } else {
+        console.log(`AI initialization skipped: currentPlayer=${initialState.currentPlayerId}, aiPlayer=${aiPlayerId}, phase=${initialState.phase}`);
       }
-    } else {
-      console.log(`Skipping AI processing for game ${gameId}:`, {
-        vsAI: gameRecord.vsAI,
-        currentPlayerIsAI: initialState.currentPlayerId === aiPlayer?.id,
-        phase: initialState.phase,
-        currentPlayerId: initialState.currentPlayerId,
-        aiPlayerId: aiPlayer?.id
-      });
     }
     
     // Clear loading state after initialization is complete
