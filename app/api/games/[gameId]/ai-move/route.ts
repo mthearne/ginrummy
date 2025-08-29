@@ -84,11 +84,12 @@ export async function POST(
 
     // Verify it's actually AI's turn
     const currentState = gameEngine.getState();
-    const aiPlayer = currentState.players?.find(p => p.username === 'AI Assistant');
-    if (currentState.currentPlayerId !== aiPlayer?.id || currentState.gameOver) {
+    const humanId = decoded.userId;
+    const aiPlayer = currentState.players?.find(p => p.id !== humanId);
+    if (!aiPlayer || currentState.currentPlayerId !== aiPlayer.id || currentState.gameOver) {
       return NextResponse.json(
         { error: 'Not AI turn or game is over' },
-        { status: 400 }
+        { status: 409 }
       );
     }
 

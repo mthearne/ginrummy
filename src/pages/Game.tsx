@@ -875,15 +875,18 @@ export default function Game() {
             <div className="bg-white rounded-lg p-4">
               <h3 className="font-semibold mb-4">Chat</h3>
             <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-              {chatMessages.map((msg) => (
+              {chatMessages.map((msg) => {
+                const myPlayer = getMyPlayer();
+                return (
                 <div
                   key={msg.id}
-                  className={`chat-message ${msg.playerId === user?.id ? 'own' : 'other'}`}
+                  className={`chat-message ${msg.playerId === myPlayer?.id ? 'own' : 'other'}`}
                 >
                   <div className="font-medium text-xs mb-1">{msg.username}</div>
                   <div>{msg.message}</div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <form onSubmit={handleSendChat} className="flex space-x-2">
               <input

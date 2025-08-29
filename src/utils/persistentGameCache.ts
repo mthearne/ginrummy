@@ -1,5 +1,5 @@
 // Database-backed persistent game cache for serverless environments
-import { GinRummyGame } from '@gin-rummy/common';
+import { GinRummyGame, AI_PLAYER_ID } from '@gin-rummy/common';
 import { prisma } from './database';
 import { GameEventsService } from '../services/gameEvents';
 
@@ -343,7 +343,7 @@ export class PersistentGameCache {
     
     // Create new game engine based on game type
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'ai-player', true)
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || AI_PLAYER_ID, true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
     
     // Set loading state to prevent AI processing during restoration
@@ -566,7 +566,7 @@ export class PersistentGameCache {
     
     // Create new game engine based on game type
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'ai-player', true)
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || AI_PLAYER_ID, true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false);
     
     // Set loading state during initialization to prevent race conditions
