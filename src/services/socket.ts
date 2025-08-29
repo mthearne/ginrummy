@@ -167,9 +167,17 @@ class SocketService {
   }
 
   // Handle AI thinking process with visual feedback
+  private aiThinkingInProgress = false;
   private async handleAIThinking(gameId: string) {
+    // Prevent multiple AI thinking processes
+    if (this.aiThinkingInProgress) {
+      console.log('🤖 AI thinking already in progress, skipping duplicate request');
+      return;
+    }
+    
     try {
       console.log('Starting AI thinking process for game:', gameId);
+      this.aiThinkingInProgress = true;
       
       const token = localStorage.getItem('accessToken');
       if (!token) {
@@ -237,6 +245,8 @@ class SocketService {
     } catch (error) {
       console.error('AI thinking process failed:', error);
       useGameStore.getState().setAIThinking(false, []);
+    } finally {
+      this.aiThinkingInProgress = false;
     }
   }
 
