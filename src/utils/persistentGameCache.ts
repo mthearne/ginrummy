@@ -14,11 +14,16 @@ export class PersistentGameCache {
    * Get game engine from cache or database
    */
   async get(gameId: string): Promise<GinRummyGame | null> {
+    console.log(`🔍 CACHE DEBUG: get() called with gameId: ${gameId}`);
+    console.log(`🔍 CACHE DEBUG: memory cache size: ${this.memoryCache.size}`);
+    console.log(`🔍 CACHE DEBUG: memory cache keys: [${Array.from(this.memoryCache.keys()).join(', ')}]`);
+    
     // First check memory cache
     if (this.memoryCache.has(gameId)) {
       console.log(`✅ Game ${gameId} found in memory cache - using cached version`);
       const cachedGame = this.memoryCache.get(gameId)!;
       const cachedState = cachedGame.getState();
+      console.log(`🔍 CACHED GAME DEBUG: returned game ID in state: ${cachedState.id}`);
       console.log(`Cached state: phase=${cachedState.phase}, upcard=${cachedState.discardPile?.[0]?.id || 'NO UPCARD'}`);
       return cachedGame;
     }
@@ -40,10 +45,15 @@ export class PersistentGameCache {
         }
       });
 
+      console.log(`🔍 DATABASE DEBUG: Query for gameId ${gameId}`);
       if (!game) {
-        console.log(`Game ${gameId} not found`);
+        console.log(`🔍 DATABASE DEBUG: Game ${gameId} not found in database`);
         return null;
       }
+      console.log(`🔍 DATABASE DEBUG: Found game record with ID: ${game.id}`);
+      console.log(`🔍 DATABASE DEBUG: Game status: ${game.status}, vsAI: ${game.vs_ai}`);
+      console.log(`🔍 DATABASE DEBUG: Players: ${game.player1?.username || 'NO P1'} vs ${game.player2?.username || 'NO P2'}`);
+      console.log(`🔍 DATABASE DEBUG: Has game_state field: ${!!game.game_state}`);
 
       // Check if game state is stored in database
       const gameStateData = (game as any).gameState;
@@ -73,6 +83,8 @@ export class PersistentGameCache {
         
         // IMMEDIATE card count check after restoration
         const restoredState = gameEngine.getState();
+        console.log(`🔍 RESTORE DEBUG: Restored game engine with state ID: ${restoredState.id}`);
+        console.log(`🔍 RESTORE DEBUG: Requested gameId: ${gameId}, Actual state ID: ${restoredState.id}, Match: ${gameId === restoredState.id}`);
         const player1HandSize = restoredState.players[0]?.hand?.length || 0;
         const player2HandSize = restoredState.players[1]?.hand?.length || 0;
         console.log(`IMMEDIATE CHECK: Player hands after restoration - P1: ${player1HandSize}, P2: ${player2HandSize}`);
@@ -125,6 +137,11 @@ export class PersistentGameCache {
         console.log(`Game record status: ${game.status}, vsAI: ${game.vsAI}, createdAt: ${game.createdAt}`);
         console.log(`This will create NEW cards and shuffle - upcard will change!`);
         const gameEngine = this.initializeGameFromRecord(gameId, game);
+        
+        // Debug what ID the fresh game engine actually has
+        const freshState = gameEngine.getState();
+        console.log(`🔍 FRESH DEBUG: Fresh game engine created with state ID: ${freshState.id}`);
+        console.log(`🔍 FRESH DEBUG: Requested gameId: ${gameId}, Actual state ID: ${freshState.id}, Match: ${gameId === freshState.id}`);
         
         // Add debug info to the game engine
         (gameEngine as any)._debugInfo = {
