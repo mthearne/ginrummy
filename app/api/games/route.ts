@@ -56,6 +56,33 @@ export async function POST(request: NextRequest) {
 
     const { vsAI, isPrivate, maxPlayers } = parsed.data;
 
+    // For AI games, ensure AI user exists and get its ID
+    let player2Id: string | null = null;
+    if (vsAI) {
+      // Try to find existing AI user
+      let aiUser = await prisma.user.findUnique({
+        where: { username: 'AI Assistant' }
+      });
+
+      // Create AI user if it doesn't exist
+      if (!aiUser) {
+        console.log('Creating AI user...');
+        aiUser = await prisma.user.create({
+          data: {
+            username: 'AI Assistant',
+            email: 'ai@ginrummy.com',
+            password: 'ai-no-login', // AI doesn't need to login
+            elo: 1500
+          }
+        });
+        console.log('AI user created with ID:', aiUser.id);
+      } else {
+        console.log('Found existing AI user with ID:', aiUser.id);
+      }
+      
+      player2Id = aiUser.id;
+    }
+
     // Create game in database
     const game = await prisma.game.create({
       data: {
@@ -64,6 +91,7 @@ export async function POST(request: NextRequest) {
         isPrivate,
         maxPlayers,
         player1Id: decoded.userId,
+        player2Id: player2Id,
       },
       include: {
         player1: {

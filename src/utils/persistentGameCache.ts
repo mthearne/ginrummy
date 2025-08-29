@@ -345,8 +345,13 @@ export class PersistentGameCache {
     console.log(`Starting proper restoration for game ${gameId}`);
     
     // Create new game engine based on game type
+    // For AI games, player2Id should always be set now, but fallback to error if missing
+    if (gameRecord.vsAI && !gameRecord.player2Id) {
+      throw new Error(`AI game ${gameId} missing player2Id - this should not happen with updated game creation`);
+    }
+    
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || AI_PLAYER_ID, true)
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
     
     // Set loading state to prevent AI processing during restoration
@@ -568,8 +573,13 @@ export class PersistentGameCache {
     console.log(`Initializing fresh game ${gameId} from database record`);
     
     // Create new game engine based on game type
+    // For AI games, player2Id should always be set now, but error if missing
+    if (gameRecord.vsAI && !gameRecord.player2Id) {
+      throw new Error(`AI game ${gameId} missing player2Id - this should not happen with updated game creation`);
+    }
+    
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || AI_PLAYER_ID, true)
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false);
     
     // Set loading state during initialization to prevent race conditions
