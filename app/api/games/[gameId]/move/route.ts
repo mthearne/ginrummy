@@ -233,8 +233,9 @@ export async function POST(
       
       // Trigger AI processing via separate endpoint for better UX (shows thinking, card on discard pile)
       const currentState = gameEngine.getState();
-      const aiPlayer = currentState.players?.find(p => p.id !== decoded.userId);
-      const shouldTriggerAI = currentState.currentPlayerId === aiPlayer?.id && !currentState.gameOver;
+      // In AI games, find AI player by checking if it's not the authenticated user
+      const aiPlayer = game.vsAI ? currentState.players?.find(p => p.id !== decoded.userId) : null;
+      const shouldTriggerAI = game.vsAI && aiPlayer && currentState.currentPlayerId === aiPlayer.id && !currentState.gameOver;
       
       console.log('🤖 AI Processing Debug:', {
         vsAI: game.vsAI,
