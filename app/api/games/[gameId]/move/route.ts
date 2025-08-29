@@ -236,6 +236,16 @@ export async function POST(
       const aiPlayer = currentState.players?.find(p => p.id !== decoded.userId);
       const shouldTriggerAI = currentState.currentPlayerId === aiPlayer?.id && !currentState.gameOver;
       
+      console.log('🤖 AI Processing Debug:', {
+        vsAI: game.vsAI,
+        currentPlayerId: currentState.currentPlayerId,
+        aiPlayer: aiPlayer ? { id: aiPlayer.id, username: aiPlayer.username } : null,
+        shouldTriggerAI,
+        gameOver: currentState.gameOver,
+        phase: currentState.phase,
+        allPlayers: currentState.players?.map(p => ({ id: p.id, username: p.username }))
+      });
+      
       if (shouldTriggerAI) {
         console.log('Triggering async AI processing via /ai-move endpoint');
         // Don't await - let it process in background for better UX
