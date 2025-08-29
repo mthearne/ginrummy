@@ -604,7 +604,21 @@ export class PersistentGameCache {
     }
     
     // For AI games, process initial AI moves if needed
-    const aiPlayer = initialState.players?.find(p => p.username === AI_USERNAME);
+    let aiPlayer = initialState.players?.find(p => p.username === AI_USERNAME);
+    // Fallback: in AI games, player2 is always the AI
+    if (gameRecord.vsAI && !aiPlayer && initialState.players[1]) {
+      aiPlayer = initialState.players[1];
+      console.log(`Using player2 as AI fallback for game ${gameId}`);
+    }
+    
+    console.log(`AI processing check for game ${gameId}:`);
+    console.log(`- vsAI: ${gameRecord.vsAI}`);
+    console.log(`- currentPlayerId: ${initialState.currentPlayerId}`);
+    console.log(`- aiPlayer: ${JSON.stringify(aiPlayer)}`);
+    console.log(`- phase: ${initialState.phase}`);
+    console.log(`- AI_USERNAME: ${AI_USERNAME}`);
+    console.log(`- All players:`, initialState.players?.map(p => ({id: p.id, username: p.username})));
+    
     if (gameRecord.vsAI && initialState.currentPlayerId === aiPlayer?.id && initialState.phase === 'upcard_decision') {
       console.log(`Processing initial AI upcard decision for newly initialized game ${gameId}`);
       try {
