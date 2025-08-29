@@ -134,6 +134,20 @@ class SocketService {
         
         useGameStore.getState().setGameState(data.gameState);
         console.log('Move completed. Current player:', data.gameState.currentPlayerId, 'Phase:', data.gameState.phase);
+        
+        // If it's now AI's turn, wait a bit then refresh to see AI moves
+        const isAIGame = data.gameState.vsAI;
+        const currentUserId = localStorage.getItem('userId'); // Assuming this exists
+        const isAITurn = isAIGame && data.gameState.currentPlayerId !== currentUserId;
+        
+        if (isAITurn) {
+          console.log('🤖 AI turn detected, will refresh state after AI processing');
+          // Wait for AI to process, then refresh
+          setTimeout(() => {
+            console.log('🤖 Refreshing state after AI turn');
+            this.joinGameViaAPI(move.gameId!);
+          }, 3000); // Wait 3 seconds for AI to complete
+        }
       }
 
     } catch (error) {

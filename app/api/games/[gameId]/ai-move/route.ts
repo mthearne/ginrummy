@@ -218,9 +218,27 @@ export async function POST(
         console.log('AI game state saved to fallback cache');
       }
       
+      // Get player-specific state for the frontend
+      let playerState;
+      try {
+        // Find the human player (not the AI)
+        const humanPlayer = finalState.players?.find(p => p.id !== aiPlayer.id);
+        if (humanPlayer) {
+          playerState = gameEngine.getPlayerState(humanPlayer.id);
+          console.log('🔍 STEP 5: Returning player-specific state for human player:', humanPlayer.id);
+        } else {
+          playerState = finalState;
+          console.log('🔍 STEP 5: Could not find human player, returning full state');
+        }
+      } catch (error) {
+        console.error('🔍 STEP 5: getPlayerState failed, using full state:', error.message);
+        playerState = finalState;
+      }
+
+      console.log('🔍 STEP 5: AI moves complete, returning updated game state');
       return NextResponse.json({
         success: true,
-        gameState: finalState,
+        gameState: playerState,
         aiMoves: aiResults.map(r => ({ success: r.success, error: r.error }))
       });
       
