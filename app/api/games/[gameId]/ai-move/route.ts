@@ -101,14 +101,16 @@ export async function POST(
       gameOver: currentState.gameOver 
     });
     
-    // Deduplicate AI per turn and avoid reentrancy
-    const lastAiTurnId = (gameEngine as any).lastAiTurnId ?? -1;
-    if (typeof currentState.turnId === 'number') {
-      if (currentState.turnId === lastAiTurnId) {
-        return NextResponse.json({ success: true, deduped: true }, { status: 200 });
-      }
-      (gameEngine as any).lastAiTurnId = currentState.turnId;
-    }
+    // Skip deduplication for now - it's preventing AI from moving
+    // const lastAiTurnId = (gameEngine as any).lastAiTurnId ?? -1;
+    // if (typeof currentState.turnId === 'number') {
+    //   if (currentState.turnId === lastAiTurnId) {
+    //     console.log('🔍 STEP 5: AI deduplication - already processed turnId', currentState.turnId);
+    //     return NextResponse.json({ success: true, deduped: true }, { status: 200 });
+    //   }
+    //   (gameEngine as any).lastAiTurnId = currentState.turnId;
+    // }
+    console.log('🔍 STEP 5: Skipping deduplication to allow AI moves');
     if (typeof gameEngine.isProcessing === 'function' && gameEngine.isProcessing()) {
       return NextResponse.json(
         { error: 'Engine busy, try again', code: 'ENGINE_BUSY' },
