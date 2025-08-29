@@ -343,7 +343,7 @@ export class PersistentGameCache {
     
     // Create new game engine based on game type
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'ai-player', true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
     
     // Set loading state to prevent AI processing during restoration
@@ -566,7 +566,7 @@ export class PersistentGameCache {
     
     // Create new game engine based on game type
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, 'ai-player', true)
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'ai-player', true)
       : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false);
     
     // Set loading state during initialization to prevent race conditions
@@ -589,7 +589,8 @@ export class PersistentGameCache {
     }
     
     // For AI games, process initial AI moves if needed
-    if (gameRecord.vsAI && initialState.currentPlayerId === 'ai-player' && initialState.phase === 'upcard_decision') {
+    const aiPlayer = initialState.players?.find(p => p.username === 'AI Assistant');
+    if (gameRecord.vsAI && initialState.currentPlayerId === aiPlayer?.id && initialState.phase === 'upcard_decision') {
       console.log(`Processing initial AI upcard decision for newly initialized game ${gameId}`);
       try {
         // Process the initial AI upcard decision

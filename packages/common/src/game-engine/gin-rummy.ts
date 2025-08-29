@@ -56,13 +56,14 @@ export class GinRummyGame {
   private turnState: TurnState;
   private readonly TURN_LOCK_TIMEOUT = 5000; // 5 seconds
   private readonly AI_PROCESSING_TIMEOUT = 3000; // 3 seconds
+  private lastAiTurnId: number = -1; // Track last processed AI turn for deduplication
 
   constructor(gameId: string, player1Id: string, player2Id: string, vsAI = false) {
     this.deck = shuffleDeck(createDeck());
     
     // Initialize AI player if this is an AI game
-    if (vsAI && player2Id === 'ai-player') {
-      this.aiPlayer = new AIPlayer('ai-player');
+    if (vsAI) {
+      this.aiPlayer = new AIPlayer(player2Id);
     }
 
     this.state = {
@@ -102,6 +103,7 @@ export class GinRummyGame {
       isPrivate: false,
       vsAI,
       gameOver: false,
+      turnId: 0, // Start at 0, increment at end of each turn
     };
 
     // Initialize turn state management
@@ -181,6 +183,20 @@ export class GinRummyGame {
    */
   public processAIMoves(): MoveResult[] {
     console.log('\n=== AI MOVE PROCESSING START ===');
+    
+    // AI deduplication: don't process if we've already processed this turn
+    const currentTurnId = this.state.turnId || 0;
+    if (currentTurnId <= this.lastAiTurnId) {
+      console.log(`AI deduplication: already processed turnId ${currentTurnId} (last processed: ${this.lastAiTurnId})`);
+      return [];
+    }
+    
+    // isProcessing guard: prevent concurrent AI processing
+    if (this.isProcessing()) {
+      console.log('AI processing skipped: game is already processing moves');
+      return [];
+    }
+    
     const results: MoveResult[] = [];
     
     while (this.shouldProcessAIMoves()) {
@@ -217,6 +233,10 @@ export class GinRummyGame {
         break;
       }
     }
+    
+    // Update lastAiTurnId to current turnId to prevent reprocessing
+    this.lastAiTurnId = this.state.turnId || 0;
+    console.log(`Updated lastAiTurnId to ${this.lastAiTurnId}`);
     
     console.log('=== AI MOVE PROCESSING END ===\n');
     return results;
@@ -618,6 +638,9 @@ export class GinRummyGame {
     this.state.phase = GamePhase.Draw;
     this.state.turnTimer = 30;
     
+    // Increment turnId exactly once at end of turn for deduplication
+    this.state.turnId = (this.state.turnId || 0) + 1;
+    
     // Sync turn state
     this.syncTurnState();
   }
@@ -628,6 +651,32 @@ export class GinRummyGame {
   private syncTurnState(): void {
     this.turnState.currentPlayerId = this.state.currentPlayerId;
     this.turnState.phase = this.state.phase;
+    
+    // Dev assertion: validate currentPlayerId exists in players
+    this.assertValidCurrentPlayer();
+  }
+
+  /**
+   * Dev assertion to ensure currentPlayerId is valid
+   */
+  private assertValidCurrentPlayer(): void {
+    if (this.state.phase === GamePhase.GameOver || this.state.phase === GamePhase.RoundOver) {
+      return; // Skip validation for end states
+    }
+    
+    const playerIds = this.state.players.map(p => p.id);
+    if (!playerIds.includes(this.state.currentPlayerId)) {
+      console.error('🚨 INVARIANT BREACH: currentPlayerId not found in players!');
+      console.error('- currentPlayerId:', this.state.currentPlayerId);
+      console.error('- available playerIds:', playerIds);
+      console.error('- phase:', this.state.phase);
+      console.error('- gameOver:', this.state.gameOver);
+      
+      // In development, throw an error to catch this immediately
+      if (process.env.NODE_ENV === 'development') {
+        throw new Error(`Invalid currentPlayerId: ${this.state.currentPlayerId} not in players: ${playerIds.join(', ')}`);
+      }
+    }
   }
 
   /**
@@ -705,7 +754,7 @@ export class GinRummyGame {
    */
   private shouldProcessAIMoves(): boolean {
     const should = this.state.vsAI && 
-           this.state.currentPlayerId === 'ai-player' && 
+           this.state.currentPlayerId === this.getAIPlayerId() && 
            !this.state.gameOver &&
            this.state.phase !== GamePhase.GameOver &&
            this.state.phase !== GamePhase.RoundOver &&
@@ -853,10 +902,18 @@ export class GinRummyGame {
   }
 
   /**
+   * Get the AI player ID (helper for consistent AI player identification)
+   */
+  private getAIPlayerId(): string | null {
+    if (!this.aiPlayer) return null;
+    return this.state.players.find(p => p.id !== this.state.players[0].id)?.id || null;
+  }
+
+  /**
    * Get AI thought process for display
    */
   public getAIThoughts(): string[] {
-    const aiPlayerState = this.state.players.find(p => p.id === 'ai-player');
+    const aiPlayerState = this.state.players.find(p => p.id === this.getAIPlayerId());
     if (!aiPlayerState || this.state.currentPlayerId !== aiPlayerState.id || !this.aiPlayer) {
       return [];
     }
@@ -882,7 +939,7 @@ export class GinRummyGame {
    * Get suggested move for AI player using the sophisticated AIPlayer class
    */
   public getAISuggestion(): GameMove | null {
-    const aiPlayerState = this.state.players.find(p => p.id === 'ai-player');
+    const aiPlayerState = this.state.players.find(p => p.id === this.getAIPlayerId());
     if (!aiPlayerState || this.state.currentPlayerId !== aiPlayerState.id || !this.aiPlayer) {
       console.log('AI suggestion failed: no AI player or not AI turn');
       return null;

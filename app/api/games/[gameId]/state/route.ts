@@ -113,7 +113,8 @@ export async function GET(
       const currentState = gameEngine.getState();
       let aiProcessedMoves = false;
       
-      if (currentState.currentPlayerId === 'ai-player' && !currentState.gameOver) {
+      const aiPlayer = currentState.players?.find(p => p.id !== decoded.userId);
+      if (currentState.currentPlayerId === aiPlayer?.id && !currentState.gameOver) {
         console.log('AI turn detected when loading state - processing AI moves synchronously');
         console.log(`AI state: phase=${currentState.phase}, currentPlayer=${currentState.currentPlayerId}`);
         
@@ -285,7 +286,8 @@ export async function GET(
 async function processInitialAIMoves(gameEngine: any): Promise<void> {
   const currentState = gameEngine.getState();
   
-  if (currentState.currentPlayerId !== 'ai-player' || currentState.phase !== 'upcard_decision') {
+  const aiPlayer = currentState.players?.find(p => p.username === 'AI Assistant');
+  if (currentState.currentPlayerId !== aiPlayer?.id || currentState.phase !== 'upcard_decision') {
     return; // Not AI's turn or not upcard decision phase
   }
   

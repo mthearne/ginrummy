@@ -86,7 +86,9 @@ export default function Game() {
 
   // Track AI status during AI turns
   useEffect(() => {
-    if (gameState && gameState.vsAI && gameState.currentPlayerId === 'ai-player') {
+    const myPlayer = getMyPlayer();
+    const aiPlayer = gameState?.players?.find(p => p.id !== myPlayer?.id);
+    if (gameState && gameState.vsAI && gameState.currentPlayerId === aiPlayer?.id) {
       // Determine what phase the AI is in and show appropriate thinking message
       let status = '';
       if (gameState.phase === 'upcard_decision') {
@@ -247,30 +249,33 @@ export default function Game() {
 
   const handleDrawStock = () => {
     if (!gameId || !user) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.DrawStock,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       gameId: gameId,
     });
   };
 
   const handleDrawDiscard = () => {
     if (!gameId || !user || !gameState?.discardPile?.length) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.DrawDiscard,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       gameId: gameId,
     });
   };
 
   const handleDiscard = () => {
     if (!gameId || !user || selectedCards.length !== 1) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.Discard,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       cardId: selectedCards[0],
       gameId: gameId,
     });
@@ -279,10 +284,11 @@ export default function Game() {
 
   const handleKnock = () => {
     if (!gameId || !user || selectedCards.length !== 1) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.Knock,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       cardId: selectedCards[0],
       melds: myPlayer?.melds || [],
       gameId: gameId,
@@ -292,10 +298,11 @@ export default function Game() {
 
   const handleGin = () => {
     if (!gameId || !user || selectedCards.length !== 1) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.Gin,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       cardId: selectedCards[0],
       melds: myPlayer?.melds || [],
       gameId: gameId,
@@ -305,30 +312,33 @@ export default function Game() {
 
   const handleTakeUpcard = () => {
     if (!gameId || !user) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.TakeUpcard,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       gameId: gameId,
     });
   };
 
   const handlePassUpcard = () => {
     if (!gameId || !user) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.PassUpcard,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       gameId: gameId,
     });
   };
 
   const handleStartNewRound = () => {
     if (!gameId || !user) return;
+    const myPlayer = getMyPlayer();
     
     socket.makeMove({
       type: MoveType.StartNewRound,
-      playerId: user.id,
+      playerId: myPlayer?.id || user.id,
       gameId: gameId,
     });
   };
@@ -395,7 +405,7 @@ export default function Game() {
 
   const myPlayer = getMyPlayer();
   const opponent = getOpponent();
-  const isMyTurn = gameState.currentPlayerId === user?.id;
+  const isMyTurn = gameState.currentPlayerId === myPlayer?.id;
 
   // Helper function to get user-friendly phase text
   const getPhaseDisplayText = (phase: string): string => {

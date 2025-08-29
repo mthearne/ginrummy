@@ -100,6 +100,7 @@ export interface GameState {
   winner?: string;
   gameOver: boolean;
   roundScores?: { [playerId: string]: number };
+  turnId?: number; // Increments exactly once at end of turn for deduplication
 }
 
 export interface CreateGameRequest {

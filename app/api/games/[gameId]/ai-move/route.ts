@@ -84,13 +84,22 @@ export async function POST(
 
     // Verify it's actually AI's turn
     const currentState = gameEngine.getState();
-    if (currentState.currentPlayerId !== 'ai-player' || currentState.gameOver) {
+    const aiPlayer = currentState.players?.find(p => p.username === 'AI Assistant');
+    if (currentState.currentPlayerId !== aiPlayer?.id || currentState.gameOver) {
       return NextResponse.json(
         { error: 'Not AI turn or game is over' },
         { status: 400 }
       );
     }
 
+    console.log('\n=== AI THINKING START ===');
+    
+    // Add thinking delay to simulate AI consideration (for better UX)
+    const thinkingTime = 1500 + Math.random() * 1000; // 1.5-2.5 seconds
+    console.log(`AI thinking for ${Math.round(thinkingTime)}ms`);
+    
+    await new Promise(resolve => setTimeout(resolve, thinkingTime));
+    
     console.log('\n=== AI PROCESSING START (After Thinking) ===');
     console.log('Pre-AI state - Phase:', currentState.phase, 'Current player:', currentState.currentPlayerId);
     
