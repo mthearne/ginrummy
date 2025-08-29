@@ -41,6 +41,7 @@ interface MoveResult {
   success: boolean;
   error?: string;
   state: GameState;
+  move?: GameMove; // The move that was executed
   nextMoves?: GameMove[]; // For AI chaining
   stateChanges?: string[]; // Debug information
 }
@@ -213,6 +214,8 @@ export class GinRummyGame {
       
       console.log('Executing AI move:', aiMove.type);
       const result = this.executeAtomicMove(aiMove);
+      // Add the move to the result for turn history tracking
+      result.move = aiMove;
       results.push(result);
       
       console.log('AI move result:', result.success ? 'SUCCESS' : 'FAILED');
