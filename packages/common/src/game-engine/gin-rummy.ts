@@ -71,7 +71,7 @@ export class GinRummyGame {
       id: gameId,
       status: GameStatus.Active,
       phase: GamePhase.UpcardDecision,
-      currentPlayerId: player2Id, // Non-dealer (player2) gets first upcard decision
+      currentPlayerId: player1Id, // Player1 (human) gets first upcard decision
       players: [
         {
           id: player1Id,
@@ -109,7 +109,7 @@ export class GinRummyGame {
 
     // Initialize turn state management
     this.turnState = {
-      currentPlayerId: player2Id,
+      currentPlayerId: player1Id,
       phase: GamePhase.UpcardDecision,
       isProcessing: false,
       lockTimestamp: 0,
