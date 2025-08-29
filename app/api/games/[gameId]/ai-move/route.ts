@@ -122,11 +122,20 @@ export async function POST(
     //   (gameEngine as any).lastAiTurnId = currentState.turnId;
     // }
     console.log('🔍 STEP 5: Skipping deduplication to allow AI moves');
+    
+    // Check if engine is busy and force clear if stuck
     if (typeof gameEngine.isProcessing === 'function' && gameEngine.isProcessing()) {
-      return NextResponse.json(
-        { error: 'Engine busy, try again', code: 'ENGINE_BUSY' },
-        { status: 409 }
-      );
+      console.warn('🔍 STEP 5: Game engine marked as processing, force clearing lock for AI move');
+      // Force clear the processing lock for AI moves since they run separately
+      if (typeof gameEngine.setProcessing === 'function') {
+        gameEngine.setProcessing(false);
+        console.log('🔍 STEP 5: Processing lock cleared');
+      } else {
+        return NextResponse.json(
+          { error: 'Engine busy, try again', code: 'ENGINE_BUSY' },
+          { status: 409 }
+        );
+      }
     }
     // Identify AI as "the other player" relative to the authenticated human
     const humanId = decoded.userId;
