@@ -226,6 +226,20 @@ export async function POST(
         if (humanPlayer) {
           playerState = gameEngine.getPlayerState(humanPlayer.id);
           console.log('🔍 STEP 5: Returning player-specific state for human player:', humanPlayer.id);
+          
+          // Fix duplicate cards issue by deduplicating player hands
+          if (playerState && playerState.players) {
+            playerState.players.forEach((player: any) => {
+              if (player.hand && Array.isArray(player.hand)) {
+                const uniqueCards = new Map();
+                player.hand.forEach((card: any) => {
+                  uniqueCards.set(card.id, card);
+                });
+                player.hand = Array.from(uniqueCards.values());
+                console.log(`🔍 Deduplicated ${player.id} hand: ${player.hand.length} unique cards`);
+              }
+            });
+          }
         } else {
           playerState = finalState;
           console.log('🔍 STEP 5: Could not find human player, returning full state');

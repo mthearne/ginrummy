@@ -181,6 +181,20 @@ export async function GET(
       let playerState;
       try {
         playerState = gameEngine.getPlayerState(decoded.userId);
+        
+        // Fix duplicate cards issue by deduplicating player hands
+        if (playerState && playerState.players) {
+          playerState.players.forEach((player: any) => {
+            if (player.hand && Array.isArray(player.hand)) {
+              const uniqueCards = new Map();
+              player.hand.forEach((card: any) => {
+                uniqueCards.set(card.id, card);
+              });
+              player.hand = Array.from(uniqueCards.values());
+              console.log(`🔍 Deduplicated ${player.id} hand: ${player.hand.length} unique cards`);
+            }
+          });
+        }
       } catch (error) {
         console.error('getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
         console.error('Available players:', finalGameState.players?.map(p => ({ id: p.id, username: p.username })));
