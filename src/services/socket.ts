@@ -180,6 +180,16 @@ class SocketService {
         const currentUserId = localStorage.getItem('userId'); // Assuming this exists
         const isAITurn = isAIGame && data.gameState.currentPlayerId !== currentUserId;
         
+        console.log('🔍 AI Turn Detection Debug:', {
+          isAIGame,
+          currentUserId,
+          gameCurrentPlayerId: data.gameState.currentPlayerId,
+          phase: data.gameState.phase,
+          playerIdComparison: `${data.gameState.currentPlayerId} !== ${currentUserId}`,
+          isAITurn,
+          moveType: move.type
+        });
+        
         if (isAITurn) {
           console.log('🤖 AI turn detected, triggering AI thinking process to capture turn history');
           // Trigger AI thinking process to capture turn history entries
