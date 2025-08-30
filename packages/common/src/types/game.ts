@@ -101,6 +101,10 @@ export interface GameState {
   gameOver: boolean;
   roundScores?: { [playerId: string]: number };
   turnId?: number; // Increments exactly once at end of turn for deduplication
+  
+  // Simple processing flags (replaces complex turnState system)
+  isProcessing?: boolean;
+  isLoading?: boolean;
 }
 
 export interface CreateGameRequest {

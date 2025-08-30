@@ -23,16 +23,8 @@ import { isValidMove, validateMelds } from '../utils/validation';
 import { AIPlayer } from './ai-player';
 
 /**
- * Turn state management for atomic operations
+ * Simple processing flags (moved into GameState)
  */
-interface TurnState {
-  currentPlayerId: string;
-  phase: GamePhase;
-  isProcessing: boolean;
-  lockTimestamp: number;
-  moveQueue: GameMove[];
-  isLoading?: boolean; // Flag to prevent AI processing during state restoration
-}
 
 /**
  * Move result with comprehensive state information
@@ -54,9 +46,6 @@ export class GinRummyGame {
   private state: GameState;
   private deck: Card[];
   private aiPlayer: AIPlayer | null = null;
-  private turnState: TurnState;
-  private readonly TURN_LOCK_TIMEOUT = 5000; // 5 seconds
-  private readonly AI_PROCESSING_TIMEOUT = 3000; // 3 seconds
   private lastAiTurnId: number = -1; // Track last processed AI turn for deduplication
 
   constructor(gameId: string, player1Id: string, player2Id: string, vsAI = false) {
@@ -105,16 +94,10 @@ export class GinRummyGame {
       vsAI,
       gameOver: false,
       turnId: 0, // Start at 0, increment at end of each turn
-    };
-
-    // Initialize turn state management
-    this.turnState = {
-      currentPlayerId: player1Id,
-      phase: GamePhase.UpcardDecision,
+      
+      // Simple processing flags (replaces complex turnState system)
       isProcessing: false,
-      lockTimestamp: 0,
-      moveQueue: [],
-      isLoading: false
+      isLoading: false,
     };
 
     this.dealInitialCards();
@@ -138,9 +121,6 @@ export class GinRummyGame {
     
     // Calculate initial melds and deadwood for all players
     this.updateAllPlayersState();
-    
-    // Sync turn state
-    this.syncTurnState();
   }
 
   /**
