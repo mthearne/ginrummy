@@ -481,15 +481,15 @@ export class PersistentGameCache {
     currentState.winner = storedState.winner;
     currentState.roundScores = storedState.roundScores;
 
-    // 2. Restore players with validation
+    // 2. Restore players with validation (but preserve usernames from database)
     if (storedState.players && Array.isArray(storedState.players)) {
       for (let i = 0; i < Math.min(currentState.players.length, storedState.players.length); i++) {
         const player = currentState.players[i];
         const storedPlayer = storedState.players[i];
         
-        // Restore player properties
+        // Restore player properties (but skip username - we'll set it from database below)
         player.id = storedPlayer.id;
-        player.username = storedPlayer.username;
+        // player.username = storedPlayer.username; // SKIP - stored username is often empty
         player.hand = storedPlayer.hand || [];
         player.handSize = storedPlayer.handSize || player.hand.length;
         player.score = storedPlayer.score || 0;
@@ -520,8 +520,8 @@ export class PersistentGameCache {
     }
     
     if (gameRecord.vsAI && currentState.players[1]) {
-      currentState.players[1].username = 'AI Opponent';
-      console.log('🔍 Set AI opponent username: AI Opponent');
+      currentState.players[1].username = AI_USERNAME; // Use consistent AI_USERNAME constant
+      console.log('🔍 Set AI opponent username:', AI_USERNAME);
     } else if (gameRecord.player2 && currentState.players[1]) {
       currentState.players[1].username = gameRecord.player2.username;
       console.log('🔍 Set player2 username:', gameRecord.player2.username);
