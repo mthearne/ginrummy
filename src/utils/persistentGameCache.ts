@@ -374,6 +374,9 @@ export class PersistentGameCache {
       // Verify the phase was actually set correctly
       const restoredState = gameEngine.getState();
       console.log(`After reconstruction - actual phase: ${restoredState.phase}, currentPlayer: ${restoredState.currentPlayerId}`);
+      console.log(`🔍 POST-RESTORATION CHECK: Discard pile size: ${restoredState.discardPile?.length || 0}`);
+      console.log(`🔍 POST-RESTORATION CHECK: Has upcard: ${restoredState.discardPile?.[0]?.id || 'NO UPCARD'}`);
+      console.log(`🔍 POST-RESTORATION CHECK: P1 hand: ${restoredState.players[0]?.hand?.length || 0}, P2 hand: ${restoredState.players[1]?.hand?.length || 0}`);
       console.log(`Game state restored successfully for ${gameId}`);
       
       // Temporarily disable strict validation to allow games to load
@@ -488,6 +491,10 @@ export class PersistentGameCache {
     // 3. Restore discard pile and stock count
     currentState.discardPile = storedState.discardPile || [];
     currentState.stockPileCount = storedState.stockPileCount || 0;
+    console.log(`🔍 RESTORATION DEBUG: Restoring discard pile with ${storedState.discardPile?.length || 0} cards`);
+    if (storedState.discardPile && storedState.discardPile.length > 0) {
+      console.log(`🔍 RESTORATION DEBUG: First discard card: ${storedState.discardPile[0].id}`);
+    }
 
     // 4. Reconstruct internal deck state
     this.reconstructDeck(gameEngine, currentState);
