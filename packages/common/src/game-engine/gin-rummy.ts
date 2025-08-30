@@ -101,8 +101,13 @@ export class GinRummyGame {
     };
 
     // Only deal initial cards for fresh games, not when restoring from saved state
+    console.log(`🔍 CONSTRUCTOR DEBUG: skipInitialDeal=${skipInitialDeal}, will deal cards: ${!skipInitialDeal}`);
     if (!skipInitialDeal) {
+      console.log(`🔍 CONSTRUCTOR: Dealing initial cards for game ${gameId}`);
       this.dealInitialCards();
+      console.log(`🔍 CONSTRUCTOR: After dealing - discard pile size: ${this.state.discardPile.length}, stock: ${this.state.stockPileCount}`);
+    } else {
+      console.log(`🔍 CONSTRUCTOR: Skipping initial card deal for restoration`);
     }
   }
 
