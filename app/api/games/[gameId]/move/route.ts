@@ -329,6 +329,7 @@ export async function POST(
         turnHistoryEntry: turnHistoryEntry,
         debug: {
           aiTriggered: shouldTriggerAI,
+          aiShouldThink: shouldTriggerAI, // Frontend expects this flag
           asynchronousAI: true,
           playerMoveComplete: true
         }
