@@ -353,8 +353,8 @@ export class PersistentGameCache {
     }
     
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true)
-      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false);
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true, true) // skipInitialDeal = true
+      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, false, true); // skipInitialDeal = true
     
     // Set loading state to prevent AI processing during restoration
     if (typeof gameEngine.setLoadingState === 'function') {
@@ -594,8 +594,8 @@ export class PersistentGameCache {
     }
     
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true)
-      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false);
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true) // fresh game, deal cards
+      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false); // fresh game, deal cards
     
     // Set loading state during initialization to prevent race conditions
     if (typeof gameEngine.setLoadingState === 'function') {

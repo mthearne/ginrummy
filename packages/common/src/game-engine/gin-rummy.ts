@@ -48,7 +48,7 @@ export class GinRummyGame {
   private aiPlayer: AIPlayer | null = null;
   private lastAiTurnId: number = -1; // Track last processed AI turn for deduplication
 
-  constructor(gameId: string, player1Id: string, player2Id: string, vsAI = false) {
+  constructor(gameId: string, player1Id: string, player2Id: string, vsAI = false, skipInitialDeal = false) {
     this.deck = shuffleDeck(createDeck());
     
     // Initialize AI player if this is an AI game
@@ -100,7 +100,10 @@ export class GinRummyGame {
       isLoading: false,
     };
 
-    this.dealInitialCards();
+    // Only deal initial cards for fresh games, not when restoring from saved state
+    if (!skipInitialDeal) {
+      this.dealInitialCards();
+    }
   }
 
   /**
