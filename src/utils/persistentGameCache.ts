@@ -109,8 +109,8 @@ export class PersistentGameCache {
         
         return gameEngine;
       } else {
-        // Game exists in database but no gameState yet - this could be a problem
-        console.warn(`Game ${gameId} found in database but no stored state - this might indicate incomplete save`);
+        // Game exists in database but no gameState yet - this is normal for new games
+        console.log(`Game ${gameId} found in database but no stored state - this is a fresh game that needs initialization`);
         console.log('Game record:', {
           id: game.id,
           status: game.status,
@@ -604,6 +604,14 @@ export class PersistentGameCache {
     }
     
     const initialState = gameEngine.getState();
+    console.log(`🔍 FRESH GAME DEBUG: Initial state after creation`);
+    console.log(`🔍 - Phase: ${initialState.phase}`);
+    console.log(`🔍 - Current player: ${initialState.currentPlayerId}`);
+    console.log(`🔍 - Discard pile size: ${initialState.discardPile?.length || 0}`);
+    console.log(`🔍 - Has upcard: ${initialState.discardPile?.[0]?.id || 'NO UPCARD'}`);
+    console.log(`🔍 - Stock count: ${initialState.stockPileCount}`);
+    console.log(`🔍 - Player 1 hand size: ${initialState.players[0]?.hand?.length || 0}`);
+    console.log(`🔍 - Player 2 hand size: ${initialState.players[1]?.hand?.length || 0}`);
     
     // Set player names from database
     console.log('🔍 FRESH GAME USERNAME DEBUG - Setting player names from database records');
