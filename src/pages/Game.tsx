@@ -23,6 +23,8 @@ export default function Game() {
     chatMessages, 
     isConnected, 
     gameError,
+    isSubmittingMove,
+    canMakeMove,
     selectCard,
     deselectCard,
     clearSelection,
@@ -50,24 +52,22 @@ export default function Game() {
       return;
     }
 
-    // Socket.io removed - using REST API only
+    // 1) Scope/reset store to this game (prevents cross-game contamination)
+    useGameStore.getState().setCurrentGame(String(gameId));
+    
+    // 2) Always load/join, even if we think we have state (prevents stale carryover)
+    console.log(`[NAV DEBUG] Loading game state via REST API: ${gameId}`);
+    socket.joinGame(String(gameId));
 
     return () => {
-      if (gameId) {
-        console.log(`[NAV DEBUG] Component unmounting for game: ${gameId}`);
-        // No socket cleanup needed since we use REST API only
-      }
+      // Clean reset on unmount so lobby shows no stale state
+      console.log(`[NAV DEBUG] Component unmounting for game: ${gameId}, resetting game state`);
+      useGameStore.getState().resetGame();
     };
-  }, [gameId]);
+  }, [gameId, user, socket]);
 
-  // Load game state directly via REST API (no socket dependency)
-  useEffect(() => {
-    console.log(`[NAV DEBUG] Loading game via REST API - gameId: ${gameId}, hasGameState: ${!!gameState}, hasWaitingState: ${!!waitingState}`);
-    if (gameId && user && !gameState && !waitingState) {
-      console.log(`[NAV DEBUG] Loading game state via REST API: ${gameId}`);
-      socket.joinGame(gameId);
-    }
-  }, [gameId, user, gameState, waitingState, socket]);
+  // Game loading is now handled in the main useEffect above
+  // This useEffect is removed to prevent duplicate loading and race conditions
 
   // Track AI status during AI turns
   useEffect(() => {

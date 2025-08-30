@@ -51,6 +51,17 @@ class SocketService {
 
       const data = await response.json();
       
+      // Guard against cross-game writes
+      const currentGameId = useGameStore.getState().currentGameId;
+      if (currentGameId !== gameId) {
+        console.warn('joinGame response ignored for non-current game:', { 
+          responseId: data?.gameState?.id || data?.waitingState?.gameId, 
+          expected: currentGameId,
+          received: gameId
+        });
+        return;
+      }
+      
       if (data.gameState) {
         useGameStore.getState().setGameState(data.gameState);
         useGameStore.getState().setConnected(true);
@@ -73,12 +84,22 @@ class SocketService {
   }
 
   makeMove(move: GameMove) {
+    // Prevent double-moves & race conditions
+    const { isSubmittingMove, setIsSubmittingMove } = useGameStore.getState();
+    if (isSubmittingMove) {
+      console.log('Move ignored: already submitting move');
+      return; // Drop rapid double-clicks
+    }
+    
     console.log('Making move via REST API:', move);
     this.makeMoveViaAPI(move);
   }
 
   // REST API for making moves
   private async makeMoveViaAPI(move: GameMove) {
+    const { setIsSubmittingMove } = useGameStore.getState();
+    setIsSubmittingMove(true);
+    
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
@@ -114,6 +135,17 @@ class SocketService {
       }
 
       const data = await response.json();
+      
+      // Guard against cross-game writes
+      const currentGameId = useGameStore.getState().currentGameId;
+      if (currentGameId !== move.gameId) {
+        console.warn('makeMove state ignored for non-current game:', { 
+          received: data?.gameState?.id, 
+          expected: currentGameId,
+          moveGameId: move.gameId
+        });
+        return;
+      }
       
       if (data.gameState) {
         console.log('Move successful, received state from backend:', {
@@ -158,6 +190,8 @@ class SocketService {
     } catch (error) {
       console.error('Failed to make move via API:', error);
       useGameStore.getState().setGameError('Failed to make move: ' + error.message);
+    } finally {
+      setIsSubmittingMove(false);
     }
   }
 

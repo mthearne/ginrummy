@@ -13,6 +13,7 @@ export interface TurnHistoryEntry {
 }
 
 interface GameStore {
+  currentGameId: string | null;
   gameState: Partial<GameState> | null;
   waitingState: GameWaitingInfo | null;
   selectedCards: string[];
@@ -22,10 +23,13 @@ interface GameStore {
   gameError: string | null;
   isAIThinking: boolean;
   aiThoughts: string[];
+  isSubmittingMove: boolean;
   
   // Actions
+  setCurrentGame: (gameId: string) => void;
   setGameState: (state: Partial<GameState>) => void;
   setWaitingState: (waitingState: GameWaitingInfo) => void;
+  setIsSubmittingMove: (submitting: boolean) => void;
   selectCard: (cardId: string) => void;
   deselectCard: (cardId: string) => void;
   clearSelection: () => void;
@@ -45,6 +49,7 @@ interface GameStore {
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
+  currentGameId: null,
   gameState: null,
   waitingState: null,
   selectedCards: [],
@@ -54,12 +59,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameError: null,
   isAIThinking: false,
   aiThoughts: [],
+  isSubmittingMove: false,
+
+  setCurrentGame: (gameId: string) => {
+    const prev = get().currentGameId;
+    if (prev !== gameId) {
+      // full reset when game changes
+      set({
+        currentGameId: gameId,
+        gameState: null,
+        waitingState: null,
+        selectedCards: [],
+        chatMessages: [],
+        turnHistory: [],
+        isConnected: false,
+        gameError: null,
+        isAIThinking: false,
+        aiThoughts: [],
+        isSubmittingMove: false,
+      });
+    } else {
+      set({ currentGameId: gameId });
+    }
+  },
 
   setGameState: (gameState) => {
-    set({ gameState, waitingState: null });
+    const state = get();
+    if (state.currentGameId && gameState?.id && gameState.id !== state.currentGameId) {
+      console.warn('Ignored gameState for different gameId:', gameState.id, '!=', state.currentGameId);
+      return;
+    }
+    set({ gameState, waitingState: null, gameError: null });
   },
   
-  setWaitingState: (waitingState) => set({ waitingState, gameState: null }),
+  setWaitingState: (waitingState) => {
+    const state = get();
+    if (state.currentGameId && waitingState?.gameId && waitingState.gameId !== state.currentGameId) {
+      console.warn('Ignored waitingState for different gameId:', waitingState.gameId, '!=', state.currentGameId);
+      return;
+    }
+    set({ waitingState, gameState: null, gameError: null });
+  },
+
+  setIsSubmittingMove: (isSubmittingMove) => set({ isSubmittingMove }),
   
   selectCard: (cardId) => {
     const state = get();
@@ -94,6 +136,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setAIThinking: (isAIThinking, aiThoughts) => set({ isAIThinking, aiThoughts }),
   
   resetGame: () => set({
+    currentGameId: null,
     gameState: null,
     waitingState: null,
     selectedCards: [],
@@ -101,6 +144,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     turnHistory: [],
     isConnected: false,
     gameError: null,
+    isAIThinking: false,
+    aiThoughts: [],
+    isSubmittingMove: false,
   }),
   
   isMyTurn: () => {
@@ -114,7 +160,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   
   canMakeMove: () => {
     const state = get();
-    return state.isConnected && state.isMyTurn() && !state.gameState?.gameOver;
+    return state.isConnected && state.isMyTurn() && !state.gameState?.gameOver && !state.isSubmittingMove;
   },
   
   getMyPlayer: () => {
