@@ -122,9 +122,9 @@ export class PersistentGameCache {
         });
         
         // Initialize from database record - this creates a fresh game!
-        console.log(`⚠️  INITIALIZING FRESH GAME FROM RECORD - THIS RESETS THE GAME!`);
+        console.log(`⚠️  INITIALIZING FRESH GAME FROM RECORD - THIS IS A NEW GAME!`);
         console.log(`Game record status: ${game.status}, vsAI: ${game.vsAI}, createdAt: ${game.createdAt}`);
-        console.log(`This will create NEW cards and shuffle - upcard will change!`);
+        console.log(`This will create NEW cards and shuffle - this is expected for new games!`);
         const gameEngine = this.initializeGameFromRecord(gameId, game);
         
         // Debug what ID the fresh game engine actually has
@@ -594,8 +594,8 @@ export class PersistentGameCache {
     }
     
     const gameEngine = gameRecord.vsAI 
-      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true) // fresh game, deal cards
-      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false); // fresh game, deal cards
+      ? new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id, true, false) // fresh game, deal cards
+      : new GinRummyGame(gameId, gameRecord.player1Id, gameRecord.player2Id || 'player2', false, false); // fresh game, deal cards
     
     // Set loading state during initialization to prevent race conditions
     if (typeof gameEngine.setLoadingState === 'function') {
