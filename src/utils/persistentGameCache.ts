@@ -25,7 +25,16 @@ export class PersistentGameCache {
       const cachedState = cachedGame.getState();
       console.log(`🔍 CACHED GAME DEBUG: returned game ID in state: ${cachedState.id}`);
       console.log(`Cached state: phase=${cachedState.phase}, upcard=${cachedState.discardPile?.[0]?.id || 'NO UPCARD'}`);
-      return cachedGame;
+      
+      // Check if cached game has empty usernames - if so, invalidate cache and reload from DB
+      const hasEmptyUsernames = cachedState.players?.some(p => !p.username || p.username === '');
+      if (hasEmptyUsernames) {
+        console.log(`🔍 CACHE INVALIDATION: Found empty usernames, clearing cache for ${gameId}`);
+        this.memoryCache.delete(gameId);
+        // Fall through to database loading below
+      } else {
+        return cachedGame;
+      }
     }
 
     // For completion keys (e.g., "gameId_ai_complete"), only check memory cache
@@ -508,7 +517,7 @@ export class PersistentGameCache {
     // 4. Reconstruct internal deck state
     this.reconstructDeck(gameEngine, currentState);
 
-    // 5. Restore player names from database records
+    // 5. Restore player names from database records  
     console.log('🔍 USERNAME DEBUG - Setting player names from database records');
     console.log('🔍 gameRecord.player1:', gameRecord.player1);
     console.log('🔍 gameRecord.player2:', gameRecord.player2);
