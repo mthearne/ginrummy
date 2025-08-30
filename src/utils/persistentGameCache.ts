@@ -7,39 +7,19 @@ export const AI_PLAYER_ID = 'ai-player';
 export const AI_USERNAME  = 'AI Assistant';
 
 export class PersistentGameCache {
-  private memoryCache = new Map<string, GinRummyGame>();
+  // REMOVED: Memory cache system - causes state corruption and phase mismatches
+  // private memoryCache = new Map<string, GinRummyGame>();
   private saveCounter = 0;
 
   /**
    * Get game engine from cache or database
    */
   async get(gameId: string): Promise<GinRummyGame | null> {
-    console.log(`🔍 CACHE DEBUG: get() called with gameId: ${gameId}`);
-    console.log(`🔍 CACHE DEBUG: memory cache size: ${this.memoryCache.size}`);
-    console.log(`🔍 CACHE DEBUG: memory cache keys: [${Array.from(this.memoryCache.keys()).join(', ')}]`);
+    console.log(`🔍 DATABASE-ONLY: Loading game ${gameId} directly from database`);
     
-    // First check memory cache
-    if (this.memoryCache.has(gameId)) {
-      console.log(`✅ Game ${gameId} found in memory cache - using cached version`);
-      const cachedGame = this.memoryCache.get(gameId)!;
-      const cachedState = cachedGame.getState();
-      console.log(`🔍 CACHED GAME DEBUG: returned game ID in state: ${cachedState.id}`);
-      console.log(`Cached state: phase=${cachedState.phase}, upcard=${cachedState.discardPile?.[0]?.id || 'NO UPCARD'}`);
-      
-      // Check if cached game has empty usernames - if so, invalidate cache and reload from DB
-      const hasEmptyUsernames = cachedState.players?.some(p => !p.username || p.username === '');
-      if (hasEmptyUsernames) {
-        console.log(`🔍 CACHE INVALIDATION: Found empty usernames, clearing cache for ${gameId}`);
-        this.memoryCache.delete(gameId);
-        // Fall through to database loading below
-      } else {
-        return cachedGame;
-      }
-    }
-
-    // For completion keys (e.g., "gameId_ai_complete"), only check memory cache
+    // For completion keys (e.g., "gameId_ai_complete"), return null
     if (gameId.includes('_ai_complete')) {
-      console.log(`Completion flag ${gameId} not found in memory cache`);
+      console.log(`Completion flag ${gameId} not supported in database-only mode`);
       return null;
     }
 
@@ -106,7 +86,7 @@ export class PersistentGameCache {
           throw new Error(`Excessive cards detected: P1=${player1HandSize}, P2=${player2HandSize}`);
         }
         
-        this.memoryCache.set(gameId, gameEngine);
+        // No longer storing in memory cache - database-only mode
         
         // Add debug info to the game engine
         (gameEngine as any)._debugInfo = {
@@ -159,8 +139,7 @@ export class PersistentGameCache {
           reason: 'no_gameState_in_database'
         };
         
-        // Cache the initialized game and save initial state to database
-        this.memoryCache.set(gameId, gameEngine);
+        // Save initial state to database - no memory cache
         
         // Save initial state to database immediately
         try {
@@ -208,15 +187,14 @@ export class PersistentGameCache {
   }
 
   /**
-   * Store game engine in cache and database
+   * Store game engine in database only (memory cache removed)
    */
   async set(gameId: string, gameEngine: GinRummyGame): Promise<void> {
-    // Store in memory cache
-    this.memoryCache.set(gameId, gameEngine);
+    // Skip memory cache - database only mode
     
-    // For completion keys (e.g., "gameId_ai_complete"), only store in memory
+    // For completion keys (e.g., "gameId_ai_complete"), skip storage in database-only mode
     if (gameId.includes('_ai_complete')) {
-      console.log(`Stored completion flag ${gameId} in memory cache only`);
+      console.log(`Completion flag ${gameId} ignored in database-only mode`);
       return;
     }
     
@@ -273,8 +251,7 @@ export class PersistentGameCache {
       
       console.log(`✅ Game state saved to database successfully for ${gameId} at ${newTimestamp}`);
       
-      // Update memory cache with the saved version to ensure consistency
-      this.memoryCache.set(gameId, gameEngine);
+      // Memory cache removed - database-only mode
     } catch (error) {
       console.error(`❌ CRITICAL: Database save failed for game ${gameId}:`, error);
       
@@ -302,14 +279,12 @@ export class PersistentGameCache {
   }
 
   /**
-   * Check if game exists in cache or database
+   * Check if game exists in database only (memory cache removed)
    */
   async has(gameId: string): Promise<boolean> {
-    if (this.memoryCache.has(gameId)) {
-      return true;
-    }
+    // Skip memory cache - database only mode
 
-    // For completion keys, only check memory cache
+    // For completion keys, always return false in database-only mode
     if (gameId.includes('_ai_complete')) {
       return false;
     }
@@ -334,13 +309,13 @@ export class PersistentGameCache {
     console.log(`\n!!! DELETE CALLED FOR GAME ${gameId} !!!`);
     console.log(`Delete caller stack:`, new Error().stack?.split('\n').slice(1, 5).join(' -> '));
     
-    // Remove from memory
-    const wasInMemory = this.memoryCache.delete(gameId);
+    // Memory cache removed - database only mode
+    const wasInMemory = false;
 
-    // For completion keys (e.g., "gameId_ai_complete"), just remove from memory
+    // For completion keys (e.g., "gameId_ai_complete"), nothing to do in database-only mode
     if (gameId.includes('_ai_complete')) {
-      console.log(`Removed completion flag ${gameId} from memory cache`);
-      return wasInMemory;
+      console.log(`Completion flag ${gameId} ignored in database-only mode`);
+      return false;
     }
 
     // Clear stored state from database (backwards compatible) for actual game IDs
@@ -358,10 +333,10 @@ export class PersistentGameCache {
   }
 
   /**
-   * Get cache size (memory only)
+   * Get cache size (always 0 - memory cache removed)
    */
   size(): number {
-    return this.memoryCache.size;
+    return 0; // Memory cache removed - database only mode
   }
 
   /**

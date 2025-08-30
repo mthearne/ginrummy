@@ -173,7 +173,7 @@ export class GinRummyGame {
     }
     
     // isProcessing guard: prevent concurrent AI processing
-    if (this.isProcessing()) {
+    if (this.state.isProcessing) {
       console.log('AI processing skipped: game is already processing moves');
       return [];
     }
@@ -242,7 +242,7 @@ export class GinRummyGame {
     }
 
     // Validate move against current turn state
-    const validation = this.validateMoveWithTurnState(move, player);
+    const validation = this.validateMove(move, player);
     if (!validation.valid) {
       return {
         success: false,
@@ -305,7 +305,7 @@ export class GinRummyGame {
 
     // Update turn state after successful move
     if (result.success) {
-      this.syncTurnState();
+      this.validateCurrentPlayer();
       stateChanges.push(`Turn state synced: ${this.state.currentPlayerId} in ${this.state.phase}`);
     }
 
@@ -334,8 +334,8 @@ export class GinRummyGame {
     // Update melds and deadwood for all players
     this.updateAllPlayersState();
     
-    // Sync turn state after phase change
-    this.syncTurnState();
+    // Validate current player after phase change
+    this.validateCurrentPlayer();
 
     return { success: true, state: this.state };
   }
@@ -348,13 +348,13 @@ export class GinRummyGame {
     if (playerId === player2Id) {
       // Non-dealer passed, now dealer can decide
       this.state.currentPlayerId = player1Id;
-      this.syncTurnState();
+      this.validateCurrentPlayer();
       return { success: true, state: this.state };
     } else {
       // Dealer also passed, non-dealer starts drawing from stock
       this.state.currentPlayerId = player2Id;
       this.state.phase = GamePhase.Draw;
-      this.syncTurnState();
+      this.validateCurrentPlayer();
       return { success: true, state: this.state };
     }
   }
@@ -368,7 +368,7 @@ export class GinRummyGame {
     if (this.deck.length <= 2) {
       this.state.phase = GamePhase.GameOver;
       this.state.gameOver = true;
-      this.syncTurnState();
+      this.validateCurrentPlayer();
       return { success: true, state: this.state };
     }
 
@@ -385,8 +385,8 @@ export class GinRummyGame {
     // Update melds and deadwood for all players
     this.updateAllPlayersState();
     
-    // Sync turn state after phase change
-    this.syncTurnState();
+    // Validate current player after phase change
+    this.validateCurrentPlayer();
 
     return { success: true, state: this.state };
   }
@@ -408,8 +408,8 @@ export class GinRummyGame {
     // Update melds and deadwood for all players
     this.updateAllPlayersState();
     
-    // Sync turn state after phase change
-    this.syncTurnState();
+    // Validate current player after phase change
+    this.validateCurrentPlayer();
 
     return { success: true, state: this.state };
   }
@@ -607,8 +607,8 @@ export class GinRummyGame {
     const [, player2] = this.state.players;
     this.state.currentPlayerId = player2.id; // Non-dealer gets first upcard decision
     
-    // Sync turn state
-    this.syncTurnState();
+    // Validate current player
+    this.validateCurrentPlayer();
   }
 
   /**
@@ -624,17 +624,14 @@ export class GinRummyGame {
     // Increment turnId exactly once at end of turn for deduplication
     this.state.turnId = (this.state.turnId || 0) + 1;
     
-    // Sync turn state
-    this.syncTurnState();
+    // Validate current player
+    this.validateCurrentPlayer();
   }
 
   /**
-   * Sync turn state with game state
+   * Validate current player (replaced syncTurnState)
    */
-  private syncTurnState(): void {
-    this.turnState.currentPlayerId = this.state.currentPlayerId;
-    this.turnState.phase = this.state.phase;
-    
+  private validateCurrentPlayer(): void {
     // Dev assertion: validate currentPlayerId exists in players
     this.assertValidCurrentPlayer();
   }
@@ -666,22 +663,13 @@ export class GinRummyGame {
    * Acquire turn lock for atomic operations
    */
   private acquireTurnLock(playerId: string): boolean {
-    const now = Date.now();
-    
-    // Check if lock has expired
-    if (this.turnState.isProcessing && (now - this.turnState.lockTimestamp) > this.TURN_LOCK_TIMEOUT) {
-      console.warn('Turn lock expired, releasing stale lock');
-      this.releaseTurnLock();
-    }
-    
     // Can't acquire if already processing
-    if (this.turnState.isProcessing) {
+    if (this.state.isProcessing) {
       return false;
     }
     
     // Acquire lock
-    this.turnState.isProcessing = true;
-    this.turnState.lockTimestamp = now;
+    this.state.isProcessing = true;
     return true;
   }
 
@@ -689,14 +677,13 @@ export class GinRummyGame {
    * Release turn lock
    */
   private releaseTurnLock(): void {
-    this.turnState.isProcessing = false;
-    this.turnState.lockTimestamp = 0;
+    this.state.isProcessing = false;
   }
 
   /**
    * Validate move with turn state
    */
-  private validateMoveWithTurnState(move: GameMove, player: PlayerState): { valid: boolean; error?: string } {
+  private validateMove(move: GameMove, player: PlayerState): { valid: boolean; error?: string } {
     // Special case for start_new_round moves
     if (move.type === MoveType.StartNewRound) {
       // For AI games, the human player can always start a new round
@@ -741,14 +728,14 @@ export class GinRummyGame {
            !this.state.gameOver &&
            this.state.phase !== GamePhase.GameOver &&
            this.state.phase !== GamePhase.RoundOver &&
-           !this.turnState.isLoading; // Don't process AI moves during state loading
+           !this.state.isLoading; // Don't process AI moves during state loading
            
     console.log('Should process AI moves check:');
     console.log('- vsAI:', this.state.vsAI);
     console.log('- currentPlayerId:', this.state.currentPlayerId);
     console.log('- gameOver:', this.state.gameOver);
     console.log('- phase:', this.state.phase);
-    console.log('- isLoading:', this.turnState.isLoading);
+    console.log('- isLoading:', this.state.isLoading);
     console.log('- result:', should);
     
     return should;
@@ -767,32 +754,35 @@ export class GinRummyGame {
   }
 
   /**
-   * Get turn state for debugging
+   * Get processing state for debugging
    */
-  public getTurnState(): TurnState {
-    return { ...this.turnState };
+  public getTurnState(): { isProcessing: boolean; isLoading: boolean } {
+    return { 
+      isProcessing: this.state.isProcessing || false,
+      isLoading: this.state.isLoading || false
+    };
   }
 
   /**
    * Check if game is processing moves
    */
   public isProcessing(): boolean {
-    return this.turnState.isProcessing;
+    return this.state.isProcessing || false;
   }
 
   /**
-   * Force synchronization of turn state with game state
+   * Force validation of current player (replaced forceTurnStateSync)
    * Used by cache restoration to ensure consistency
    */
   public forceTurnStateSync(): void {
-    this.syncTurnState();
+    this.validateCurrentPlayer();
   }
 
   /**
    * Set loading state to prevent AI processing during state restoration
    */
   public setLoadingState(isLoading: boolean): void {
-    this.turnState.isLoading = isLoading;
+    this.state.isLoading = isLoading;
   }
 
   /**
@@ -1002,7 +992,7 @@ export class GinRummyGame {
           console.warn('AI has 11 cards but phase is Draw, correcting to Discard phase');
           actualPhase = GamePhase.Discard;
           this.state.phase = GamePhase.Discard;
-          this.syncTurnState();
+          this.validateCurrentPlayer();
         }
         
         const aiMove = this.aiPlayer.getMove(
@@ -1037,7 +1027,7 @@ export class GinRummyGame {
         if (aiPlayerState.hand.length > 10) {
           console.warn('Fallback: AI has 11+ cards but phase is Draw, switching to discard');
           this.state.phase = GamePhase.Discard;
-          this.syncTurnState();
+          this.validateCurrentPlayer();
           // Fall through to discard logic
         } else {
           return {
