@@ -130,6 +130,15 @@ export async function POST(
         );
       }
 
+      // Debug game state for upcard issues
+      console.log('🔍 MOVE ENDPOINT DEBUG: Game state when move attempted');
+      console.log('🔍 - Phase:', retrievedState.phase);
+      console.log('🔍 - Current player:', retrievedState.currentPlayerId);  
+      console.log('🔍 - Discard pile size:', retrievedState.discardPile?.length || 0);
+      console.log('🔍 - Has upcard:', retrievedState.discardPile?.[0]?.id || 'NO UPCARD');
+      console.log('🔍 - Stock count:', retrievedState.stockPileCount);
+      console.log('🔍 - Move type:', move.type);
+      
       // Debug player ID mapping
       console.log('Player ID mapping verification:');
       console.log('- Database player1Id:', game.player1Id);
