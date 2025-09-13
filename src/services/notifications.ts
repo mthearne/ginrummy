@@ -23,9 +23,6 @@ export class NotificationService {
 
   // Start notification polling (fallback for serverless compatibility)
   connect(token: string) {
-    // EMERGENCY: Temporarily disable all notification polling to prevent 500 error spam
-    console.log('🔔 [POLLING] Notification service temporarily disabled to prevent server overload');
-    return;
     
     // Skip notification polling if disabled due to previous auth failure
     if (this.isDisabled) {
@@ -91,10 +88,25 @@ export class NotificationService {
     } catch (error) {
       console.error('🔔 [POLLING] Error polling notifications:', error);
       
-      // ALWAYS stop polling on ANY error to prevent spam and permanently disable
-      console.warn('🔔 [POLLING] Permanently disabling notification service due to error');
-      this.isDisabled = true;
-      this.disconnect();
+      this.reconnectAttempts++;
+      
+      // Only disable after multiple consecutive failures
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.warn('🔔 [POLLING] Max reconnect attempts reached, disabling notification service');
+        this.isDisabled = true;
+        this.disconnect();
+      } else {
+        console.log(`🔔 [POLLING] Retry ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${this.reconnectDelay}ms`);
+        
+        // Exponential backoff for retries
+        setTimeout(() => {
+          if (this.isPolling) {
+            this.pollForNotifications();
+          }
+        }, this.reconnectDelay);
+        
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000); // Cap at 30 seconds
+      }
     }
   }
 
