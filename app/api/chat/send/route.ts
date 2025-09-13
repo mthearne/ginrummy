@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message too long (max 500 characters)' }, { status: 400 });
     }
 
-    // Verify friendship exists
+    // Verify friendship exists OR users are in an active game together
     const friendship = await prisma.friendship.findFirst({
       where: {
         OR: [
@@ -37,8 +37,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // If not friends, check if they're in an active game together
     if (!friendship) {
-      return NextResponse.json({ error: 'You can only send messages to friends' }, { status: 403 });
+      const activeGame = await prisma.game.findFirst({
+        where: {
+          OR: [
+            { player1Id: userId, player2Id: receiverId },
+            { player1Id: receiverId, player2Id: userId }
+          ],
+          status: { in: ['WAITING', 'ACTIVE'] }
+        }
+      });
+
+      if (!activeGame) {
+        return NextResponse.json({ error: 'You can only send messages to friends or active game opponents' }, { status: 403 });
+      }
     }
 
     // Create the message

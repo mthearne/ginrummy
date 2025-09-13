@@ -7,6 +7,7 @@ import { useSocket } from '../services/socket';
 import { Card as CardComponent } from '../components/ui/Card';
 import { FriendInvitation } from '../components/FriendInvitation';
 import { TurnHistory } from '../components/game/TurnHistory';
+import { GameChat } from '../components/GameChat';
 import Confetti from '../components/ui/Confetti';
 import FlyingAnimal from '../components/ui/FlyingAnimal';
 import AIThinkingOverlay from '../components/game/AIThinkingOverlay';
@@ -23,7 +24,6 @@ export default function Game() {
     gameState, 
     waitingState,
     selectedCards, 
-    chatMessages, 
     isConnected, 
     gameError,
     isSubmittingMove,
@@ -37,7 +37,6 @@ export default function Game() {
   } = useGameStore();
   
   const socket = useSocket();
-  const [chatMessage, setChatMessage] = useState('');
   const [lastGamePhase, setLastGamePhase] = useState<string | null>(null);
   const [roundNotification, setRoundNotification] = useState<string | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
@@ -434,13 +433,6 @@ export default function Game() {
     }
   };
 
-  const handleSendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!gameId || !chatMessage.trim()) return;
-    
-    socket.sendChatMessage(gameId, chatMessage);
-    setChatMessage('');
-  };
 
   // Debug logging before waiting screen check
   console.log('🔍 Game State Debug:', {
@@ -1165,36 +1157,25 @@ export default function Game() {
             </div>
             
             {/* Chat */}
-            <div className="bg-white rounded-lg p-4">
-              <h3 className="font-semibold mb-4">Chat</h3>
-            <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-              {chatMessages.map((msg) => {
-                const myPlayer = getMyPlayer();
-                return (
-                <div
-                  key={msg.id}
-                  className={`chat-message ${msg.playerId === myPlayer?.id ? 'own' : 'other'}`}
-                >
-                  <div className="font-medium text-xs mb-1">{msg.username}</div>
-                  <div>{msg.message}</div>
+            {gameState?.vsAI ? (
+              <div className="bg-white rounded-lg p-4">
+                <h3 className="font-semibold mb-4">Chat</h3>
+                <p className="text-gray-500 text-center py-8">Chat not available in AI games</p>
+              </div>
+            ) : (() => {
+              const opponent = getOpponent();
+              return opponent ? (
+                <GameChat 
+                  opponentId={opponent.id} 
+                  opponentUsername={opponent.username}
+                />
+              ) : (
+                <div className="bg-white rounded-lg p-4">
+                  <h3 className="font-semibold mb-4">Chat</h3>
+                  <p className="text-gray-500 text-center py-8">Waiting for opponent...</p>
                 </div>
-                );
-              })}
-            </div>
-            <form onSubmit={handleSendChat} className="flex space-x-2">
-              <input
-                type="text"
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="input text-sm"
-                maxLength={200}
-              />
-              <button type="submit" className="btn btn-primary btn-sm px-3">
-                Send
-              </button>
-            </form>
-            </div>
+              );
+            })()}
           </div>
         </div>
       </div>
