@@ -116,6 +116,15 @@ export function calculateScoreWithLayOffs(
   isUndercut: boolean;
   isGin: boolean;
 } {
+  console.log('🎯 SCORING DEBUG - INPUTS:', {
+    knockerHandSize: knockerHand.length,
+    knockerMelds,
+    opponentHandSize: opponentHand.length, 
+    opponentMelds,
+    layOffsCount: layOffs.length,
+    layOffs
+  });
+
   const knockerDeadwood = calculateDeadwood(knockerHand, knockerMelds);
   const opponentDeadwoodBefore = calculateDeadwood(opponentHand, opponentMelds);
   
@@ -141,8 +150,29 @@ export function calculateScoreWithLayOffs(
   } else {
     // Normal knock: Knocker gets deadwood difference
     knockerScore = opponentDeadwoodAfter - knockerDeadwood;
+    
+    // Debug logging for scoring issues
+    console.log('🎯 SCORING DEBUG:', {
+      knockerDeadwood,
+      opponentDeadwoodBefore,
+      opponentDeadwoodAfter,
+      layOffValue,
+      calculatedKnockerScore: knockerScore,
+      formula: `${opponentDeadwoodAfter} - ${knockerDeadwood} = ${knockerScore}`
+    });
   }
   
+  console.log('🎯 SCORING DEBUG - FINAL RESULT:', {
+    knockerScore,
+    opponentScore,
+    knockerDeadwood,
+    opponentDeadwoodBefore,
+    opponentDeadwoodAfter,
+    layOffValue,
+    isUndercut,
+    isGin,
+  });
+
   return {
     knockerScore,
     opponentScore,
