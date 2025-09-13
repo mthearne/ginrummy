@@ -14,6 +14,7 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (opponentId) {
@@ -27,8 +28,12 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
   }, [opponentId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Only auto-scroll when messages change and we're not on initial load
+    if (messages.length > 0 && !loading) {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [messages, loading]);
 
   const loadMessages = async () => {
     if (!opponentId) return;
@@ -44,7 +49,17 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use the direct container reference for more controlled scrolling
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    } else if (messagesEndRef.current) {
+      // Fallback: use scrollIntoView but prevent page scrolling
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'auto', // Use 'auto' instead of 'smooth' to prevent page scrolling
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    }
   };
 
   const sendMessage = async () => {
@@ -107,7 +122,11 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2" style={{ maxHeight: '250px' }}>
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2" 
+          style={{ maxHeight: '250px', overflowAnchor: 'none' }}
+        >
           {loading ? (
             <div className="text-center py-4">
               <div className="loading mx-auto mb-2" />
