@@ -239,6 +239,11 @@ export class NotificationService {
   static async markAsRead(notificationId: string): Promise<void> {
     await api.patch('/notifications', { notificationId });
   }
+
+  static async clearAll(): Promise<{ success: boolean; deletedCount: number }> {
+    const response = await api.delete('/notifications');
+    return response.data;
+  }
 }
 
 // Create singleton instance

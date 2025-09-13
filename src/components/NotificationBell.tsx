@@ -8,9 +8,10 @@ import { Notification } from '../services/notifications';
 
 export function NotificationBell() {
   const router = useRouter();
-  const { notifications, unreadCount, isConnected, markAsRead } = useNotifications();
+  const { notifications, unreadCount, isConnected, markAsRead, clearAll } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [clearLoading, setClearLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const recentNotifications = notifications.slice(0, 10);
 
@@ -110,6 +111,17 @@ export function NotificationBell() {
     }
   };
 
+  const handleClearAllNotifications = async () => {
+    try {
+      setClearLoading(true);
+      await clearAll();
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
       case 'FRIEND_REQUEST':
@@ -173,12 +185,24 @@ export function NotificationBell() {
                 {isConnected ? 'Live updates' : 'Offline'}
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
+            <div className="flex items-center space-x-2">
+              {notifications.length > 0 && (
+                <button
+                  onClick={handleClearAllNotifications}
+                  disabled={clearLoading}
+                  className="text-xs text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Clear all notifications"
+                >
+                  {clearLoading ? 'Clearing...' : 'Clear All'}
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Notifications List */}

@@ -112,3 +112,51 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    // Get token from Authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization token required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyAccessToken(token);
+    
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Invalid or expired token' },
+        { status: 401 }
+      );
+    }
+
+    // Clear all notifications for the user
+    const { clearAllNotifications } = await import('../../../src/utils/notifications');
+    const deletedCount = await clearAllNotifications(decoded.userId);
+
+    return NextResponse.json({
+      success: true,
+      message: `Cleared ${deletedCount} notifications`,
+      deletedCount
+    });
+
+  } catch (error) {
+    console.error('Clear notifications error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    
+    return NextResponse.json(
+      { 
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      },
+      { status: 500 }
+    );
+  }
+}

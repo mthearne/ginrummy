@@ -119,6 +119,16 @@ export async function markNotificationAsRead(notificationId: string, userId: str
   });
 }
 
+export async function clearAllNotifications(userId: string) {
+  const result = await prisma.notification.deleteMany({
+    where: {
+      userId // Only delete notifications for the specific user
+    }
+  });
+  
+  return result.count;
+}
+
 // Simple toast notification service for the ToastNotifications component
 class ToastNotificationService {
   private listeners: Array<(notifications: ToastNotification[]) => void> = [];

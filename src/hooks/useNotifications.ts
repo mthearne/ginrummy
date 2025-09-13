@@ -39,6 +39,21 @@ export function useNotifications() {
     }
   }, []);
 
+  // Clear all notifications
+  const clearAll = useCallback(async () => {
+    try {
+      const result = await NotificationService.clearAll();
+      
+      setNotifications([]);
+      setUnreadCount(0);
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+      throw error;
+    }
+  }, []);
+
   // Initialize notifications
   useEffect(() => {
     const initializeNotifications = async () => {
@@ -112,6 +127,7 @@ export function useNotifications() {
     unreadCount,
     isConnected,
     markAsRead,
+    clearAll,
     addNotification
   };
 }

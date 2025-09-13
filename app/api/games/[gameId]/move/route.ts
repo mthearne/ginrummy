@@ -575,32 +575,33 @@ export async function POST(
     const currentPlayerUsername = authResult.success ? authResult.user.username : 'Unknown';
 
     // STEP 6.5: Send PvP notifications for turn changes (only for PvP games)
-    if (!gameState.vsAI && gameState.players.length === 2) {
-      try {
-        const opponent = gameState.players.find((p: any) => p.id !== userId);
-        
-        if (opponent) {
-          
-          // Notify opponent about the move
-          await createNotification({
-            userId: opponent.id,
-            type: 'OPPONENT_MOVE',
-            title: 'Your Turn!',
-            message: `${currentPlayerUsername} ${moveDescription}. It's your turn now!`,
-            data: {
-              gameId: params.gameId,
-              opponentId: userId,
-              opponentUsername: currentPlayerUsername,
-              moveType: backendAction.type,
-              currentPlayerId: gameState.currentPlayerId
-            }
-          });
-        }
-      } catch (notificationError) {
-        console.error('⚠️ Move: Failed to send PvP notifications:', notificationError);
-        // Don't fail the move if notifications fail
-      }
-    }
+    // ARCHIVED: Turn notifications disabled to reduce notification spam during games
+    // if (!gameState.vsAI && gameState.players.length === 2) {
+    //   try {
+    //     const opponent = gameState.players.find((p: any) => p.id !== userId);
+    //     
+    //     if (opponent) {
+    //       
+    //       // Notify opponent about the move
+    //       await createNotification({
+    //         userId: opponent.id,
+    //         type: 'OPPONENT_MOVE',
+    //         title: 'Your Turn!',
+    //         message: `${currentPlayerUsername} ${moveDescription}. It's your turn now!`,
+    //         data: {
+    //           gameId: params.gameId,
+    //           opponentId: userId,
+    //           opponentUsername: currentPlayerUsername,
+    //           moveType: backendAction.type,
+    //           currentPlayerId: gameState.currentPlayerId
+    //         }
+    //       });
+    //     }
+    //   } catch (notificationError) {
+    //     console.error('⚠️ Move: Failed to send PvP notifications:', notificationError);
+    //     // Don't fail the move if notifications fail
+    //   }
+    // }
 
     // STEP 6b: Send real-time game streaming updates
     try {
