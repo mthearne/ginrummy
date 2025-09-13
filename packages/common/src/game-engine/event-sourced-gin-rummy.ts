@@ -27,6 +27,7 @@ import {
   calculateDeadwood,
   findOptimalMelds,
   calculateKnockScore,
+  calculateScoreWithLayOffs,
   hasGin,
 } from '../utils/scoring';
 import { isValidMove, validateMelds } from '../utils/validation';
@@ -380,12 +381,16 @@ export class EventSourcedGinRummyGame {
     const opponentMelds = findOptimalMelds(opponent.hand);
     const layOffs = this.calculateLayOffs(opponent.hand, action.melds, opponentMelds.melds);
     
-    // Calculate scores using hand after discarding
-    const scores = calculateKnockScore(
+    // Calculate scores with lay-offs properly considered
+    const scores = calculateScoreWithLayOffs(
       handAfterDiscard,
       action.melds,
       opponent.hand,
-      opponentMelds.melds
+      opponentMelds.melds,
+      layOffs.map(layOff => ({
+        cards: layOff.cards,
+        targetMeld: layOff.targetMeld
+      }))
     );
 
     // Update discard pile with the knocked card
