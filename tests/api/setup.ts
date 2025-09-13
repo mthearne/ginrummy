@@ -62,17 +62,77 @@ export async function setupTestDatabase() {
 
 export async function cleanupTestDatabase() {
   try {
-    // Clean up test data in correct order (respect foreign keys)
-    await testDb.gameEvent.deleteMany({});
-    await testDb.eloHistory.deleteMany({});
-    await testDb.gameInvitation.deleteMany({});
-    await testDb.friendship.deleteMany({});
-    await testDb.notification.deleteMany({});
-    await testDb.refreshToken.deleteMany({});
-    await testDb.game.deleteMany({});
-    await testDb.user.deleteMany({});
+    // Get test user emails to specifically target them - NEVER delete production users!
+    const testEmails = Object.values(TEST_USERS).map(user => user.email);
+    console.log('Cleaning up test users:', testEmails);
     
-    console.log('Test database cleaned');
+    // First, get test user IDs
+    const testUsers = await testDb.user.findMany({
+      where: { email: { in: testEmails } },
+      select: { id: true, email: true }
+    });
+    
+    const testUserIds = testUsers.map(user => user.id);
+    console.log('Found test user IDs:', testUserIds.length);
+    
+    if (testUserIds.length > 0) {
+      // Delete related data for test users only (respect foreign keys)
+      await testDb.gameEvent.deleteMany({
+        where: {
+          OR: [
+            { playerId: { in: testUserIds } },
+            { game: { player1Id: { in: testUserIds } } },
+            { game: { player2Id: { in: testUserIds } } }
+          ]
+        }
+      });
+      
+      await testDb.eloHistory.deleteMany({
+        where: { userId: { in: testUserIds } }
+      });
+      
+      await testDb.gameInvitation.deleteMany({
+        where: {
+          OR: [
+            { senderId: { in: testUserIds } },
+            { receiverId: { in: testUserIds } }
+          ]
+        }
+      });
+      
+      await testDb.friendship.deleteMany({
+        where: {
+          OR: [
+            { requesterId: { in: testUserIds } },
+            { receiverId: { in: testUserIds } }
+          ]
+        }
+      });
+      
+      await testDb.notification.deleteMany({
+        where: { userId: { in: testUserIds } }
+      });
+      
+      await testDb.refreshToken.deleteMany({
+        where: { userId: { in: testUserIds } }
+      });
+      
+      await testDb.game.deleteMany({
+        where: {
+          OR: [
+            { player1Id: { in: testUserIds } },
+            { player2Id: { in: testUserIds } }
+          ]
+        }
+      });
+      
+      // Finally, delete only test users - NEVER production users!
+      await testDb.user.deleteMany({
+        where: { id: { in: testUserIds } }
+      });
+    }
+    
+    console.log('Test database cleaned - only test users removed');
   } catch (error) {
     console.warn('Failed to clean test database:', error);
   }
@@ -88,13 +148,19 @@ export async function teardownTestDatabase() {
   }
 }
 
-// Seed test data
+// Seed test data  
 export async function seedTestUsers() {
   const users = [];
   
   for (const [key, userData] of Object.entries(TEST_USERS)) {
-    const user = await testDb.user.create({
-      data: {
+    const user = await testDb.user.upsert({
+      where: { email: userData.email },
+      update: {
+        username: userData.username,
+        password: userData.hashedPassword,
+        elo: key === 'admin' ? 1500 : 1200,
+      },
+      create: {
         email: userData.email,
         username: userData.username,
         password: userData.hashedPassword,

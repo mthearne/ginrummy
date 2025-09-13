@@ -208,23 +208,54 @@ function validateStartNewRound(
 }
 
 /**
- * Validate that melds are legal and use cards from the hand
+ * Validate that melds are legal and use cards from the hand - ENHANCED WITH EDGE CASES
  */
 export function validateMelds(
   melds: Meld[],
   playerHand: Card[]
 ): { valid: boolean; error?: string } {
+  // Edge case: null/undefined validation
+  if (!melds || !playerHand) {
+    return { valid: false, error: 'Invalid input: melds and playerHand are required' };
+  }
+
+  // Edge case: empty melds array is valid (player doesn't have to form melds)
+  if (melds.length === 0) {
+    return { valid: true };
+  }
+
+  // Edge case: check maximum number of melds (theoretical max is 4 for gin rummy)
+  if (melds.length > 4) {
+    return { valid: false, error: 'Too many melds (maximum 4 allowed)' };
+  }
+
   const handCardIds = new Set(playerHand.map(card => card.id));
   const usedCardIds = new Set<string>();
   
   for (const meld of melds) {
+    // Edge case: null/undefined meld
+    if (!meld || !meld.cards) {
+      return { valid: false, error: 'Invalid meld structure' };
+    }
+
     // Check minimum meld size
     if (meld.cards.length < 3) {
       return { valid: false, error: 'Melds must contain at least 3 cards' };
     }
     
+    // Edge case: maximum meld size (4 for sets, 13 for runs)
+    const maxSize = meld.type === 'set' ? 4 : 13;
+    if (meld.cards.length > maxSize) {
+      return { valid: false, error: `${meld.type} cannot contain more than ${maxSize} cards` };
+    }
+    
     // Check that all cards are in hand
     for (const card of meld.cards) {
+      // Edge case: null/undefined card
+      if (!card || !card.id) {
+        return { valid: false, error: 'Invalid card in meld' };
+      }
+
       if (!handCardIds.has(card.id)) {
         return { valid: false, error: 'Meld contains card not in hand' };
       }
@@ -236,13 +267,18 @@ export function validateMelds(
       usedCardIds.add(card.id);
     }
     
+    // Edge case: validate meld type exists
+    if (!meld.type || (meld.type !== 'set' && meld.type !== 'run')) {
+      return { valid: false, error: 'Invalid meld type (must be "set" or "run")' };
+    }
+
     // Validate meld type
     if (meld.type === 'set' && !isValidSet(meld.cards)) {
-      return { valid: false, error: 'Invalid set' };
+      return { valid: false, error: 'Invalid set - must be same rank with different suits' };
     }
     
     if (meld.type === 'run' && !isValidRun(meld.cards)) {
-      return { valid: false, error: 'Invalid run' };
+      return { valid: false, error: 'Invalid run - must be consecutive ranks of same suit' };
     }
   }
   

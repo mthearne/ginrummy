@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import { GameState, ChatMessage, GameWaitingInfo } from '@gin-rummy/common';
 import { useAuthStore } from './auth';
+import crypto from 'crypto';
+
+/**
+ * Game Store - Transitional State Management for Event-Sourced Frontend
+ * 
+ * This store now serves as a temporary cache for the frontend while the backend
+ * maintains the authoritative state via event sourcing. The frontend periodically
+ * refreshes from the backend to ensure consistency.
+ * 
+ * In the new architecture:
+ * - Backend: Single source of truth via event-sourced state
+ * - Frontend: Displays cached state, refreshes every 3 seconds
+ * - Moves: Always processed via atomic backend transactions
+ */
 
 export interface TurnHistoryEntry {
   id: string;
@@ -15,6 +29,7 @@ export interface TurnHistoryEntry {
 interface GameStore {
   currentGameId: string | null;
   gameState: Partial<GameState> | null;
+  streamVersion: number; // NEW: Stream version for optimistic concurrency
   waitingState: GameWaitingInfo | null;
   selectedCards: string[];
   chatMessages: ChatMessage[];
@@ -27,7 +42,8 @@ interface GameStore {
   
   // Actions
   setCurrentGame: (gameId: string) => void;
-  setGameState: (state: Partial<GameState>) => void;
+  setGameState: (state: Partial<GameState>, streamVersion?: number) => void;
+  setStreamVersion: (version: number) => void; // NEW: Stream version setter
   setWaitingState: (waitingState: GameWaitingInfo) => void;
   setIsSubmittingMove: (submitting: boolean) => void;
   selectCard: (cardId: string) => void;
@@ -46,11 +62,14 @@ interface GameStore {
   canMakeMove: () => boolean;
   getMyPlayer: () => any;
   getOpponent: () => any;
+  getCurrentStreamVersion: () => number; // NEW: Get current stream version
+  generateRequestId: () => string; // NEW: Generate UUID v4 for requests
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
   currentGameId: null,
   gameState: null,
+  streamVersion: 0, // Initialize stream version
   waitingState: null,
   selectedCards: [],
   chatMessages: [],
@@ -68,6 +87,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         currentGameId: gameId,
         gameState: null,
+        streamVersion: 0, // Reset stream version
         waitingState: null,
         selectedCards: [],
         chatMessages: [],
@@ -83,14 +103,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  setGameState: (gameState) => {
+  setGameState: (gameState, streamVersion) => {
     const state = get();
     if (state.currentGameId && gameState?.id && gameState.id !== state.currentGameId) {
       console.warn('Ignored gameState for different gameId:', gameState.id, '!=', state.currentGameId);
       return;
     }
-    set({ gameState, waitingState: null, gameError: null });
+    
+    // Clear turn history when starting a new round (but not on initial load)
+    const wasRoundOver = state.gameState?.phase === 'round_over';
+    const isNewRound = wasRoundOver && gameState?.phase === 'upcard_decision';
+    const isInitialLoad = !state.gameState; // First time loading the game
+    
+    const updates: any = { gameState, waitingState: null, gameError: null };
+    
+    // Update stream version if provided
+    if (typeof streamVersion === 'number') {
+      updates.streamVersion = streamVersion;
+    }
+    
+    // Only clear turn history if it's a new round transition, not on initial load
+    if (isNewRound && !isInitialLoad) {
+      console.log('New round detected, clearing turn history');
+      updates.turnHistory = [];
+    }
+    
+    set(updates);
   },
+
+  setStreamVersion: (streamVersion) => set({ streamVersion }),
   
   setWaitingState: (waitingState) => {
     const state = get();
@@ -138,6 +179,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resetGame: () => set({
     currentGameId: null,
     gameState: null,
+    streamVersion: 0, // Reset stream version
     waitingState: null,
     selectedCards: [],
     chatMessages: [],
@@ -179,5 +221,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!gameState?.players || !currentUser) return null;
     
     return gameState.players.find(player => player.id !== currentUser.id) || null;
+  },
+
+  getCurrentStreamVersion: () => {
+    return get().streamVersion;
+  },
+
+  generateRequestId: () => {
+    // Generate UUID v4 for request idempotency with browser compatibility fallback
+    return window.crypto?.randomUUID?.() || 
+           'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+             const r = Math.random() * 16 | 0;
+             const v = c == 'x' ? r : (r & 0x3 | 0x8);
+             return v.toString(16);
+           });
   },
 }));

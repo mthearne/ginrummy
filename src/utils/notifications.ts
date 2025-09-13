@@ -9,7 +9,7 @@ export interface ToastNotification {
 
 export interface NotificationData {
   userId: string;
-  type: 'FRIEND_REQUEST' | 'FRIEND_REQUEST_ACCEPTED' | 'GAME_INVITATION' | 'INVITATION_RESPONSE' | 'GAME_STARTED' | 'GAME_ENDED';
+  type: 'FRIEND_REQUEST' | 'FRIEND_REQUEST_ACCEPTED' | 'GAME_INVITATION' | 'INVITATION_RESPONSE' | 'GAME_STARTED' | 'GAME_ENDED' | 'CHAT_MESSAGE' | 'PLAYER_JOINED' | 'TURN_NOTIFICATION' | 'OPPONENT_MOVE';
   title: string;
   message: string;
   data?: any;
@@ -92,6 +92,20 @@ export async function getUnreadNotifications(userId: string) {
       ]
     },
     orderBy: { createdAt: 'desc' }
+  });
+}
+
+export async function getAllNotifications(userId: string, limit: number = 50) {
+  return await prisma.notification.findMany({
+    where: {
+      userId,
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } }
+      ]
+    },
+    orderBy: [{ read: 'asc' }, { createdAt: 'desc' }], // Unread first, then newest first
+    take: limit
   });
 }
 

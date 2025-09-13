@@ -1,5 +1,6 @@
 import { prisma } from '../utils/database';
 import { GameMove } from '@gin-rummy/common';
+import { EventType } from '../../packages/common/src/types/events';
 
 /**
  * Game events service for logging and retrieving game moves
@@ -16,8 +17,9 @@ export class GameEventsService {
       await prisma.gameEvent.create({
         data: {
           gameId,
-          userId,
-          eventType: 'move',
+          playerId: userId,
+          eventType: 'DRAW_FROM_STOCK' as any, // Legacy compatibility
+          sequenceNumber: 1, // Default sequence number
           eventData: {
             move: move as any,
             gameStateBefore: {
@@ -69,8 +71,9 @@ export class GameEventsService {
       await prisma.gameEvent.create({
         data: {
           gameId,
-          userId: null, // System event
-          eventType: 'game_start',
+          playerId: null, // System event
+          sequenceNumber: 1, // Default sequence number
+          eventType: EventType.GAME_STARTED,
           eventData: {
             initialState: {
               phase: initialGameState.phase,
@@ -103,8 +106,9 @@ export class GameEventsService {
       await prisma.gameEvent.create({
         data: {
           gameId,
-          userId: null, // System event
-          eventType: 'round_end',
+          playerId: null, // System event
+          sequenceNumber: 1, // Default sequence number
+          eventType: EventType.ROUND_ENDED,
           eventData: {
             winner: roundResult.winner,
             knockType: roundResult.knockType,
@@ -130,8 +134,9 @@ export class GameEventsService {
       await prisma.gameEvent.create({
         data: {
           gameId,
-          userId: null, // System event
-          eventType: 'game_end',
+          playerId: null, // System event
+          sequenceNumber: 1, // Default sequence number
+          eventType: EventType.GAME_FINISHED,
           eventData: {
             winner: finalGameState.winner,
             finalScores: finalGameState.players?.map((p: any) => ({
@@ -157,9 +162,9 @@ export class GameEventsService {
     try {
       const events = await prisma.gameEvent.findMany({
         where: { gameId },
-        orderBy: { timestamp: 'asc' },
+        orderBy: { createdAt: 'asc' },
         include: {
-          user: {
+          player: {
             select: {
               id: true,
               username: true
@@ -183,12 +188,12 @@ export class GameEventsService {
       const events = await prisma.gameEvent.findMany({
         where: { 
           gameId,
-          eventType: 'move'
+          eventType: 'DISCARD_CARD' as any
         },
-        orderBy: { timestamp: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         include: {
-          user: {
+          player: {
             select: {
               id: true,
               username: true
@@ -212,7 +217,7 @@ export class GameEventsService {
       const count = await prisma.gameEvent.count({
         where: { 
           gameId,
-          eventType: 'move'
+          eventType: 'DISCARD_CARD' as any
         }
       });
       

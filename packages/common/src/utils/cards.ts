@@ -115,32 +115,66 @@ export function sortCards(cards: Card[]): Card[] {
 }
 
 /**
- * Check if cards form a valid set (same rank, different suits)
+ * Check if cards form a valid set (same rank, different suits) - ENHANCED WITH EDGE CASES
  */
 export function isValidSet(cards: Card[]): boolean {
+  // Edge case: null/undefined/empty cards
+  if (!cards || cards.length === 0) return false;
+  
+  // Edge case: minimum size check
   if (cards.length < 3) return false;
+  
+  // Edge case: maximum size check (can't have more than 4 cards of same rank)
+  if (cards.length > 4) return false;
+  
+  // Edge case: check for null/undefined cards
+  if (cards.some(card => !card || !card.rank || !card.suit)) return false;
   
   const rank = cards[0].rank;
   const suits = new Set(cards.map(card => card.suit));
   
+  // All cards must have same rank and different suits
   return cards.every(card => card.rank === rank) && suits.size === cards.length;
 }
 
 /**
- * Check if cards form a valid run (consecutive ranks, same suit)
+ * Check if cards form a valid run (consecutive ranks, same suit) - ENHANCED WITH EDGE CASES
  */
 export function isValidRun(cards: Card[]): boolean {
+  // Edge case: null/undefined/empty cards
+  if (!cards || cards.length === 0) return false;
+  
+  // Edge case: minimum size check
   if (cards.length < 3) return false;
   
+  // Edge case: maximum size check (can't have more than 13 consecutive cards)
+  if (cards.length > 13) return false;
+  
+  // Edge case: check for null/undefined cards
+  if (cards.some(card => !card || !card.rank || !card.suit)) return false;
+  
   const suit = cards[0].suit;
+  
+  // Edge case: all cards must have same suit
   if (!cards.every(card => card.suit === suit)) return false;
   
   const sortedCards = [...cards].sort((a, b) => getRankValue(a.rank) - getRankValue(b.rank));
   
+  // Edge case: check for duplicate ranks in run (invalid)
+  const ranks = sortedCards.map(card => getRankValue(card.rank));
+  const uniqueRanks = new Set(ranks);
+  if (uniqueRanks.size !== ranks.length) return false;
+  
+  // Check consecutive sequence
   for (let i = 1; i < sortedCards.length; i++) {
     const prevValue = getRankValue(sortedCards[i - 1].rank);
     const currentValue = getRankValue(sortedCards[i].rank);
+    
+    // Edge case: gap in sequence
     if (currentValue !== prevValue + 1) return false;
+    
+    // Edge case: invalid rank values
+    if (prevValue < 1 || prevValue > 13 || currentValue < 1 || currentValue > 13) return false;
   }
   
   return true;

@@ -23,8 +23,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get unread notifications
-    const notifications = await getUnreadNotifications(decoded.userId);
+    // Get all notifications (both read and unread)
+    const { getAllNotifications } = await import('../../../src/utils/notifications');
+    const notifications = await getAllNotifications(decoded.userId);
 
     return NextResponse.json({
       notifications: notifications.map(notification => ({
@@ -91,6 +92,7 @@ export async function PATCH(request: NextRequest) {
     await markNotificationAsRead(notificationId, decoded.userId);
 
     return NextResponse.json({
+      success: true,
       message: 'Notification marked as read'
     });
 

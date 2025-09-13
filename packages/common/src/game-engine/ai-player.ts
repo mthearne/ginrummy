@@ -156,14 +156,10 @@ export class AIPlayer {
    * Check if we can gin (all cards melded after discard)
    */
   private checkForGin(hand: Card[], melds: Meld[]): GameMove | null {
-    const meldedCardIds = new Set(
-      melds.flatMap(meld => meld.cards.map(card => card.id))
-    );
-    
-    const unmeldedCards = hand.filter(card => !meldedCardIds.has(card.id));
-    
-    // Try discarding each unmelded card to see if we achieve gin
-    for (const card of unmeldedCards) {
+    // Try discarding each card in hand to see if we achieve gin
+    // We check ALL cards, not just unmelded ones, because sometimes
+    // discarding a melded card allows for better meld formation
+    for (const card of hand) {
       const handAfterDiscard = hand.filter(c => c.id !== card.id);
       const newMelds = findOptimalMelds(handAfterDiscard);
       
@@ -184,23 +180,19 @@ export class AIPlayer {
    * Check if we can knock (≤10 deadwood after discard)
    */
   private checkForKnock(hand: Card[], melds: Meld[]): GameMove | null {
-    const meldedCardIds = new Set(
-      melds.flatMap(meld => meld.cards.map(card => card.id))
-    );
-    
-    const unmeldedCards = hand.filter(card => !meldedCardIds.has(card.id));
-    
-    // Try discarding each unmelded card
-    for (const card of unmeldedCards) {
+    // Try discarding each card in hand and recalculate optimal melds
+    // We check ALL cards because sometimes discarding a melded card
+    // and reforming melds results in better deadwood totals
+    for (const card of hand) {
       const handAfterDiscard = hand.filter(c => c.id !== card.id);
-      const deadwood = calculateDeadwood(handAfterDiscard, melds);
+      const optimalMelds = findOptimalMelds(handAfterDiscard);
       
-      if (deadwood <= 10) {
+      if (optimalMelds.deadwood <= 10) {
         return {
           type: MoveType.Knock,
           playerId: this.playerId,
           cardId: card.id,
-          melds,
+          melds: optimalMelds.melds,
         };
       }
     }
@@ -437,6 +429,126 @@ export class AIPlayer {
     }
     
     return this.getMove(hand, phase, discardPile, stockCount);
+  }
+
+  /**
+   * Calculate optimal layoffs for AI player
+   */
+  public calculateOptimalLayoffs(
+    hand: Card[],
+    currentMelds: Meld[],
+    opponentMelds: Meld[]
+  ): Array<{ cards: Card[]; targetMeld: Meld }> {
+    console.log(`🤖 AIPlayer.calculateOptimalLayoffs: Starting calculation`);
+    console.log(`🤖 AIPlayer: Hand size: ${hand.length}, Current melds: ${currentMelds.length}, Opponent melds: ${opponentMelds.length}`);
+    
+    const layoffs: Array<{ cards: Card[]; targetMeld: Meld }> = [];
+    
+    // Get deadwood cards (cards not in current melds)
+    const meldedCardIds = new Set(
+      currentMelds.flatMap(meld => meld.cards.map(card => card.id))
+    );
+    const deadwoodCards = hand.filter(card => !meldedCardIds.has(card.id));
+    
+    console.log(`🤖 AIPlayer: Deadwood cards: ${deadwoodCards.map(c => `${c.rank}${c.suit}`).join(', ')}`);
+    console.log(`🤖 AIPlayer: Opponent melds: ${opponentMelds.map(m => `${m.type}[${m.cards.map(c => `${c.rank}${c.suit}`).join(',')}]`).join(', ')}`);
+    
+    // Try each deadwood card against each opponent meld
+    for (const card of deadwoodCards) {
+      console.log(`🤖 AIPlayer: Testing card ${card.rank}${card.suit} against all opponent melds`);
+      for (const meld of opponentMelds) {
+        console.log(`🤖 AIPlayer:   Testing against meld: ${meld.type}[${meld.cards.map(c => `${c.rank}${c.suit}`).join(',')}]`);
+        if (this.canLayOffOnMeld(card, meld)) {
+          console.log(`🤖 AIPlayer:   ✅ CAN LAYOFF ${card.rank}${card.suit} on ${meld.type}[${meld.cards.map(c => `${c.rank}${c.suit}`).join(',')}]`);
+          // Check if we already have a layoff for this meld
+          const existingLayoff = layoffs.find(lo => 
+            lo.targetMeld.cards[0].id === meld.cards[0].id
+          );
+          
+          if (existingLayoff) {
+            existingLayoff.cards.push(card);
+          } else {
+            layoffs.push({
+              cards: [card],
+              targetMeld: meld
+            });
+          }
+        } else {
+          console.log(`🤖 AIPlayer:   ❌ Cannot layoff ${card.rank}${card.suit} on ${meld.type}[${meld.cards.map(c => `${c.rank}${c.suit}`).join(',')}]`);
+        }
+      }
+    }
+    
+    console.log(`🤖 AIPlayer: Found ${layoffs.length} total layoffs`);
+    return layoffs;
+  }
+
+  /**
+   * Decide if AI should perform layoffs or skip
+   */
+  public shouldPerformLayoffs(
+    hand: Card[],
+    currentMelds: Meld[],
+    opponentMelds: Meld[],
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  ): boolean {
+    const availableLayoffs = this.calculateOptimalLayoffs(hand, currentMelds, opponentMelds);
+    
+    if (availableLayoffs.length === 0) {
+      return false; // No layoffs available
+    }
+    
+    const totalLayoffValue = availableLayoffs.reduce((total, layoff) => 
+      total + layoff.cards.reduce((cardTotal, card) => cardTotal + getCardValue(card), 0), 0
+    );
+    
+    // Always layoff if it saves significant points
+    if (totalLayoffValue >= 15) {
+      return true;
+    }
+    
+    // Difficulty-based decision for smaller layoffs
+    const adjustments = AIPlayer.getDifficultyAdjustments(difficulty);
+    const layoffThreshold = {
+      easy: 5,    // Lay off even small amounts
+      medium: 8,  // Moderate threshold
+      hard: 10    // Only lay off substantial amounts
+    }[difficulty];
+    
+    return totalLayoffValue >= layoffThreshold;
+  }
+
+  /**
+   * Check if a card can be laid off on a specific meld
+   */
+  private canLayOffOnMeld(card: Card, meld: Meld): boolean {
+    console.log(`🤖 AIPlayer: Testing layoff - ${card.rank}${card.suit} on ${meld.type}[${meld.cards.map(c => `${c.rank}${c.suit}`).join(',')}]`);
+    
+    if (meld.type === 'set') {
+      // For sets: card must have same rank as the set
+      const canLayoff = card.rank === meld.cards[0].rank;
+      console.log(`🤖 AIPlayer: Set layoff test - ${card.rank} === ${meld.cards[0].rank} = ${canLayoff}`);
+      return canLayoff;
+    } else {
+      // For runs: card must extend the sequence and be same suit
+      const meldSuit = meld.cards[0].suit;
+      if (card.suit !== meldSuit) {
+        console.log(`🤖 AIPlayer: Run layoff failed - different suit (${card.suit} vs ${meldSuit})`);
+        return false;
+      }
+      
+      const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+      const meldRanks = meld.cards.map(c => ranks.indexOf(c.rank)).sort((a, b) => a - b);
+      const cardRank = ranks.indexOf(card.rank);
+      
+      // Card must extend either end of the run (not middle)
+      const canExtendLow = cardRank === meldRanks[0] - 1 && cardRank >= 0;
+      const canExtendHigh = cardRank === meldRanks[meldRanks.length - 1] + 1 && cardRank < ranks.length;
+      
+      const canLayoff = canExtendLow || canExtendHigh;
+      console.log(`🤖 AIPlayer: Run layoff test - cardRank:${cardRank}, meldRanks:[${meldRanks.join(',')}], canExtendLow:${canExtendLow}, canExtendHigh:${canExtendHigh} = ${canLayoff}`);
+      return canLayoff;
+    }
   }
 
   /**

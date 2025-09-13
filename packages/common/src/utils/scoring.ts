@@ -98,6 +98,64 @@ export function calculateKnockScore(
 }
 
 /**
+ * Calculate score after applying lay-offs
+ */
+export function calculateScoreWithLayOffs(
+  knockerHand: Card[],
+  knockerMelds: Meld[],
+  opponentHand: Card[],
+  opponentMelds: Meld[],
+  layOffs: Array<{ cards: Card[]; targetMeld: Meld }>
+): {
+  knockerScore: number;
+  opponentScore: number;
+  knockerDeadwood: number;
+  opponentDeadwoodBefore: number;
+  opponentDeadwoodAfter: number;
+  layOffValue: number;
+  isUndercut: boolean;
+  isGin: boolean;
+} {
+  const knockerDeadwood = calculateDeadwood(knockerHand, knockerMelds);
+  const opponentDeadwoodBefore = calculateDeadwood(opponentHand, opponentMelds);
+  
+  // Calculate lay-off value (total points of cards laid off)
+  const layOffValue = layOffs.reduce((total, layOff) => 
+    total + layOff.cards.reduce((cardTotal, card) => cardTotal + getCardValue(card), 0), 0
+  );
+  
+  const opponentDeadwoodAfter = opponentDeadwoodBefore - layOffValue;
+  
+  const isGin = knockerDeadwood === 0;
+  const isUndercut = opponentDeadwoodAfter <= knockerDeadwood && !isGin;
+  
+  let knockerScore = 0;
+  let opponentScore = 0;
+  
+  if (isGin) {
+    // Gin: Knocker gets opponent deadwood + 25 bonus (lay-offs don't affect gin bonus)
+    knockerScore = opponentDeadwoodAfter + 25;
+  } else if (isUndercut) {
+    // Undercut: Opponent gets deadwood difference + 25 bonus
+    opponentScore = (knockerDeadwood - opponentDeadwoodAfter) + 25;
+  } else {
+    // Normal knock: Knocker gets deadwood difference
+    knockerScore = opponentDeadwoodAfter - knockerDeadwood;
+  }
+  
+  return {
+    knockerScore,
+    opponentScore,
+    knockerDeadwood,
+    opponentDeadwoodBefore,
+    opponentDeadwoodAfter,
+    layOffValue,
+    isUndercut,
+    isGin,
+  };
+}
+
+/**
  * Calculate ELO rating changes after a game
  */
 export function calculateEloChange(

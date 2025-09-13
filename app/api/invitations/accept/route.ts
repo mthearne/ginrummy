@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../src/utils/jwt';
 import { prisma } from '../../../../src/utils/database';
 import { createNotification } from '../../../../src/utils/notifications';
+import { EventStore } from '../../../../src/services/eventStore';
+import { ReplayService } from '../../../../src/services/replay';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -100,27 +103,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Accept the invitation and join the game
-    await Promise.all([
-      // Update invitation status
-      prisma.gameInvitation.update({
-        where: { id: invitationId },
-        data: { status: 'ACCEPTED' }
-      }),
-      // Add user to game
-      prisma.game.update({
-        where: { id: invitation.gameId },
-        data: {
-          player2Id: decoded.userId,
-          status: 'ACTIVE'
-        }
-      })
-    ]);
-
-    // Get current user info for notification
+    // Get current user info for events
     const currentUser = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: { id: true, username: true }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Create PLAYER_JOINED event through EventStore first
+    const joinEventData = {
+      gameId: invitation.gameId,
+      playerId: decoded.userId,
+      playerUsername: currentUser.username
+    };
+
+    const joinRequestId = crypto.randomUUID();
+    
+    // Get current stream version for this game
+    const currentVersion = await EventStore.getCurrentVersion(invitation.gameId);
+    console.log(`📊 AcceptInvitation: Current stream version: ${currentVersion}`);
+    
+    const appendResult = await EventStore.appendEvent(
+      invitation.gameId,
+      joinRequestId,
+      currentVersion, // Use current version, not 0
+      'PLAYER_JOINED',
+      joinEventData,
+      decoded.userId
+    );
+
+    if (!appendResult.success) {
+      console.log('❌ AcceptInvitation: Failed to create PLAYER_JOINED event:', appendResult.error);
+      return NextResponse.json(
+        { error: 'Failed to join game', details: appendResult.error },
+        { status: 500 }
+      );
+    }
+
+    // Only update invitation status after successful event creation
+    await prisma.gameInvitation.update({
+      where: { id: invitationId },
+      data: { status: 'ACCEPTED' }
+    });
+
+    // Update game record to reflect new player but keep in WAITING status
+    await prisma.game.update({
+      where: { id: invitation.gameId },
+      data: {
+        player2Id: decoded.userId,
+        status: 'WAITING' // Keep in waiting status until both players are ready
+      }
     });
 
     // Create notification for sender about acceptance

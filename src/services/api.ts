@@ -102,7 +102,7 @@ export const authAPI = {
 
 export const gamesAPI = {
   createGame: (data: { vsAI?: boolean; isPrivate?: boolean; maxPlayers?: number }) =>
-    api.post('/games', data),
+    api.post('/games', data), // Uses event-sourced endpoint
   
   listGames: (params?: { status?: string; limit?: number; offset?: number }) =>
     api.get('/games', { params }),
@@ -112,9 +112,30 @@ export const gamesAPI = {
   
   getGame: (gameId: string) =>
     api.get(`/games/${gameId}`),
+
+  // NEW: Event-sourced game state endpoint
+  getGameState: (gameId: string) =>
+    api.get(`/games/${gameId}/state`),
+
+  // NEW: Event-sourced move endpoint with concurrency control
+  makeMove: (gameId: string, moveData: any, requestId: string, expectedVersion: number) =>
+    api.post(`/games/${gameId}/move`, { 
+      ...moveData, 
+      requestId, 
+      expectedVersion 
+    }),
   
-  joinGame: (gameId: string) =>
-    api.post(`/games/${gameId}/join`),
+  joinGame: (gameId: string, requestId: string, expectedVersion: number = 0) =>
+    api.post(`/games/${gameId}/join`, { 
+      requestId, 
+      expectedVersion 
+    }),
+  
+  markPlayerReady: (gameId: string, requestId: string, expectedVersion: number = 0) =>
+    api.post(`/games/${gameId}/ready`, { 
+      requestId, 
+      expectedVersion 
+    }),
   
   leaveGame: (gameId: string) =>
     api.post(`/games/${gameId}/leave`),

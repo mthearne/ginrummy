@@ -42,9 +42,11 @@ export enum Difficulty {
 }
 
 export enum GamePhase {
+  Waiting = 'waiting', // Game created but waiting for players
   UpcardDecision = 'upcard_decision',
   Draw = 'draw',
   Discard = 'discard',
+  Layoff = 'layoff',
   RoundOver = 'round_over',
   GameOver = 'game_over',
 }
@@ -57,7 +59,7 @@ export enum MoveType {
   Discard = 'discard',
   Knock = 'knock',
   Gin = 'gin',
-  StartNewRound = 'start_new_round',
+  StartNewRound = 'START_NEW_ROUND',
 }
 
 export interface Meld {
@@ -84,6 +86,7 @@ export interface PlayerState {
   deadwood: number;
   melds: Meld[];
   lastDrawnCardId?: string; // ID of the most recently drawn card for UI highlighting
+  isReady?: boolean; // Whether player is ready to start the game
 }
 
 export interface GameState {
@@ -92,7 +95,8 @@ export interface GameState {
   phase: GamePhase;
   currentPlayerId: string;
   players: PlayerState[];
-  stockPileCount: number;
+  stockPileCount: number; // For backward compatibility and quick access
+  stockPile: Card[]; // Actual cards in stock pile for proper card tracking
   discardPile: Card[];
   turnTimer: number;
   isPrivate: boolean;
@@ -100,11 +104,17 @@ export interface GameState {
   winner?: string;
   gameOver: boolean;
   roundScores?: { [playerId: string]: number };
+  roundNumber?: number; // Current round number (starts at 1)
   turnId?: number; // Increments exactly once at end of turn for deduplication
   
   // Simple processing flags (replaces complex turnState system)
   isProcessing?: boolean;
   isLoading?: boolean;
+  
+  // Round results data for interactive round end modal
+  lastKnocker?: string;
+  lastKnockerMelds?: Meld[];
+  lastLayOffs?: Array<{ cards: Card[]; targetMeld: Meld }>;
 }
 
 export interface CreateGameRequest {

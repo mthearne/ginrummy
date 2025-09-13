@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../store/auth';
 import { authAPI } from '../services/api';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const { setUser, setTokens, logout } = useAuthStore();
+  const router = useRouter();
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -23,25 +25,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         console.log('Found tokens, verifying with server...');
         
         try {
-          // Verify tokens by getting user profile
-          // Use a direct fetch call to bypass the refresh interceptor during initialization
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 
-                        (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:3001');
-          
-          console.log('Auth verification URL:', `${apiUrl}/auth/me`);
-          
-          const response = await fetch(`${apiUrl}/auth/me`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-          if (!response.ok) {
-            throw new Error(`Auth verification failed: ${response.status}`);
-          }
-
-          const userData = await response.json();
+          // Verify tokens by getting user profile using the API service with automatic token refresh
+          const response = await authAPI.getProfile();
+          const userData = response.data;
           console.log('Auth verified, setting user data:', userData.username);
           
           // Set the user and tokens in the store
@@ -55,7 +41,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           localStorage.removeItem('refreshToken');
           logout();
           
-          console.log('Logout called, user should be null now');
+          console.log('Logout called, redirecting to login');
+          // Force redirect to login page when auth fails
+          router.replace('/login');
         }
 
       } catch (error) {
@@ -64,13 +52,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         logout();
+        
+        console.log('Auth initialization failed, redirecting to login');
+        // Force redirect to login page when auth initialization fails
+        router.replace('/login');
       } finally {
         setIsInitialized(true);
       }
     };
 
     initializeAuth();
-  }, [setUser, setTokens, logout]);
+  }, [setUser, setTokens, logout, router]);
 
   // Show loading state while initializing
   if (!isInitialized) {

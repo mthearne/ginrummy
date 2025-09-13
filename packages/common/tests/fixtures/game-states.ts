@@ -32,6 +32,7 @@ export const GAME_STATES = {
       createPlayer('player2', 'Bob'),
     ],
     stockPileCount: 31, // 52 - 20 - 1
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH], // Initial upcard
     turnTimer: 30,
     isPrivate: false,
@@ -50,6 +51,7 @@ export const GAME_STATES = {
       createPlayer('player2', 'Bob', []),
     ],
     stockPileCount: 30,
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH, SAMPLE_CARDS.QS],
     turnTimer: 30,
     isPrivate: false,
@@ -68,6 +70,7 @@ export const GAME_STATES = {
       createPlayer('player2', 'Bob', []),
     ],
     stockPileCount: 29,
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH, SAMPLE_CARDS.QS],
     turnTimer: 30,
     isPrivate: false,
@@ -86,6 +89,7 @@ export const GAME_STATES = {
       createPlayer('ai-player', 'AI Assistant', TEST_HANDS.POTENTIAL_MELDS_HAND),
     ],
     stockPileCount: 25,
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH, SAMPLE_CARDS.QS, SAMPLE_CARDS.JC],
     turnTimer: 30,
     isPrivate: false,
@@ -104,6 +108,7 @@ export const GAME_STATES = {
       createPlayer('player2', 'Bob', TEST_HANDS.HIGH_DEADWOOD_HAND),
     ],
     stockPileCount: 3, // Near stock exhaustion
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH, SAMPLE_CARDS.QS, SAMPLE_CARDS.JC, SAMPLE_CARDS.TenD],
     turnTimer: 30,
     isPrivate: false,
@@ -136,6 +141,7 @@ export const GAME_STATES = {
       },
     ],
     stockPileCount: 15,
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH, SAMPLE_CARDS.QS, SAMPLE_CARDS.JC, SAMPLE_CARDS.TenD, SAMPLE_CARDS.KC],
     turnTimer: 30,
     isPrivate: false,
@@ -165,6 +171,7 @@ export const GAME_STATES = {
       },
     ],
     stockPileCount: 0,
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [],
     turnTimer: 30,
     isPrivate: false,
@@ -187,6 +194,7 @@ export const GAME_STATES = {
       createPlayer('player1', 'Alice'),
     ],
     stockPileCount: 52,
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [],
     turnTimer: 30,
     isPrivate: false,
@@ -211,6 +219,7 @@ export const GAME_STATES = {
       },
     ],
     stockPileCount: 0, // Stock exhausted
+    stockPile: [], // Test fixture - empty for simplicity
     discardPile: [SAMPLE_CARDS.KH],
     turnTimer: 30,
     isPrivate: false,

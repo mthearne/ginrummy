@@ -26,8 +26,12 @@ model User {
   notifications          Notification[]
   player1Games           Game[]           @relation("Player1")
   player2Games           Game[]           @relation("Player2")
+  currentPlayerGames     Game[]           @relation("CurrentPlayer")
   wonGames               Game[]           @relation("Winner")
   refreshTokens          RefreshToken[]
+  sentMessages           ChatMessage[]    @relation("SentMessages")
+  receivedMessages       ChatMessage[]    @relation("ReceivedMessages")
+  gameParticipations     GameParticipant[]
 
   @@map("users")
 }
@@ -43,43 +47,127 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model Game {
-  id              String           @id @default(uuid())
-  status          GameStatus       @default(WAITING)
-  player1Id       String           @map("player1_id")
-  player2Id       String?          @map("player2_id")
-  winnerId        String?          @map("winner_id")
-  player1Score    Int              @default(0) @map("player1_score")
-  player2Score    Int              @default(0) @map("player2_score")
-  isPrivate       Boolean          @default(false) @map("is_private")
-  vsAI            Boolean          @default(false) @map("vs_ai")
-  maxPlayers      Int              @default(2) @map("max_players")
-  duration        Int?
-  knockType       KnockType?       @map("knock_type")
-  gameState       Json?            @map("game_state") // Store complete game state for AI games
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  finishedAt      DateTime?        @map("finished_at")
-  gameEvents      GameEvent[]
-  gameInvitations GameInvitation[]
-  player1         User             @relation("Player1", fields: [player1Id], references: [id])
-  player2         User?            @relation("Player2", fields: [player2Id], references: [id])
-  winner          User?            @relation("Winner", fields: [winnerId], references: [id])
+model GameParticipant {
+  id             String   @id @default(uuid())
+  gameId         String   @map("game_id")
+  userId         String   @map("user_id")
+  seat           Int      // 0 or 1 for 2-player games
+  role           String   @default("PLAYER") // PLAYER, SPECTATOR
+  joinedAt       DateTime @default(now()) @map("joined_at")
+  
+  // Relations
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([gameId, userId])  // One participation per user per game
+  @@unique([gameId, seat])    // One player per seat
+  @@index([userId])
+  @@map("game_participants")
+}
 
+model Game {
+  id               String           @id @default(uuid())
+  status           GameStatus       @default(WAITING)
+  gameType         GameType         @default(STANDARD) @map("game_type")
+  player1Id        String           @map("player1_id")
+  player2Id        String?          @map("player2_id")
+  currentPlayerId  String?          @map("current_player_id")
+  winnerId         String?          @map("winner_id")
+  player1Score     Int              @default(0) @map("player1_score")
+  player2Score     Int              @default(0) @map("player2_score")
+  
+  // Configuration
+  isPrivate        Boolean          @default(false) @map("is_private")
+  vsAI             Boolean          @default(false) @map("vs_ai")
+  maxPlayers       Int              @default(2) @map("max_players")
+  duration         Int?
+  knockType        KnockType?       @map("knock_type")
+  
+  // Legacy field - will be deprecated after migration
+  gameState        Json?            @map("game_state")
+  
+  // Event sourcing metadata
+  eventCount       Int              @default(0) @map("event_count")
+  lastEventAt      DateTime?        @map("last_event_at")
+  snapshotSequence Int?             @map("snapshot_sequence")
+  streamVersion    Int              @default(0) @map("stream_version")  // Cache of latest sequence for PvP
+  
+  // PvP Configuration
+  joinCode         String?          @unique @map("join_code")           // For code-based joining
+  
+  // Timing
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  finishedAt       DateTime?        @map("finished_at")
+  
+  // Relations
+  gameEvents       GameEvent[]
+  gameSnapshots    GameSnapshot[]
+  gameInvitations  GameInvitation[]
+  participants     GameParticipant[]
+  player1          User             @relation("Player1", fields: [player1Id], references: [id])
+  player2          User?            @relation("Player2", fields: [player2Id], references: [id])
+  currentPlayer    User?            @relation("CurrentPlayer", fields: [currentPlayerId], references: [id])
+  winner           User?            @relation("Winner", fields: [winnerId], references: [id])
+
+  @@index([status, isPrivate])  // For game discovery
   @@map("games")
 }
 
 model GameEvent {
-  id        String   @id @default(uuid())
-  gameId    String   @map("game_id")
-  userId    String?  @map("user_id")
-  eventType String   @map("event_type")
-  eventData Json     @map("event_data")
-  timestamp DateTime @default(now())
-  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id])
-
+  id             String    @id @default(uuid())
+  gameId         String    @map("game_id")
+  playerId       String?   @map("player_id")
+  
+  // Event identification
+  eventType      EventType    @map("event_type")
+  sequenceNumber Int       @map("sequence_number")
+  eventVersion   Int       @default(1) @map("event_version")
+  requestId      String?   @map("request_id")        // UUID v4 for idempotency (optional for legacy events)
+  
+  // Event payload
+  eventData      Json      @map("event_data")
+  metadata       Json?
+  
+  // State tracking
+  processed      Boolean   @default(false)
+  processedAt    DateTime? @map("processed_at")
+  
+  // Timing
+  createdAt      DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  game           Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player         User?     @relation(fields: [playerId], references: [id])
+  
+  // Constraints
+  @@unique([gameId, sequenceNumber])
+  @@unique([gameId, requestId])        // Idempotency constraint - prevent duplicate requests per game
+  @@index([gameId, sequenceNumber])
   @@map("game_events")
+}
+
+model GameSnapshot {
+  id             String   @id @default(uuid())
+  gameId         String   @map("game_id")
+  sequenceNumber Int      @map("sequence_number")
+  
+  // Computed state at this point
+  gameState      Json     @map("game_state")
+  stateHash      String   @map("state_hash")
+  
+  // Metadata
+  createdAt      DateTime @default(now()) @map("created_at")
+  createdBy      String?  @map("created_by")
+  
+  // Relations
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([gameId, sequenceNumber])
+  @@index([gameId, sequenceNumber])
+  @@map("game_snapshots")
 }
 
 model EloHistory {
@@ -174,4 +262,70 @@ enum NotificationType {
   INVITATION_RESPONSE
   GAME_STARTED
   GAME_ENDED
+  CHAT_MESSAGE
+  PLAYER_JOINED
+  TURN_NOTIFICATION
+  OPPONENT_MOVE
+}
+
+enum GameType {
+  STANDARD
+  HOLLYWOOD
+  OKLAHOMA
+}
+
+enum EventType {
+  // Game lifecycle
+  GAME_CREATED
+  GAME_STARTED
+  PLAYER_JOINED
+  PLAYER_READY
+  PLAYER_LEFT
+  
+  // Turn actions
+  TAKE_UPCARD
+  PASS_UPCARD
+  DRAW_FROM_STOCK
+  DRAW_FROM_DISCARD
+  DISCARD_CARD
+  KNOCK
+  GIN
+  LAY_OFF
+  
+  // Round management  
+  START_NEW_ROUND
+  ROUND_ENDED
+  LAYOFF_PHASE_STARTED
+  AI_LAYOFF_DECISION
+  LAYOFF_COMPLETED
+  
+  // Game ending
+  GAME_FINISHED
+  GAME_CANCELLED
+  
+  // AI actions
+  AI_THINKING_STARTED
+  AI_MOVE_COMPLETED
+  
+  // System events
+  STATE_SNAPSHOT_CREATED
+  ERROR_RECOVERED
+}
+
+model ChatMessage {
+  id         String    @id @default(uuid())
+  senderId   String    @map("sender_id")
+  receiverId String    @map("receiver_id")
+  message    String    @db.Text
+  sentAt     DateTime  @default(now()) @map("sent_at")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, sentAt])
+  @@index([receiverId, readAt])
+  @@map("chat_messages")
 }

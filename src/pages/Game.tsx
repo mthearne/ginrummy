@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useGameStore } from '../store/game';
 import { useAuthStore } from '../store/auth';
+import { useAuthGuard } from '../hooks/useAuthGuard';
 import { useSocket } from '../services/socket';
 import { Card as CardComponent } from '../components/ui/Card';
 import { FriendInvitation } from '../components/FriendInvitation';
@@ -9,13 +10,15 @@ import { TurnHistory } from '../components/game/TurnHistory';
 import Confetti from '../components/ui/Confetti';
 import FlyingAnimal from '../components/ui/FlyingAnimal';
 import AIThinkingOverlay from '../components/game/AIThinkingOverlay';
-import { MoveType, GamePhase, Card, Meld } from '@gin-rummy/common';
+import { MoveType, GamePhase, Card, Meld, GameState } from '@gin-rummy/common';
+import { RoundResultsModal } from '../components/RoundResults/RoundResultsModal';
+import { gamesAPI } from '../services/api';
 
 export default function Game() {
   const params = useParams<{ gameId: string }>();
   const gameId = params?.gameId;
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user } = useAuthGuard();
   const { 
     gameState, 
     waitingState,
@@ -35,7 +38,6 @@ export default function Game() {
   
   const socket = useSocket();
   const [chatMessage, setChatMessage] = useState('');
-  const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [lastGamePhase, setLastGamePhase] = useState<string | null>(null);
   const [roundNotification, setRoundNotification] = useState<string | null>(null);
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
@@ -43,12 +45,23 @@ export default function Game() {
   const [handOrder, setHandOrder] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFlyingAnimal, setShowFlyingAnimal] = useState(false);
+  const [showRoundResults, setShowRoundResults] = useState(false);
+  const [roundResultsDismissed, setRoundResultsDismissed] = useState(false);
+  const [roundResultsData, setRoundResultsData] = useState<{
+    knockerPlayerId: string;
+    knockerMelds: Meld[];
+    layOffs: Array<{ cards: Card[]; targetMeld: Meld }>;
+  } | null>(null);
 
   useEffect(() => {
     console.log(`[NAV DEBUG] Game page effect - gameId: ${gameId}, user: ${user?.username}`);
-    if (!gameId || !user) {
-      console.log(`[NAV DEBUG] Missing gameId or user, redirecting to lobby`);
+    if (!gameId) {
+      console.log(`[NAV DEBUG] Missing gameId, redirecting to lobby`);
       router.push('/lobby');
+      return;
+    }
+    if (!user) {
+      console.log(`[NAV DEBUG] User not authenticated, useAuthGuard will handle redirect`);
       return;
     }
 
@@ -62,6 +75,7 @@ export default function Game() {
     return () => {
       // Clean reset on unmount so lobby shows no stale state
       console.log(`[NAV DEBUG] Component unmounting for game: ${gameId}, resetting game state`);
+      socket.leaveGame(String(gameId));
       useGameStore.getState().resetGame();
     };
   }, [gameId, user, socket]);
@@ -69,80 +83,111 @@ export default function Game() {
   // Game loading is now handled in the main useEffect above
   // This useEffect is removed to prevent duplicate loading and race conditions
 
-  // Track AI status during AI turns
+
+  // Show round results when game is in layoff or round_over phase (e.g., after refresh)
   useEffect(() => {
-    const myPlayer = getMyPlayer();
-    const aiPlayer = gameState?.players?.find(p => p.id !== myPlayer?.id);
-    if (gameState && gameState.vsAI && gameState.currentPlayerId === aiPlayer?.id) {
-      // Determine what phase the AI is in and show appropriate thinking message
-      let status = '';
-      if (gameState.phase === 'upcard_decision') {
-        status = 'Thinking about the upcard...';
-      } else if (gameState.phase === 'draw') {
-        status = 'Deciding what to draw...';
-      } else if (gameState.phase === 'discard') {
-        status = 'Choosing a card to discard...';
-      } else if (gameState.phase === 'round_over') {
-        status = 'Preparing next round...';
-      } else {
-        status = 'Thinking...';
+    if (gameState && (gameState.phase === 'layoff' || gameState.phase === 'round_over') && !showRoundResults && !roundResultsDismissed) {
+      const myPlayer = getMyPlayer();
+      const opponent = getOpponent();
+      
+      if (myPlayer && opponent) {
+        console.log(`Game in ${gameState.phase} phase, showing round results modal`);
+        
+        // Determine knocker based on game state
+        const myDeadwood = myPlayer.deadwood || 0;
+        const opponentDeadwood = opponent.deadwood || 0;
+        
+        let knockerPlayerId: string;
+        let knockerMelds: Meld[];
+        
+        // Determine knocker based on who has melds or lower deadwood
+        if (myPlayer.melds && myPlayer.melds.length > 0 && myDeadwood <= 10) {
+          knockerPlayerId = myPlayer.id;
+          knockerMelds = myPlayer.melds;
+        } else if (opponent.melds && opponent.melds.length > 0 && opponentDeadwood <= 10) {
+          knockerPlayerId = opponent.id;
+          knockerMelds = opponent.melds;
+        } else {
+          // Fallback: whoever has lower deadwood
+          knockerPlayerId = myDeadwood <= opponentDeadwood ? myPlayer.id : opponent.id;
+          knockerMelds = knockerPlayerId === myPlayer.id ? (myPlayer.melds || []) : (opponent.melds || []);
+        }
+        
+        setRoundResultsData({
+          knockerPlayerId,
+          knockerMelds,
+          layOffs: [], // Will be calculated dynamically by the modal
+        });
+        setShowRoundResults(true);
       }
-      
-      setAiStatus(status);
-      
-      // Clear AI status after a longer delay to account for thinking time (0.5-4 seconds + processing)
-      const timer = setTimeout(() => {
-        setAiStatus(null);
-      }, 5000);
-      
-      return () => clearTimeout(timer);
-    } else {
-      setAiStatus(null);
     }
-  }, [gameState?.currentPlayerId, gameState?.phase, gameState?.vsAI]);
+  }, [gameState, showRoundResults, roundResultsDismissed, getMyPlayer, getOpponent]);
+
+  // Reset round results dismissed flag when new round starts
+  useEffect(() => {
+    if (gameState && gameState.phase === 'upcard_decision' && roundResultsDismissed) {
+      console.log('New round started, resetting round results dismissed flag');
+      setRoundResultsDismissed(false);
+    }
+  }, [gameState?.phase, roundResultsDismissed]);
 
   // Track phase changes to show AI actions and celebrations
   useEffect(() => {
     if (gameState && lastGamePhase && gameState.phase !== lastGamePhase) {
-      // Trigger celebrations for round completion
-      if (gameState.phase === 'round_over' && lastGamePhase !== 'round_over') {
+      // Trigger celebrations for round completion (or final round if game over)
+      if ((gameState.phase === 'layoff' || gameState.phase === 'round_over' || gameState.phase === 'game_over') && 
+          lastGamePhase !== 'layoff' && lastGamePhase !== 'round_over' && lastGamePhase !== 'game_over') {
+        // For now, create mock round results data since backend isn't populating it yet
+        // In a real implementation, this would come from the game state
+        const myPlayer = getMyPlayer();
+        const opponent = getOpponent();
+        
+        if (myPlayer && opponent) {
+          // Use actual game state data for round results
+          console.log('Round over - setting up results with real game state data:', {
+            myPlayer: { id: myPlayer.id, deadwood: myPlayer.deadwood, melds: myPlayer.melds?.length },
+            opponent: { id: opponent.id, deadwood: opponent.deadwood, melds: opponent.melds?.length }
+          });
+          
+          // The knocker should be determined by the backend, but for now use available data
+          // Look for who has the lower deadwood or who has melds to determine knocker
+          const myDeadwood = myPlayer.deadwood || 0;
+          const opponentDeadwood = opponent.deadwood || 0;
+          
+          let knockerPlayerId: string;
+          let knockerMelds: Meld[];
+          
+          // Determine knocker based on who has melds or lower deadwood
+          if (myPlayer.melds && myPlayer.melds.length > 0 && myDeadwood <= 10) {
+            knockerPlayerId = myPlayer.id;
+            knockerMelds = myPlayer.melds;
+          } else if (opponent.melds && opponent.melds.length > 0 && opponentDeadwood <= 10) {
+            knockerPlayerId = opponent.id;
+            knockerMelds = opponent.melds;
+          } else {
+            // Fallback: whoever has lower deadwood
+            knockerPlayerId = myDeadwood <= opponentDeadwood ? myPlayer.id : opponent.id;
+            knockerMelds = knockerPlayerId === myPlayer.id ? (myPlayer.melds || []) : (opponent.melds || []);
+          }
+          
+          setRoundResultsData({
+            knockerPlayerId,
+            knockerMelds,
+            layOffs: [] // Will be calculated by the modal based on available data
+          });
+          setShowRoundResults(true);
+        }
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
-      }
-      
-      // Trigger celebrations for game completion
-      if (gameState.phase === 'game_over' && lastGamePhase !== 'game_over') {
-        setShowConfetti(true);
-        setShowFlyingAnimal(true);
-        setTimeout(() => {
-          setShowConfetti(false);
-          setShowFlyingAnimal(false);
-        }, 4000);
-      }
-
-      // AI status tracking for PvE games
-      if (gameState.vsAI) {
-        const currentPlayer = gameState.players?.find(p => p.id === gameState.currentPlayerId);
-        if (currentPlayer && currentPlayer.id !== user?.id) {
-          // AI just made a move that changed the phase
-          if (lastGamePhase === 'draw' && gameState.phase === 'discard') {
-            setAiStatus('Drew a card');
-            setTimeout(() => setAiStatus(null), 1500);
-          } else if (lastGamePhase === 'discard' && gameState.phase === 'draw') {
-            setAiStatus('Discarded a card');
-            setTimeout(() => setAiStatus(null), 1500);
-          } else if (lastGamePhase === 'upcard_decision' && gameState.phase === 'discard') {
-            setAiStatus('Took the upcard');
-            setTimeout(() => setAiStatus(null), 1500);
-          } else if (lastGamePhase === 'upcard_decision' && gameState.phase === 'draw') {
-            setAiStatus('Passed on the upcard');
-            setTimeout(() => setAiStatus(null), 1500);
-          } else if (lastGamePhase === 'round_over') {
-            setAiStatus('Started new round');
-            setTimeout(() => setAiStatus(null), 1500);
-          }
+        
+        // Add extra celebration for game over
+        if (gameState.phase === 'game_over') {
+          setShowFlyingAnimal(true);
+          setTimeout(() => setShowFlyingAnimal(false), 4000);
         }
       }
+      
+
     }
     setLastGamePhase(gameState?.phase || null);
   }, [gameState?.phase, lastGamePhase, gameState?.vsAI, gameState?.currentPlayerId, user?.id]);
@@ -325,15 +370,67 @@ export default function Game() {
   };
 
   const handleStartNewRound = () => {
-    if (!gameId || !user) return;
+    console.log('handleStartNewRound called', {
+      gameId,
+      userId: user?.id,
+      socketConnected: socket?.isConnected()
+    });
+    
+    if (!gameId || !user) {
+      console.error('Missing gameId or user for starting new round', { gameId, user: user?.id });
+      return;
+    }
+    
     const myPlayer = getMyPlayer();
-    if (!myPlayer?.id) return;
+    if (!myPlayer?.id) {
+      console.error('No player found for starting new round');
+      return;
+    }
+    
+    console.log('Sending StartNewRound move', {
+      type: MoveType.StartNewRound,
+      playerId: myPlayer.id,
+      gameId: gameId,
+    });
     
     socket.makeMove({
       type: MoveType.StartNewRound,
       playerId: myPlayer.id,
       gameId: gameId,
     });
+  };
+
+  const handleCloseRoundResults = () => {
+    setShowRoundResults(false);
+    setRoundResultsData(null);
+    setRoundResultsDismissed(true);
+  };
+
+  const handleContinueAfterRoundResults = () => {
+    console.log('Continue after round results clicked', {
+      gameState: gameState?.phase,
+      gameOver: gameState?.gameOver,
+      roundScores: gameState?.roundScores
+    });
+    
+    handleCloseRoundResults();
+    
+    // Start new round if game isn't over (handle both layoff and round_over phases)
+    if (gameState && (gameState.phase === 'layoff' || gameState.phase === 'round_over') && !gameState.gameOver) {
+      console.log('Starting new round...');
+      handleStartNewRound();
+    } else if (gameState?.gameOver || gameState?.phase === 'game_over') {
+      console.log('Game is over, not starting new round');
+      // Game over - let the regular game over UI take over
+    } else {
+      console.log('Conditions not met for new round:', {
+        hasGameState: !!gameState,
+        phase: gameState?.phase,
+        gameOver: gameState?.gameOver
+      });
+      // Fallback: try to start new round anyway
+      handleStartNewRound();
+    }
   };
 
   const handleSendChat = (e: React.FormEvent) => {
@@ -344,40 +441,226 @@ export default function Game() {
     setChatMessage('');
   };
 
-  // Show waiting screen for PvP games waiting for second player
-  if (waitingState) {
+  // Debug logging before waiting screen check
+  console.log('🔍 Game State Debug:', {
+    hasWaitingState: !!waitingState,
+    hasGameState: !!gameState,
+    gameStatus: gameState?.status,
+    playersLength: gameState?.players?.length,
+    shouldShowWaiting: !!(waitingState || (gameState && gameState.status === 'WAITING' && gameState.players && gameState.players.length >= 1))
+  });
+
+  // Show waiting screen for PvP games (either waiting for second player OR waiting for ready status)
+  if (waitingState || (gameState && gameState.status === 'WAITING' && gameState.players && gameState.players.length >= 1)) {
+    console.log('✅ Entering waiting screen mode');
+    
+    const currentGameState = gameState || null;
+    const players = currentGameState?.players || [];
+    const myPlayer = getMyPlayer();
+    const opponent = getOpponent();
+    const hasSecondPlayer = players.length === 2;
+    const myReadyStatus = myPlayer?.isReady || false;
+    const opponentReadyStatus = opponent?.isReady || false;
+    const bothPlayersReady = hasSecondPlayer && myReadyStatus && opponentReadyStatus;
+    
+    // Debug logging
+    const otherPlayer = players.find(p => p.id !== user?.id && p.id !== 'waiting-for-player');
+    console.log('🔍 Waiting Screen Debug:', {
+      playersCount: players.length,
+      players: players.map(p => ({ id: p.id, username: p.username, isReady: p.isReady })),
+      hasWaitingPlayer: players.some(p => p.id === 'waiting-for-player'),
+      shouldShowInvite: gameId && (players.length < 2 || players.some(p => p.id === 'waiting-for-player')),
+      gameId: gameId,
+      gameStatus: currentGameState?.status,
+      vsAI: currentGameState?.vsAI,
+      myPlayer: myPlayer ? { id: myPlayer.id, username: myPlayer.username } : null,
+      opponent: opponent ? { id: opponent.id, username: opponent.username } : null,
+      otherPlayer: otherPlayer ? { id: otherPlayer.id, username: otherPlayer.username } : null,
+      user: user ? { id: user.id, username: user.username } : null,
+      hasSecondPlayer,
+      opponentFallbackChain: {
+        opponentUsername: opponent?.username,
+        otherPlayerUsername: otherPlayer?.username,
+        finalResult: hasSecondPlayer 
+          ? (opponent?.username || otherPlayer?.username || 'Opponent')
+          : 'Waiting...'
+      }
+    });
+
+    const handleMarkReady = async () => {
+      if (!gameId || !user || myReadyStatus) return;
+      
+      // Generate UUID using browser crypto API or fallback
+      const requestId = window.crypto?.randomUUID?.() || 
+                       'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                         const r = Math.random() * 16 | 0;
+                         const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                         return v.toString(16);
+                       });
+      
+      const expectedVersion = useGameStore.getState().getCurrentStreamVersion();
+      
+      try {
+        console.log('🚦 Marking ready with:', { requestId, expectedVersion, gameId });
+        
+        const response = await gamesAPI.markPlayerReady(gameId, requestId, expectedVersion);
+        console.log('✅ Marked ready successfully:', response.data);
+        
+        // The socket service will handle the state updates
+        if (response.data.gameStarted) {
+          console.log('🎮 Game started, waiting for state update...');
+        }
+      } catch (error) {
+        console.error('❌ Failed to mark ready:', error);
+        
+        // Handle version conflict errors
+        if (error.response?.status === 409) {
+          console.log('🔄 Version conflict, refreshing game state...');
+          
+          // Check if it's a version mismatch
+          if (error.response?.data?.code === 'STATE_VERSION_MISMATCH') {
+            const serverVersion = error.response.data.serverVersion;
+            const clientVersion = expectedVersion;
+            console.log(`📊 Version mismatch - client: ${clientVersion}, server: ${serverVersion}`);
+            
+            // Update to server version
+            useGameStore.getState().setStreamVersion(serverVersion);
+            
+            // Trigger a refresh of the game state
+            const socket = useSocket();
+            if (socket && gameId) {
+              socket.joinGame(gameId);
+            }
+          } else {
+            // For other 409 errors, just refresh the game state
+            console.log('📊 409 error without version info, refreshing game state');
+            const socket = useSocket();
+            if (socket && gameId) {
+              socket.joinGame(gameId);
+            }
+          }
+        }
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full">
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Left side - Game info */}
-            <div className="text-center md:text-left">
-              <div className="text-6xl mb-4 text-center">⏳</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Waiting for Opponent</h2>
-              <p className="text-gray-600 mb-6">
-                Your PvP game has been created! Invite a friend or wait for someone to join from the lobby.
-              </p>
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <p className="text-sm text-gray-600 mb-2">Game ID:</p>
-                <code className="bg-white px-2 py-1 rounded text-sm font-mono border">
-                  {waitingState.gameId}
-                </code>
+        <div className="bg-white rounded-xl shadow-lg p-6 max-w-3xl w-full">
+          <div className="text-center mb-8">
+            <div className="text-6xl mb-4">🎯</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              {hasSecondPlayer ? 'Game Lobby' : 'Waiting for Opponent'}
+            </h2>
+            <p className="text-gray-600">
+              {hasSecondPlayer 
+                ? 'Both players must click Ready to start the game!'
+                : 'Invite a friend or wait for someone to join from the lobby.'
+              }
+            </p>
+          </div>
+
+          {/* Players Status */}
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            {/* Current Player (You) */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-lg">{myPlayer?.username || user?.username || 'Player'}</h3>
+                  <p className="text-sm text-gray-600">You</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {hasSecondPlayer ? (
+                    <>
+                      <span className={`text-sm font-medium ${
+                        myReadyStatus ? 'text-green-600' : 'text-gray-500'
+                      }`}>
+                        {myReadyStatus ? '✓ Ready' : 'Not Ready'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-green-600">✓ Waiting</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center justify-center md:justify-start space-x-2 text-gray-500 mb-4">
-                <div className="loading" />
-                <span className="text-sm">Waiting for player to join...</span>
+            </div>
+
+            {/* Opponent */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-lg">
+                    {hasSecondPlayer 
+                      ? ((opponent?.username && opponent.username.trim()) || players.find(p => p.id !== user?.id && p.id !== 'waiting-for-player')?.username || 'Opponent')
+                      : 'Waiting...'}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {hasSecondPlayer ? 'Opponent' : 'Open slot'}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {hasSecondPlayer ? (
+                    <span className={`text-sm font-medium ${
+                      opponentReadyStatus ? 'text-green-600' : 'text-gray-500'
+                    }`}>
+                      {opponentReadyStatus ? '✓ Ready' : 'Not Ready'}
+                    </span>
+                  ) : (
+                    <div className="flex items-center space-x-1 text-gray-500">
+                      <div className="loading w-4 h-4" />
+                      <span className="text-sm">Waiting</span>
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="text-center space-y-4">
+            {hasSecondPlayer && (
+              <div className="space-y-3">
+                {!myReadyStatus && (
+                  <button
+                    onClick={handleMarkReady}
+                    className="btn btn-primary text-lg px-8 py-3"
+                  >
+                    I'm Ready!
+                  </button>
+                )}
+                
+                {myReadyStatus && !opponentReadyStatus && (
+                  <div className="flex items-center justify-center space-x-2 text-green-600">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="font-medium">You're ready! Waiting for opponent...</span>
+                  </div>
+                )}
+
+                {bothPlayersReady && (
+                  <div className="flex items-center justify-center space-x-2 text-blue-600">
+                    <div className="loading w-5 h-5" />
+                    <span className="font-medium">Both players ready! Starting game...</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pt-4 border-t">
+              {(() => {
+                const shouldShow = gameId && (players.length < 2 || players.some(p => p.id === 'waiting-for-player'));
+                console.log('🔍 Friend Invitation Render Check:', { shouldShow, gameId: !!gameId, playersLength: players.length, hasWaitingPlayer: players.some(p => p.id === 'waiting-for-player') });
+                return shouldShow;
+              })() && (
+                <div className="mb-4">
+                  <FriendInvitation gameId={gameId!} />
+                </div>
+              )}
+              
               <button
                 onClick={() => router.push('/lobby')}
-                className="btn btn-secondary w-full md:w-auto"
+                className="btn btn-secondary"
               >
                 Back to Lobby
               </button>
-            </div>
-
-            {/* Right side - Friend invitations */}
-            <div>
-              <FriendInvitation gameId={waitingState.gameId} />
             </div>
           </div>
         </div>
@@ -526,9 +809,6 @@ export default function Game() {
                         </div>
                       )}
                     </div>
-                    {aiStatus && (
-                      <div className="text-xs text-blue-600 italic">{aiStatus}</div>
-                    )}
                   </div>
                 </div>
                 <div className="text-sm text-gray-600">
@@ -653,7 +933,7 @@ export default function Game() {
                     <div className="text-center">
                       {gameState.discardPile && gameState.discardPile.length > 0 ? (
                         <CardComponent 
-                          card={gameState.discardPile[gameState.discardPile.length - 1]}
+                          card={gameState.discardPile[0]}
                           className="w-28 h-36"
                         />
                       ) : (
@@ -712,7 +992,7 @@ export default function Game() {
                           className="disabled:cursor-not-allowed"
                         >
                           <CardComponent 
-                            card={gameState.discardPile[gameState.discardPile.length - 1]}
+                            card={gameState.discardPile[0]}
                             className="w-28 h-36"
                           />
                         </button>
@@ -902,6 +1182,20 @@ export default function Game() {
         </div>
       </div>
       
+      {/* Round Results Modal */}
+      {showRoundResults && roundResultsData && gameState && gameState.id && (
+        <RoundResultsModal
+          isOpen={showRoundResults}
+          onClose={handleCloseRoundResults}
+          gameState={gameState as GameState}
+          knockerPlayerId={roundResultsData.knockerPlayerId}
+          knockerMelds={roundResultsData.knockerMelds}
+          layOffs={roundResultsData.layOffs}
+          currentPlayerId={getMyPlayer()?.id}
+          onContinue={handleContinueAfterRoundResults}
+        />
+      )}
+
       {/* Celebration Effects */}
       <Confetti active={showConfetti} duration={3000} />
       <FlyingAnimal active={showFlyingAnimal} duration={3000} />

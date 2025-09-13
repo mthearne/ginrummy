@@ -46,20 +46,29 @@ export function useNotifications() {
         // Request browser notification permission
         await NotificationService.requestNotificationPermission();
         
-        // Load existing notifications
-        const existingNotifications = await NotificationService.getNotifications();
-        setNotifications(existingNotifications);
-        setUnreadCount(existingNotifications.filter(n => !n.read).length);
-        
-        // Connect to SSE stream
+        // Get token and check if user is authenticated
         const token = localStorage.getItem('accessToken');
         console.log('🔔 [HOOK] Initializing notifications, token present:', !!token);
-        if (token) {
-          console.log('🔔 [HOOK] Connecting to notification service...');
+        
+        if (!token) {
+          console.warn('🔔 [HOOK] No access token found, skipping notification initialization');
+          return;
+        }
+
+        try {
+          // Test if token is valid by trying to load notifications
+          console.log('🔔 [HOOK] Testing token validity...');
+          const existingNotifications = await NotificationService.getNotifications();
+          setNotifications(existingNotifications);
+          setUnreadCount(existingNotifications.filter(n => !n.read).length);
+          
+          // Token is valid, start notification polling
+          console.log('🔔 [HOOK] Token valid, connecting to notification service...');
           notificationService.connect(token);
           setIsConnected(true);
-        } else {
-          console.warn('🔔 [HOOK] No access token found, cannot connect to SSE');
+        } catch (authError) {
+          console.warn('🔔 [HOOK] Token validation failed, not starting notification polling:', authError.message);
+          // Don't start notification polling if token is invalid
         }
       } catch (error) {
         console.error('Failed to initialize notifications:', error);

@@ -17,9 +17,9 @@ export const TurnHistory: React.FC = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
-      <h3 className="text-lg font-semibold text-gray-800 mb-3">Turn History</h3>
+      <h3 className="text-lg font-semibold text-gray-800 mb-3">Turn History <span className="text-xs text-gray-500 font-normal">(latest first)</span></h3>
       <div className="max-h-64 overflow-y-auto space-y-2">
-        {turnHistory.map((entry) => (
+        {turnHistory.slice().reverse().map((entry) => (
           <div key={entry.id} className="border-l-2 border-blue-500 pl-3 pb-2">
             <div className="flex items-center justify-between">
               <span className="font-medium text-sm text-gray-700">

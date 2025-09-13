@@ -1,334 +1,241 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAccessToken } from '../../../../../src/utils/jwt';
-import { prisma } from '../../../../../src/utils/database';
-import { GinRummyGame } from '@gin-rummy/common';
-import { persistentGameCache, AI_USERNAME } from '../../../../../src/utils/persistentGameCache';
-import { fallbackGameCache } from '../../../../../src/utils/fallbackGameCache';
+import { PrismaClient } from '@prisma/client';
+import { TurnController } from '../../../../../lib/turn-controller';
+import { verifyAuth } from '../../../../../lib/auth';
+import { EventStore } from '../../../../../src/services/eventStore';
+import { ReplayService } from '../../../../../src/services/replay';
 
+const prisma = new PrismaClient();
+const turnController = new TurnController(prisma);
+
+/**
+ * Generate turn history from game events for frontend compatibility
+ */
+async function generateTurnHistoryFromEvents(prisma: PrismaClient, gameId: string) {
+  try {
+    // Get game events and player info
+    const [events, game] = await Promise.all([
+      prisma.gameEvent.findMany({
+        where: { gameId },
+        orderBy: { sequenceNumber: 'asc' }
+      }),
+      prisma.game.findUnique({
+        where: { id: gameId },
+        include: {
+          player1: { select: { id: true, username: true } },
+          player2: { select: { id: true, username: true } }
+        }
+      })
+    ]);
+
+    if (!game) return [];
+
+    // Create player lookup
+    const playerLookup: { [playerId: string]: string } = {};
+    if (game.player1) playerLookup[game.player1.id] = game.player1.username;
+    if (game.player2) playerLookup[game.player2.id] = game.player2.username || 'AI Assistant';
+    if (game.vsAI) playerLookup['ai-player'] = 'AI Assistant';
+
+    // Convert events to turn history entries
+    const turnHistory = events
+      .filter(event => {
+        // Only include player action events that should show in turn history
+        return [
+          'TAKE_UPCARD',
+          'PASS_UPCARD',
+          'DRAW_FROM_STOCK',
+          'DRAW_FROM_DISCARD', 
+          'DISCARD_CARD',
+          'KNOCK',
+          'GIN',
+          'LAY_OFF'
+        ].includes(event.eventType);
+      })
+      .map((event, index) => {
+        const eventData = event.eventData as any;
+        let description = '';
+        let action = event.eventType;
+
+        // Generate human-readable description based on event type
+        switch (event.eventType) {
+          case 'TAKE_UPCARD':
+            const cardTaken = eventData.cardTaken ? `${eventData.cardTaken.rank} of ${eventData.cardTaken.suit}` : 'unknown card';
+            description = `took the upcard (${cardTaken})`;
+            break;
+          case 'PASS_UPCARD':
+            description = 'passed on the upcard';
+            break;
+          case 'DRAW_FROM_STOCK':
+            description = 'drew a card from the stock';
+            break;
+          case 'DRAW_FROM_DISCARD':
+            const cardDrawn = eventData.cardDrawn ? `${eventData.cardDrawn.rank} of ${eventData.cardDrawn.suit}` : 'a card';
+            description = `drew ${cardDrawn} from the discard pile`;
+            break;
+          case 'DISCARD_CARD':
+            const cardDiscarded = eventData.cardDiscarded ? `${eventData.cardDiscarded.rank} of ${eventData.cardDiscarded.suit}` : 'a card';
+            description = `discarded ${cardDiscarded}`;
+            break;
+          case 'KNOCK':
+            description = 'knocked';
+            break;
+          case 'GIN':
+            description = 'went gin';
+            break;
+          case 'LAY_OFF':
+            description = 'laid off cards';
+            break;
+          default:
+            description = event.eventType.toLowerCase().replace(/_/g, ' ');
+        }
+
+        return {
+          id: event.id,
+          turnNumber: index + 1,
+          playerId: event.playerId || 'system',
+          playerName: event.playerId ? (playerLookup[event.playerId] || 'Unknown Player') : 'System',
+          action,
+          description,
+          timestamp: event.createdAt.toISOString()
+        };
+      });
+
+    console.log(`📝 StateAPI: Generated ${turnHistory.length} turn history entries from ${events.length} events`);
+    return turnHistory;
+  } catch (error) {
+    console.error('❌ StateAPI: Failed to generate turn history:', error);
+    return [];
+  }
+}
+
+/**
+ * GET /api/games/[gameId]/state
+ * 
+ * Event-Sourced Game State Endpoint
+ * Loads game state by replaying events from the database
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: { gameId: string } }
 ) {
   const { gameId } = params;
-  console.log(`🚨 STATE ENDPOINT DEBUG: GET /api/games/${gameId}/state called`);
-  console.log(`🚨 STATE ENDPOINT DEBUG: Timestamp: ${new Date().toISOString()}`);
-  
+  console.log(`🎮 StateAPI: GET /api/games/${gameId}/state`);
+
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Verify authentication
+    const authResult = await verifyAuth(request);
+    if (!authResult.success) {
+      console.log('❌ StateAPI: Authentication failed');
       return NextResponse.json(
-        { error: 'Authorization token required' },
+        { error: 'Authentication failed' },
         { status: 401 }
       );
     }
 
-    const token = authHeader.substring(7);
-    const decoded = verifyAccessToken(token);
+    const userId = authResult.user.id;
+    console.log(`👤 StateAPI: Authenticated user ${userId}`);
+
+    // Load game state using new EventStore + ReplayService (with player filtering)
+    let result;
+    let streamVersion;
     
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      );
-    }
-
-    const { gameId } = params;
-
-    // Get game from database
-    const game = await prisma.game.findUnique({
-      where: {
-        id: gameId
-      },
-      include: {
-        player1: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            elo: true,
-          }
-        },
-        player2: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            elo: true,
-          }
-        }
-      }
-    });
-
-    if (!game) {
-      return NextResponse.json(
-        { error: 'Game not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if user is a player in this game
-    const isPlayer = game.player1Id === decoded.userId || game.player2Id === decoded.userId;
-    
-    if (!isPlayer) {
-      return NextResponse.json(
-        { error: 'Access denied. You are not a player in this game.' },
-        { status: 403 }
-      );
-    }
-
-    // For AI games, use persistent cached state or initialize new game
-    if (game.vsAI) {
-      console.log('🔍 STEP 1: Loading AI game state for gameId:', gameId);
-      console.log('🔍 Game record:', { vsAI: game.vsAI, status: game.status, player1Id: game.player1Id, player2Id: game.player2Id });
+    try {
+      // Get current stream version
+      streamVersion = await EventStore.getCurrentVersion(gameId);
+      console.log(`📊 StateAPI: Current stream version: ${streamVersion}`);
       
-      let gameEngine: any;
+      // Rebuild game state with player filtering (hide opponent cards)
+      const replayResult = await ReplayService.rebuildFilteredState(gameId, userId);
       
-      try {
-        gameEngine = await persistentGameCache.get(gameId);
-        console.log('🔍 STEP 1 SUCCESS: Game engine loaded from cache');
-      } catch (error) {
-        console.log('🔍 STEP 1 FALLBACK: Persistent cache failed, trying fallback cache:', error.message);
-        gameEngine = await fallbackGameCache.get(gameId);
+      result = {
+        success: true,
+        gameState: replayResult.state
+      };
+      
+      // Double-check version consistency
+      if (replayResult.version !== streamVersion) {
+        console.warn(`⚠️ StateAPI: Version mismatch - replay: ${replayResult.version}, store: ${streamVersion}`);
+        streamVersion = replayResult.version; // Use replay version as authoritative
       }
       
-      if (!gameEngine) {
-        // This should not happen if the game exists in the database
-        // The persistent cache should now handle initialization from database records
-        console.error(`AI game engine still null after cache attempts for gameId: ${gameId}`);
+    } catch (error: any) {
+      console.log('❌ StateAPI: Failed to load game state with ReplayService:', error.message);
+      
+      // Fallback to old TurnController method for compatibility
+      console.log('🔄 StateAPI: Falling back to TurnController.loadGameState');
+      result = await turnController.loadGameState(gameId, userId);
+      streamVersion = 0; // Legacy - no stream version available
+      
+      if (!result.success) {
         return NextResponse.json(
-          { 
-            error: 'Game state could not be loaded or initialized. Please try refreshing the page.',
-            code: 'GAME_INITIALIZATION_FAILED'
+          {
+            error: result.error,
           },
           { status: 500 }
         );
       }
+    }
+
+    // Generate turn history from events for frontend compatibility
+    const currentRoundTurnHistory = await generateTurnHistoryFromEvents(prisma, gameId);
+
+    console.log('✅ StateAPI: Game state loaded successfully', {
+      gameId,
+      phase: result.gameState.phase,
+      players: result.gameState.players?.length,
+      currentPlayer: result.gameState.currentPlayerId
+    });
+
+    // Check if we need to trigger AI for layoff phase (when loading existing game)
+    if (result.gameState.phase === 'layoff' && result.gameState.vsAI && !result.gameState.gameOver) {
+      console.log('🚨🚨🚨 StateAPI: Game is in layoff phase, triggering AI queue for layoff decision');
       
-      // Update game to active status in database if still waiting - PRESERVE gameState!
-      if (game.status === 'WAITING' as any) {
-        console.log(`Updating game ${gameId} status to ACTIVE - preserving existing gameState`);
-        await prisma.game.update({
-          where: { id: gameId },
-          data: {
-            status: 'ACTIVE' as any
-            // DO NOT clear gameState - it should remain as-is
-          }
+      // Import and trigger AI queue processor
+      const { getAIQueueProcessor } = await import('../../../../../lib/ai-queue-processor');
+      const aiQueueProcessor = getAIQueueProcessor(prisma);
+      
+      // Trigger AI layoff processing asynchronously
+      setImmediate(() => {
+        console.log('🚨🚨🚨 StateAPI: About to call aiQueueProcessor.queueAIMove for layoff');
+        aiQueueProcessor.queueAIMove(gameId).catch(error => {
+          console.error('❌ StateAPI: AI queue processing failed:', error);
         });
-      }
-
-      // Check if AI needs to move when state is loaded
-      const currentState = gameEngine.getState();
-      let aiProcessedMoves = false;
-      
-      const aiPlayer = currentState.players?.find(p => p.id !== decoded.userId);
-      if (currentState.currentPlayerId === aiPlayer?.id && !currentState.gameOver) {
-        console.log('AI turn detected when loading state - processing AI moves synchronously');
-        console.log(`AI state: phase=${currentState.phase}, currentPlayer=${currentState.currentPlayerId}`);
-        
-        try {
-          // Process AI moves immediately and synchronously to prevent race conditions
-          const aiResults = gameEngine.processAIMoves();
-          console.log(`AI processed ${aiResults.length} moves after state load`);
-          
-          if (aiResults.length > 0) {
-            aiProcessedMoves = true;
-          }
-          
-          // Log successful AI moves
-          aiResults.forEach((result, index) => {
-            if (result.success) {
-              console.log(`AI move ${index + 1} SUCCESS: ${result.move?.type}`);
-            } else {
-              console.error(`AI move ${index + 1} FAILED: ${result.error}`);
-            }
-          });
-          
-          const stateAfterAI = gameEngine.getState();
-          console.log(`State after AI processing: phase=${stateAfterAI.phase}, currentPlayer=${stateAfterAI.currentPlayerId}`);
-          
-        } catch (error) {
-          console.error('AI processing failed during state load:', error);
-        }
-      }
-
-      // Save state if AI actually processed moves during load
-      if (aiProcessedMoves) {
-        try {
-          await persistentGameCache.set(gameId, gameEngine);
-          console.log('Game state saved after AI processing during load');
-        } catch (error) {
-          console.log('Failed to save state after AI processing:', error.message);
-          await fallbackGameCache.set(gameId, gameEngine);
-        }
-      }
-
-      // Get final state after all processing (including AI moves)
-      const finalGameState = gameEngine.getState();
-      
-      // CRITICAL: Final validation before sending to frontend
-      const p1Cards = finalGameState.players[0]?.hand?.length || 0;
-      const p2Cards = finalGameState.players[1]?.hand?.length || 0;
-      
-      if (p1Cards > 11 || p2Cards > 11) {
-        console.error(`🚨 PREVENTING CORRUPTED STATE FROM REACHING FRONTEND!`);
-        console.error(`Player hands: P1=${p1Cards}, P2=${p2Cards}`);
-        console.error(`P1 hand:`, finalGameState.players[0]?.hand?.map(c => c.id));
-        console.error(`P2 hand:`, finalGameState.players[1]?.hand?.map(c => c.id));
-        
-        return NextResponse.json({
-          error: `Game state corrupted: Player has ${p1Cards > 11 ? p1Cards : p2Cards} cards instead of 10-11. Please refresh to reinitialize.`,
-          code: 'CORRUPTED_GAME_STATE'
-        }, { status: 500 });
-      }
-      
-      let playerState;
-      try {
-        playerState = gameEngine.getPlayerState(decoded.userId);
-        
-        // Log hand sizes to debug missing cards issue
-        if (playerState && playerState.players) {
-          playerState.players.forEach((player: any) => {
-            if (player.hand && Array.isArray(player.hand)) {
-              console.log(`🔍 Player ${player.id} hand: ${player.hand.length} cards`);
-              console.log(`🔍 Card IDs:`, player.hand.map((c: any) => c.id));
-            }
-          });
-        }
-      } catch (error) {
-        console.error('getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
-        console.error('Available players:', finalGameState.players?.map(p => ({ id: p.id, username: p.username })));
-        // Fallback to full state but log the error
-        playerState = finalGameState;
-      }
-
-      return NextResponse.json({
-        gameState: playerState,
-        debug: {
-          restorationMethod: 'ai_persistent_cache',
-          cacheHit: true,
-          aiProcessingSkipped: false,
-          aiProcessedMoves: aiProcessedMoves,
-          timestamp: new Date().toISOString(),
-          finalPhase: finalGameState.phase,
-          finalCurrentPlayer: finalGameState.currentPlayerId,
-          gameEngineDebug: (gameEngine as any)._debugInfo || null,
-          playerStateError: playerState === finalGameState ? 'getPlayerState failed, using full state' : null
-        }
       });
     }
 
-    // For waiting games, return waiting state
-    if (game.status === 'WAITING') {
-      return NextResponse.json({
-        waitingState: {
-          gameId: game.id,
-          currentPlayers: game.player2Id ? 2 : 1,
-          maxPlayers: game.maxPlayers,
-        }
-      });
-    }
-
-    // For active PvP games, use persistent cached state or initialize new game
-    let gameEngine: any;
+    // Check if game is in waiting state and should return waitingState instead of state
+    console.log('🔍 StateAPI: Checking waiting state condition:', {
+      status: result.gameState.status,
+      phase: result.gameState.phase,
+      playersLength: result.gameState.players?.length,
+      playersArray: result.gameState.players
+    });
     
-    try {
-      gameEngine = await persistentGameCache.get(gameId);
-    } catch (error) {
-      console.log('PvP persistent cache failed, trying fallback cache:', error.message);
-      gameEngine = await fallbackGameCache.get(gameId);
-    }
-    
-    if (!gameEngine) {
-      // This should not happen if the game exists in the database
-      // The persistent cache should now handle initialization from database records
-      console.error(`PvP game engine still null after cache attempts for gameId: ${gameId}`);
-      return NextResponse.json(
-        { 
-          error: 'Game state could not be loaded or initialized. Please try refreshing the page.',
-          code: 'GAME_INITIALIZATION_FAILED'
-        },
-        { status: 500 }
-      );
-    }
-    
-    // Update game to active status in database if still waiting - PRESERVE gameState!
-    if (game.status === 'WAITING' as any) {
-      console.log(`Updating PvP game ${gameId} status to ACTIVE - preserving existing gameState`);
-      await prisma.game.update({
-        where: { id: gameId },
-        data: {
-          status: 'ACTIVE' as any
-          // DO NOT clear gameState - it should remain as-is
-        }
-      });
-    }
-
-    // Don't save PvP state here - we're just loading, not updating
-    // Saving here was overwriting newer state with older restored state
-
-    let playerState;
-    try {
-      playerState = gameEngine.getPlayerState(decoded.userId);
-    } catch (error) {
-      console.error('PvP getPlayerState failed for userId:', decoded.userId, 'error:', error.message);
-      const currentState = gameEngine.getState();
-      console.error('Available players:', currentState.players?.map(p => ({ id: p.id, username: p.username })));
-      // Fallback to full state but log the error
-      playerState = currentState;
+    if (result.gameState.status === 'WAITING') {
+      console.log('🎮 StateAPI: Game is in waiting status, returning full game state instead of waitingState for ready system');
+      // For the new ready system, we return the full game state when WAITING
+      // The frontend will handle showing the waiting/ready screen based on player count and ready status
     }
 
     return NextResponse.json({
-      gameState: playerState,
-      debug: {
-        restorationMethod: 'persistent_cache',
-        cacheHit: true,
-        timestamp: new Date().toISOString(),
-        gameEngineDebug: (gameEngine as any)._debugInfo || null,
-        playerStateError: playerState === gameEngine.getState() ? 'getPlayerState failed, using full state' : null
-      }
+      success: true,
+      state: result.gameState,        // Renamed for Phase 1 API consistency
+      streamVersion,                  // NEW: Stream version for optimistic concurrency
+      gameId,                         // NEW: Echo gameId for client validation
+      serverClock: new Date().toISOString(), // NEW: Server timestamp
+      currentRoundTurnHistory,        // Legacy: For existing frontend compatibility
+      version: 'event-sourced'        // Legacy: For existing frontend compatibility
     });
 
   } catch (error) {
-    console.error('Get game state error:', error);
+    console.error('❌ StateAPI: Unexpected error:', error);
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }
 }
-
-/**
- * Process initial AI moves when a new game is created (upcard decision only)
- */
-async function processInitialAIMoves(gameEngine: any): Promise<void> {
-  const currentState = gameEngine.getState();
-  
-  // For initialization context, check if AI exists by username (only creation context)
-  const aiPlayer = currentState.players?.find(p => p.username === AI_USERNAME);
-  if (currentState.currentPlayerId !== aiPlayer?.id || currentState.phase !== 'upcard_decision') {
-    return; // Not AI's turn or not upcard decision phase
-  }
-  
-  console.log('AI making initial upcard decision');
-  const aiMove = gameEngine.getAISuggestion();
-  
-  if (!aiMove) {
-    console.log('No AI move available for upcard decision phase');
-    return;
-  }
-  
-  console.log('AI making initial move:', aiMove.type);
-  const moveResult = gameEngine.makeMove(aiMove);
-  
-  if (!moveResult.success) {
-    console.error('AI initial move failed:', moveResult.error);
-    return;
-  }
-  
-  console.log('AI initial move successful, new phase:', moveResult.state.phase, 'next player:', moveResult.state.currentPlayerId);
-}
-
-// Removed processAIMovesFromStateAsync function - using synchronous AI processing during state load
-// to prevent race conditions between state loading and AI move processing
-

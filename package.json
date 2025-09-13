@@ -43,6 +43,7 @@
     "axios": "^1.6.7",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.0",
+    "eventsource": "^4.0.0",
     "jsonwebtoken": "^9.0.2",
     "next": "14",
     "postcss": "^8.4.35",

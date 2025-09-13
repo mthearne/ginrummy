@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { FriendsService, Friend, FriendRequest } from '../services/friends';
 import { useSocket } from '../services/socket';
 
-export function FriendManager() {
+interface FriendManagerProps {
+  onStartChat?: (friendId: string) => void;
+}
+
+export function FriendManager({ onStartChat }: FriendManagerProps) {
   const [activeTab, setActiveTab] = useState<'search' | 'friends' | 'requests'>('friends');
   const [searchUsername, setSearchUsername] = useState('');
   const [searching, setSearching] = useState(false);
@@ -212,19 +216,34 @@ export function FriendManager() {
                   <div className="space-y-3">
                     {friends.map((friend) => (
                       <div key={friend.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                        <div>
-                          <div className="font-medium">{friend.user.username}</div>
-                          <div className="text-sm text-gray-500">
-                            ELO: {friend.user.elo} • {friend.user.gamesPlayed} games • Friends since {new Date(friend.since).toLocaleDateString()}
+                        <div className="flex items-center space-x-3">
+                          {/* Online indicator */}
+                          <div className="relative">
+                            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                          <div>
+                            <div className="font-medium">{friend.user.username}</div>
+                            <div className="text-sm text-gray-500">
+                              ELO: {friend.user.elo} • {friend.user.gamesPlayed} games
+                            </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeFriend(friend.id)}
-                          disabled={actionLoading === friend.id}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          {actionLoading === friend.id ? 'Removing...' : 'Remove'}
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => onStartChat?.(friend.user.id)}
+                            className="btn btn-primary btn-sm"
+                          >
+                            Chat
+                          </button>
+                          <button
+                            onClick={() => removeFriend(friend.id)}
+                            disabled={actionLoading === friend.id}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium px-2"
+                          >
+                            {actionLoading === friend.id ? 'Removing...' : 'Remove'}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -1,5 +1,8 @@
 import { GameMove } from '@gin-rummy/common';
 import { useGameStore } from '../store/game';
+import { useAuthStore } from '../store/auth';
+import { api, gamesAPI } from './api';
+import { gameStreamingService, GameStreamEvent } from './gameStreaming';
 
 /**
  * Simplified Socket Service - REST API Only
@@ -9,63 +12,135 @@ import { useGameStore } from '../store/game';
  */
 class SocketService {
   private connected: boolean = false;
+  private refreshInterval: NodeJS.Timeout | null = null;
+  private currentGameId: string | null = null;
+  private gameStreamListener: (() => void) | null = null;
 
   connect(token: string) {
-    console.log('Socket service initialized - REST API only mode');
+    console.log('Socket service initialized - Real-time streaming mode');
     this.connected = true;
     useGameStore.getState().setConnected(true);
+    
+    // Connect to game streaming service
+    gameStreamingService.connect(token, this.currentGameId || undefined);
+    
+    // Set up game streaming listener
+    this.gameStreamListener = gameStreamingService.addListener(this.handleGameStreamEvent.bind(this));
+    
+    // Set up periodic reconnection check (fallback for when streaming fails)
+    this.setupPeriodicReconnection();
+    
     return null; // No actual socket connection
+  }
+  
+  private setupPeriodicReconnection() {
+    // Check streaming connection every 30 seconds and reconnect if needed
+    setInterval(() => {
+      if (this.connected && this.currentGameId && !gameStreamingService.isConnected()) {
+        console.log('🎮 Socket: Streaming connection lost, attempting reconnection');
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+          gameStreamingService.connect(token, this.currentGameId);
+        }
+      }
+    }, 30000);
   }
 
   disconnect() {
     console.log('Socket service disconnected');
     this.connected = false;
     useGameStore.getState().setConnected(false);
+    
+    // Disconnect game streaming service
+    gameStreamingService.disconnect();
+    
+    // Remove streaming listener
+    if (this.gameStreamListener) {
+      this.gameStreamListener();
+      this.gameStreamListener = null;
+    }
+    
+    // Clear periodic refresh
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
   }
 
   // Game actions - all via REST API
   joinGame(gameId: string) {
     console.log(`Joining game: ${gameId}`);
+    this.currentGameId = gameId;
+    
+    // Set current game for streaming service
+    gameStreamingService.setCurrentGame(gameId);
+    
     this.joinGameViaAPI(gameId);
+    
+    // Set up periodic refresh as backup for when streaming fails
+    this.setupPeriodicRefresh(gameId);
+  }
+  
+  private setupPeriodicRefresh(gameId: string) {
+    // Clear existing refresh interval
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+    
+    // Refresh game state every 15 seconds as backup
+    this.refreshInterval = setInterval(() => {
+      if (this.currentGameId === gameId) {
+        console.log('🔄 Periodic refresh: Checking for game updates');
+        this.joinGameViaAPI(gameId);
+      }
+    }, 15000);
   }
 
   // REST API for joining games
   private async joinGameViaAPI(gameId: string) {
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.error('No access token found');
-        return;
-      }
-
-      const response = await fetch(`/api/games/${gameId}/state`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await gamesAPI.getGameState(gameId);
+      const data = response.data;
       
       // Guard against cross-game writes
       const currentGameId = useGameStore.getState().currentGameId;
       if (currentGameId !== gameId) {
         console.warn('joinGame response ignored for non-current game:', { 
-          responseId: data?.gameState?.id || data?.waitingState?.gameId, 
+          responseId: data?.state?.id || data?.waitingState?.gameId, 
           expected: currentGameId,
           received: gameId
         });
         return;
       }
       
-      if (data.gameState) {
-        useGameStore.getState().setGameState(data.gameState);
+      console.log('📊 Socket: Received game state with streamVersion:', data.streamVersion);
+      
+      if (data.state) {
+        const gameStore = useGameStore.getState();
+        const currentUserId = useAuthStore.getState().user?.id;
+        
+        // Check if AI thinking should be cleared (AI move completed)
+        console.log('🔍 AI Detection Debug:', {
+          isAIThinking: gameStore.isAIThinking,
+          currentUserId,
+          gameCurrentPlayerId: data.state.currentPlayerId,
+          aiMoveCompleted: gameStore.isAIThinking && currentUserId && data.state.currentPlayerId === currentUserId
+        });
+        
+        if (gameStore.isAIThinking && currentUserId && data.state.currentPlayerId === currentUserId) {
+          console.log('🤖 AI move completed - clearing thinking state');
+          gameStore.setAIThinking(false, []);
+        }
+        
+        useGameStore.getState().setGameState(data.state, data.streamVersion);
         useGameStore.getState().setConnected(true);
-        console.log('Game state loaded via REST API:', data.gameState);
+        console.log('Game state loaded via REST API:', data.state, 'at version', data.streamVersion);
+        
+        // Update turn history if provided
+        if (data.currentRoundTurnHistory && Array.isArray(data.currentRoundTurnHistory)) {
+          console.log('📝 Socket: Updating turn history from state load:', data.currentRoundTurnHistory.length, 'entries');
+          useGameStore.getState().setTurnHistory(data.currentRoundTurnHistory);
+        }
       } else if (data.waitingState) {
         useGameStore.getState().setWaitingState(data.waitingState);
         useGameStore.getState().setConnected(true);
@@ -80,7 +155,13 @@ class SocketService {
 
   leaveGame(gameId: string) {
     console.log(`Leaving game: ${gameId}`);
-    // Could implement via REST API if needed
+    this.currentGameId = null;
+    
+    // Clear periodic refresh
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
   }
 
   makeMove(move: GameMove) {
@@ -97,44 +178,26 @@ class SocketService {
 
   // REST API for making moves
   private async makeMoveViaAPI(move: GameMove) {
-    const { setIsSubmittingMove } = useGameStore.getState();
+    const { setIsSubmittingMove, getCurrentStreamVersion, generateRequestId } = useGameStore.getState();
     setIsSubmittingMove(true);
     
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.error('No access token found');
-        return;
-      }
-
-      console.log('Making move via REST API:', move);
+      // Generate requestId for idempotency and get current stream version for concurrency control
+      const requestId = generateRequestId();
+      const expectedVersion = getCurrentStreamVersion();
+      
+      console.log('Making move via REST API:', move, {
+        requestId,
+        expectedVersion
+      });
       
       const currentGameState = useGameStore.getState().gameState;
       if (currentGameState) {
         console.log('Frontend game state before move - Phase:', currentGameState.phase, 'Current player:', currentGameState.currentPlayerId);
       }
 
-      const response = await fetch(`/api/games/${move.gameId}/move`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(move)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        if (errorData.code === 'GAME_STATE_LOST') {
-          useGameStore.getState().setGameError(errorData.error);
-          return;
-        }
-        
-        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Unknown error'}`);
-      }
-
-      const data = await response.json();
+      const response = await gamesAPI.makeMove(move.gameId!, move, requestId, expectedVersion);
+      const data = response.data;
       
       // Guard against cross-game writes
       const currentGameId = useGameStore.getState().currentGameId;
@@ -151,21 +214,64 @@ class SocketService {
         console.log('Move successful, received state from backend:', {
           phase: data.gameState.phase,
           currentPlayerId: data.gameState.currentPlayerId,
-          gameId: data.gameState.id
+          gameId: data.gameState.id,
+          streamVersion: data.streamVersion
         });
+        
+        // Update stream version first
+        if (data.streamVersion) {
+          useGameStore.getState().setStreamVersion(data.streamVersion);
+        }
         
         // Add turn history entry if provided
         if (data.turnHistoryEntry) {
           console.log('🔍 Socket: Adding human turn history entry:', data.turnHistoryEntry);
-          useGameStore.getState().addTurnHistoryEntry(data.turnHistoryEntry);
+          
+          // Fix turn number based on current history length
+          const gameStore = useGameStore.getState();
+          const correctedEntry = {
+            ...data.turnHistoryEntry,
+            turnNumber: gameStore.turnHistory.length + 1
+          };
+          console.log('🔍 Socket: Corrected turn number from', data.turnHistoryEntry.turnNumber, 'to', correctedEntry.turnNumber);
+          
+          gameStore.addTurnHistoryEntry(correctedEntry);
         } else {
           console.log('🔍 Socket: No turn history entry found in move response:', data);
         }
         
         // Handle AI thinking if needed
+        console.log('🔍 AI Trigger Debug:', {
+          debugExists: !!data.debug,
+          aiShouldThink: data.debug?.aiShouldThink,
+          hasGameId: !!move.gameId,
+          willTriggerAI: !!(data.debug?.aiShouldThink && move.gameId)
+        });
+        
         if (data.debug?.aiShouldThink && move.gameId) {
-          console.log('🤖 AI should think, starting thinking process');
-          this.handleAIThinking(move.gameId);
+          console.log('🤖 AI should think - backend will handle automatically via AI Queue Processor');
+          console.log('🤖 Current game state before AI thinking:', {
+            phase: data.gameState.phase,
+            currentPlayerId: data.gameState.currentPlayerId,
+            gameId: data.gameState.id
+          });
+          
+          // Use AI thoughts from response if available, otherwise use default
+          const aiThoughts = data.aiThoughts || ['Thinking...', 'Analyzing the situation...'];
+          console.log('🤖 AI thoughts:', aiThoughts);
+          
+          // Show AI thinking immediately with thoughts
+          useGameStore.getState().setAIThinking(true, aiThoughts);
+          
+          // Clear AI thinking after a reasonable delay (AI should complete within ~10 seconds)
+          setTimeout(() => {
+            console.log('🤖 AI thinking timeout - clearing thinking state and refreshing');
+            useGameStore.getState().setAIThinking(false, []);
+            // Refresh game state to get the AI's completed move
+            this.joinGameViaAPI(move.gameId!);
+          }, 10000);
+        } else {
+          console.log('🔍 AI polling NOT started - conditions not met');
         }
         
         if (data.debug) {
@@ -175,31 +281,78 @@ class SocketService {
         useGameStore.getState().setGameState(data.gameState);
         console.log('Move completed. Current player:', data.gameState.currentPlayerId, 'Phase:', data.gameState.phase);
         
-        // If it's now AI's turn, wait a bit then refresh to see AI moves
-        const isAIGame = data.gameState.vsAI;
-        const currentUserId = localStorage.getItem('userId'); // Assuming this exists
-        const isAITurn = isAIGame && data.gameState.currentPlayerId !== currentUserId;
+        // Immediate fresh state reload for consistency
+        setTimeout(() => {
+          console.log('🔄 Post-move refresh: Loading fresh state from event-sourced backend');
+          this.joinGameViaAPI(move.gameId!);
+        }, 500);
         
-        console.log('🔍 AI Turn Detection Debug:', {
+        // REMOVED: Frontend AI trigger backup for debugging
+        // Let's rely entirely on backend to identify any remaining issues
+        console.log('🔍 Frontend AI trigger backup DISABLED - backend-only mode for debugging');
+        
+        const isAIGame = data.gameState.vsAI;
+        const currentUserId = useAuthStore.getState().user?.id;
+        const aiPlayer = data.gameState.players?.find(p => p.id !== currentUserId);
+        const isAITurn = isAIGame && currentUserId && aiPlayer && data.gameState.currentPlayerId === aiPlayer.id;
+        
+        console.log('🔍 AI Turn Detection Debug (backend-only mode):', {
           isAIGame,
           currentUserId,
           gameCurrentPlayerId: data.gameState.currentPlayerId,
+          aiPlayerId: aiPlayer?.id,
           phase: data.gameState.phase,
-          playerIdComparison: `${data.gameState.currentPlayerId} !== ${currentUserId}`,
           isAITurn,
-          moveType: move.type
+          backendShouldHandle: data.debug?.aiShouldThink,
+          moveType: move.type,
+          note: 'Frontend backup disabled - backend must handle AI'
         });
         
-        if (isAITurn) {
-          console.log('🤖 AI turn detected, triggering AI thinking process to capture turn history');
-          // Trigger AI thinking process to capture turn history entries
-          this.handleAIThinking(move.gameId!);
+        if (isAITurn && !data.debug?.aiShouldThink) {
+          console.warn('⚠️ POTENTIAL ISSUE: AI turn detected but backend did not set aiShouldThink=true');
+          console.warn('⚠️ This would normally be handled by frontend backup, but backup is disabled for debugging');
+          console.warn('⚠️ AI may not move - this indicates a backend logic issue');
         }
       }
 
     } catch (error) {
       console.error('Failed to make move via API:', error);
-      useGameStore.getState().setGameError('Failed to make move: ' + error.message);
+      
+      // Handle version conflict errors (409)
+      if (error.response?.data?.code === 'VERSION_CONFLICT') {
+        console.log('🔄 Version conflict detected - refreshing game state');
+        const serverVersion = error.response.data.serverVersion;
+        const clientVersion = error.response.data.clientVersion;
+        
+        console.log(`📊 Version mismatch - client: ${clientVersion}, server: ${serverVersion}`);
+        
+        // Update to server version and refresh game state
+        if (typeof serverVersion === 'number') {
+          useGameStore.getState().setStreamVersion(serverVersion);
+        }
+        
+        // Refresh game state from server
+        this.joinGameViaAPI(move.gameId!);
+        
+        useGameStore.getState().setGameError('Game state has changed. Please try your move again.');
+        return;
+      }
+      
+      // Handle duplicate request errors (409)
+      if (error.response?.data?.code === 'DUPLICATE_REQUEST') {
+        console.log('🔄 Duplicate request detected - refreshing game state');
+        this.joinGameViaAPI(move.gameId!);
+        return; // Don't show error for duplicate requests
+      }
+      
+      // Handle specific game state errors
+      if (error.response?.data?.code === 'GAME_STATE_LOST') {
+        useGameStore.getState().setGameError(error.response.data.error);
+        return;
+      }
+      
+      const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
+      useGameStore.getState().setGameError('Failed to make move: ' + errorMessage);
     } finally {
       setIsSubmittingMove(false);
     }
@@ -210,93 +363,76 @@ class SocketService {
     // Could implement via REST API if needed
   }
 
-  // Handle AI thinking process with visual feedback
-  private aiThinkingInProgress = false;
-  private async handleAIThinking(gameId: string) {
-    // Prevent multiple AI thinking processes
-    if (this.aiThinkingInProgress) {
-      console.log('🤖 AI thinking already in progress, skipping duplicate request');
-      return;
-    }
-    
-    try {
-      console.log('Starting AI thinking process for game:', gameId);
-      this.aiThinkingInProgress = true;
-      
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.error('No access token for AI thoughts');
-        return;
-      }
-
-      const thoughtsResponse = await fetch(`/api/games/${gameId}/ai-thoughts`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!thoughtsResponse.ok) {
-        console.error('Failed to get AI thoughts:', thoughtsResponse.status);
-        return;
-      }
-
-      const thoughtsData = await thoughtsResponse.json();
-      const thoughts = thoughtsData.thoughts || ['Thinking...'];
-      
-      console.log('AI thoughts:', thoughts);
-      useGameStore.getState().setAIThinking(true, thoughts);
-      
-      const thinkingDelay = Math.random() * 2000 + 2000;
-      console.log(`AI will think for ${Math.round(thinkingDelay)}ms`);
-      
-      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
-      
-      const aiMoveResponse = await fetch(`/api/games/${gameId}/ai-move`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ thoughts })
-      });
-
-      if (!aiMoveResponse.ok) {
-        console.error('AI move failed:', aiMoveResponse.status);
-        useGameStore.getState().setAIThinking(false, []);
-        return;
-      }
-
-      const aiMoveData = await aiMoveResponse.json();
-      console.log('AI move completed:', aiMoveData);
-      
-      useGameStore.getState().setAIThinking(false, []);
-      if (aiMoveData.gameState) {
-        useGameStore.getState().setGameState(aiMoveData.gameState);
-      }
-      
-      // Add AI turn history entries if provided
-      if (aiMoveData.aiTurnHistoryEntries && Array.isArray(aiMoveData.aiTurnHistoryEntries)) {
-        console.log('🔍 Socket: Adding AI turn history entries:', aiMoveData.aiTurnHistoryEntries);
-        aiMoveData.aiTurnHistoryEntries.forEach((entry: any) => {
-          console.log('🔍 Socket: Adding AI turn history entry:', entry);
-          useGameStore.getState().addTurnHistoryEntry(entry);
-        });
-      } else {
-        console.log('🔍 Socket: No AI turn history entries found in response:', aiMoveData);
-      }
-      
-    } catch (error) {
-      console.error('AI thinking process failed:', error);
-      useGameStore.getState().setAIThinking(false, []);
-    } finally {
-      this.aiThinkingInProgress = false;
-    }
-  }
+  // AI moves are now handled automatically by the backend AI Queue Processor
+  // Frontend gets updates via periodic state refresh
 
   // Connection status
   isConnected(): boolean {
     return this.connected;
+  }
+
+  // AI moves are now handled with simple timeout approach
+
+  // Handle real-time game streaming events
+  private handleGameStreamEvent(event: GameStreamEvent) {
+    console.log('🎮 Socket: Received game streaming event:', event);
+    
+    const gameStore = useGameStore.getState();
+    const currentUserId = useAuthStore.getState().user?.id;
+    
+    switch (event.type) {
+      case 'game_state_updated':
+        console.log('🎮 Socket: Game state updated via stream - refreshing full state');
+        // Refresh full game state from server to ensure consistency
+        if (this.currentGameId) {
+          this.joinGameViaAPI(this.currentGameId);
+        }
+        break;
+        
+      case 'player_joined':
+        console.log('🎮 Socket: Player joined via stream:', event.data?.player?.username);
+        // Game state will be updated by game_state_updated event
+        break;
+        
+      case 'player_left':
+        console.log('🎮 Socket: Player left via stream:', event.data?.player?.username);
+        break;
+        
+      case 'move_made':
+        console.log('🎮 Socket: Move made via stream:', event.data?.moveType, 'by', event.data?.username);
+        
+        // Clear AI thinking state if it was the AI that moved
+        if (gameStore.isAIThinking) {
+          const gameState = gameStore.gameState;
+          if (gameState && currentUserId && gameState.currentPlayerId === currentUserId) {
+            console.log('🤖 AI move completed via stream - clearing thinking state');
+            gameStore.setAIThinking(false, []);
+          }
+        }
+        
+        // Refresh game state to show the move
+        console.log('🎮 Socket: Refreshing game state after move via stream');
+        if (this.currentGameId) {
+          this.joinGameViaAPI(this.currentGameId);
+        }
+        break;
+        
+      case 'turn_changed':
+        console.log('🎮 Socket: Turn changed via stream to:', event.data?.currentPlayer?.username);
+        break;
+        
+      case 'game_ended':
+        console.log('🎮 Socket: Game ended via stream:', event.data?.winner?.username, 'wins');
+        break;
+        
+      case 'opponent_thinking':
+        if (event.data?.aiThoughts && currentUserId && event.gameId === this.currentGameId) {
+          console.log('🤖 Opponent thinking via stream');
+          // This would typically be used for showing opponent AI thinking state
+          // For now, we'll just log it
+        }
+        break;
+    }
   }
 
   // Compatibility methods (no-ops)

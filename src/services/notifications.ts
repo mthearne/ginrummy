@@ -2,7 +2,7 @@ import { api } from './api';
 
 export interface Notification {
   id: string;
-  type: 'FRIEND_REQUEST' | 'FRIEND_REQUEST_ACCEPTED' | 'GAME_INVITATION' | 'INVITATION_RESPONSE' | 'GAME_STARTED' | 'GAME_ENDED';
+  type: 'FRIEND_REQUEST' | 'FRIEND_REQUEST_ACCEPTED' | 'GAME_INVITATION' | 'INVITATION_RESPONSE' | 'GAME_STARTED' | 'GAME_ENDED' | 'CHAT_MESSAGE' | 'PLAYER_JOINED' | 'TURN_NOTIFICATION' | 'OPPONENT_MOVE';
   title: string;
   message: string;
   data?: any;
@@ -16,18 +16,86 @@ export class NotificationService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000; // Start with 1 second
   private listeners: Array<(notification: Notification) => void> = [];
+  private pollingInterval: NodeJS.Timeout | null = null;
+  private lastNotificationCheck = new Date();
+  private isPolling = false;
+  private isDisabled = false; // Permanently disable after auth failure
 
-  // Start notification polling (SSE disabled for Vercel compatibility)
+  // Start notification polling (fallback for serverless compatibility)
   connect(token: string) {
-    console.log('🔔 [POLLING] Starting notification polling (SSE disabled for serverless compatibility)');
+    // EMERGENCY: Temporarily disable all notification polling to prevent 500 error spam
+    console.log('🔔 [POLLING] Notification service temporarily disabled to prevent server overload');
+    return;
     
-    // Note: SSE is disabled because it doesn't work reliably on serverless platforms like Vercel
-    // We could implement polling instead, but for now we'll just log the connection attempt
-    console.log('🔔 [POLLING] Notification polling would start here - currently disabled');
+    // Skip notification polling if disabled due to previous auth failure
+    if (this.isDisabled) {
+      console.log('🔔 [POLLING] Service disabled due to auth failure, skipping notification polling');
+      return;
+    }
+    
+    // Skip notification polling entirely if no valid token
+    if (!token) {
+      console.log('🔔 [POLLING] No token provided, skipping notification polling');
+      return;
+    }
+    
+    console.log('🔔 [POLLING] Starting notification polling');
+    
+    if (this.isPolling) {
+      console.log('🔔 [POLLING] Already polling, skipping...');
+      return;
+    }
+    
+    this.isPolling = true;
+    this.lastNotificationCheck = new Date();
+    
+    // Start polling every 5 seconds
+    this.pollingInterval = setInterval(() => {
+      this.pollForNotifications();
+    }, 5000);
+    
+    // Initial poll
+    this.pollForNotifications();
     
     // Reset reconnection state
     this.reconnectAttempts = 0;
     this.reconnectDelay = 1000;
+    
+    console.log('🔔 [POLLING] Notification polling started');
+  }
+
+  private async pollForNotifications() {
+    try {
+      const notifications = await NotificationService.getNotifications();
+      
+      // Reset consecutive error count on success
+      this.reconnectAttempts = 0;
+      this.reconnectDelay = 1000;
+      
+      // Filter for new notifications since last check
+      const newNotifications = notifications.filter(n => 
+        new Date(n.createdAt) > this.lastNotificationCheck
+      );
+      
+      if (newNotifications.length > 0) {
+        console.log(`🔔 [POLLING] Found ${newNotifications.length} new notifications`);
+        
+        // Process new notifications
+        newNotifications.forEach(notification => {
+          this.handleNotification(notification);
+        });
+        
+        // Update last check time
+        this.lastNotificationCheck = new Date();
+      }
+    } catch (error) {
+      console.error('🔔 [POLLING] Error polling notifications:', error);
+      
+      // ALWAYS stop polling on ANY error to prevent spam and permanently disable
+      console.warn('🔔 [POLLING] Permanently disabling notification service due to error');
+      this.isDisabled = true;
+      this.disconnect();
+    }
   }
 
   // Disconnect notification service
@@ -37,6 +105,14 @@ export class NotificationService {
       this.eventSource.close();
       this.eventSource = null;
     }
+    
+    if (this.pollingInterval) {
+      console.log('🔔 [POLLING] Stopping notification polling');
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    
+    this.isPolling = false;
     this.reconnectAttempts = 0;
   }
 
@@ -95,6 +171,17 @@ export class NotificationService {
       case 'INVITATION_RESPONSE':
         if (notification.data?.gameId) {
           window.location.href = `/game/${notification.data.gameId}`;
+        }
+        break;
+      case 'PLAYER_JOINED':
+      case 'GAME_STARTED':
+      case 'OPPONENT_MOVE':
+      case 'TURN_NOTIFICATION':
+        // Navigate to the game for PvP notifications
+        if (notification.data?.gameId) {
+          window.location.href = `/game/${notification.data.gameId}`;
+        } else {
+          window.location.href = '/lobby';
         }
         break;
       case 'FRIEND_REQUEST':

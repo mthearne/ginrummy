@@ -17,10 +17,21 @@ export function createTurnHistoryEntry(
   move: GameMove,
   gameState: GameState,
   turnNumber: number | null,
-  playerName: string
+  playerName: string,
+  existingTurnHistoryLength?: number
 ): TurnHistoryEntry {
-  // Use global counter if turnNumber is not provided or is invalid
-  const finalTurnNumber = (turnNumber && turnNumber > 0 && turnNumber < 10000) ? turnNumber : globalTurnCounter++;
+  // Calculate turn number based on existing history length if provided
+  let finalTurnNumber: number;
+  
+  if (turnNumber && turnNumber > 0 && turnNumber < 10000) {
+    finalTurnNumber = turnNumber;
+  } else if (typeof existingTurnHistoryLength === 'number') {
+    // Use existing turn history length + 1 for next turn number
+    finalTurnNumber = existingTurnHistoryLength + 1;
+  } else {
+    // Fallback to global counter (unreliable but better than nothing)
+    finalTurnNumber = globalTurnCounter++;
+  }
   const action = move.type;
   let description = '';
 

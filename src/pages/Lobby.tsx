@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import crypto from 'crypto';
 import { useLobbyStore } from '../store/lobby';
-import { useAuthStore } from '../store/auth';
+import { useAuthGuard } from '../hooks/useAuthGuard';
 import { gamesAPI } from '../services/api';
 import { formatRelativeTime } from '../utils/helpers';
 import { FriendManager } from '../components/FriendManager';
+import { FriendChat } from '../components/chat/FriendChat';
+import { FriendsService, Friend } from '../services/friends';
+import { ChatService } from '../services/chat';
 import { GameStatus } from '@gin-rummy/common';
 
 export default function Lobby() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const searchParams = useSearchParams();
+  const { user } = useAuthGuard();
   const { 
     filter, 
     gameView,
@@ -26,11 +31,49 @@ export default function Lobby() {
   const [resigning, setResigning] = useState<string | null>(null);
   const [showResignModal, setShowResignModal] = useState(false);
   const [gameToResign, setGameToResign] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [chatView, setChatView] = useState<'friends' | 'chat'>('friends');
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+
 
   useEffect(() => {
     loadGames();
     loadMyGames();
-  }, []);
+    loadFriends();
+    loadUnreadCount();
+    
+    // Check if we should open chat from notification
+    const chatUserId = searchParams?.get('chat');
+    if (chatUserId) {
+      setChatView('chat');
+      // The FriendChat component will need to handle selecting this user
+    }
+    
+    // Refresh unread count every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [searchParams]);
+
+  const loadFriends = async () => {
+    try {
+      const data = await FriendsService.getFriends();
+      setFriends(data.friends || []);
+    } catch (error) {
+      console.error('Failed to load friends:', error);
+      setFriends([]);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const data = await ChatService.getConversations();
+      const totalUnread = data.conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+      setTotalUnreadCount(totalUnread);
+    } catch (error) {
+      console.error('Failed to load unread count:', error);
+      setTotalUnreadCount(0);
+    }
+  };
 
   const loadGames = async () => {
     setLoading(true);
@@ -76,7 +119,7 @@ export default function Lobby() {
         maxPlayers: 2 
       });
       
-      const gameId = response.data.id;
+      const gameId = response.data.gameId;
       console.log(`[NAV DEBUG] Game created with ID: ${gameId}`);
       
       // Refresh my games list since we just created a new game
@@ -94,7 +137,16 @@ export default function Lobby() {
   const joinGame = async (gameId: string) => {
     setJoining(gameId);
     try {
-      await gamesAPI.joinGame(gameId);
+      // Generate requestId and use expectedVersion of 0 for join operations
+      const requestId = window.crypto?.randomUUID?.() || 
+                       'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                         const r = Math.random() * 16 | 0;
+                         const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                         return v.toString(16);
+                       });
+      const expectedVersion = 0;
+      
+      await gamesAPI.joinGame(gameId, requestId, expectedVersion);
       
       // Refresh both lists since joining affects availability and my games
       loadGames();
@@ -155,8 +207,12 @@ export default function Lobby() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Game Lobby</h1>
-        <p className="text-gray-600">Create a new game, join an existing one, or manage your friends</p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Game Lobby</h1>
+            <p className="text-gray-600">Create a new game, join an existing one, or manage your friends</p>
+          </div>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
@@ -392,9 +448,53 @@ export default function Lobby() {
           </div>
         </div>
 
-        {/* Right Column - Friends */}
-        <div className="lg:col-span-1">
-          <FriendManager />
+        {/* Right Column - Friends & Chat */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Toggle between Friends and Chat */}
+          <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setChatView('friends')}
+              className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                chatView === 'friends'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Friends
+            </button>
+            <button
+              onClick={() => setChatView('chat')}
+              className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                chatView === 'chat'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Chat
+              {totalUnreadCount > 0 && (
+                <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                  {totalUnreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Content */}
+          {chatView === 'friends' ? (
+            <FriendManager onStartChat={(friendId) => {
+              setChatView('chat');
+              // Use router to update URL with chat parameter for auto-selection
+              const currentUrl = new URL(window.location.href);
+              currentUrl.searchParams.set('chat', friendId);
+              window.history.replaceState(null, '', currentUrl.toString());
+            }} />
+          ) : (
+            <FriendChat 
+              friends={friends} 
+              initialSelectedUserId={searchParams?.get('chat') || undefined}
+              onUnreadCountChange={loadUnreadCount}
+            />
+          )}
         </div>
       </div>
 

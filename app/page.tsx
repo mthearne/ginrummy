@@ -17,6 +17,12 @@ export default function Page() {
   useSocket();
 
   useEffect(() => {
+    // If user is logged in, redirect to lobby
+    if (user) {
+      router.push('/lobby');
+      return;
+    }
+
     // Check for stored auth tokens on app start
     const accessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
@@ -34,7 +40,7 @@ export default function Page() {
           logout();
         });
     }
-  }, [setUser, setTokens, logout, router]);
+  }, [user, setUser, setTokens, logout, router]); // Added 'user' dependency
 
   if (user) {
     router.push('/lobby');
