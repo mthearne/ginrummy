@@ -217,11 +217,8 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
                     {friends.map((friend) => (
                       <div key={friend.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                         <div className="flex items-center space-x-3">
-                          {/* Online indicator */}
-                          <div className="relative">
-                            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          </div>
+                          {/* Status indicator - currently shows offline since we don't track online status yet */}
+                          <div className="w-3 h-3 bg-gray-400 rounded-full" title="Offline"></div>
                           <div>
                             <div className="font-medium">{friend.user.username}</div>
                             <div className="text-sm text-gray-500">
