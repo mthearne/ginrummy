@@ -17,6 +17,7 @@ model User {
   gamesWon               Int              @default(0) @map("games_won")
   createdAt              DateTime         @default(now()) @map("created_at")
   updatedAt              DateTime         @updatedAt @map("updated_at")
+  lastSeen               DateTime?        @map("last_seen")
   eloHistory             EloHistory[]
   receivedFriendRequests Friendship[]     @relation("FriendshipReceiver")
   sentFriendRequests     Friendship[]     @relation("FriendshipRequester")

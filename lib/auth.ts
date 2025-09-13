@@ -41,9 +41,10 @@ export async function verifyAuth(request: NextRequest): Promise<AuthResult> {
       };
     }
 
-    // Fetch user details from database to get username
-    const user = await prisma.user.findUnique({
+    // Fetch user details and update lastSeen to track activity
+    const user = await prisma.user.update({
       where: { id: decoded.userId },
+      data: { lastSeen: new Date() },
       select: { id: true, username: true }
     });
 

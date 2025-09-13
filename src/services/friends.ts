@@ -7,6 +7,8 @@ export interface Friend {
     username: string;
     elo: number;
     gamesPlayed: number;
+    isOnline: boolean;
+    lastSeen?: string;
   };
   since: string;
 }

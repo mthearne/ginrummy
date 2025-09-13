@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
             email: true,
             elo: true,
             gamesPlayed: true,
+            lastSeen: true,
           }
         },
         receiver: {
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
             email: true,
             elo: true,
             gamesPlayed: true,
+            lastSeen: true,
           }
         }
       }
@@ -133,6 +135,10 @@ export async function GET(request: NextRequest) {
         ? friendship.receiver 
         : friendship.requester;
       
+      // Calculate online status - user is online if they were active within the last 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const isOnline = friend.lastSeen && new Date(friend.lastSeen) > fiveMinutesAgo;
+      
       return {
         id: friendship.id, // This is the friendship ID
         user: {
@@ -140,6 +146,8 @@ export async function GET(request: NextRequest) {
           username: friend.username,
           elo: friend.elo,
           gamesPlayed: friend.gamesPlayed,
+          isOnline: Boolean(isOnline),
+          lastSeen: friend.lastSeen?.toISOString(),
         },
         since: friendship.createdAt.toISOString(),
       };
