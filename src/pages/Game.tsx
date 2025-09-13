@@ -47,6 +47,7 @@ export default function Game() {
   const [showRoundResults, setShowRoundResults] = useState(false);
   const [roundResultsDismissed, setRoundResultsDismissed] = useState(false);
   const [isMarkingReady, setIsMarkingReady] = useState(false);
+  const [lastCurrentPlayerId, setLastCurrentPlayerId] = useState<string | null>(null);
   const [roundResultsData, setRoundResultsData] = useState<{
     knockerPlayerId: string;
     knockerMelds: Meld[];
@@ -227,6 +228,30 @@ export default function Game() {
       }
     }
   }, [gameState?.players, handOrder.length]);
+
+  // Detect opponent actions (current player changes) and trigger fast refresh
+  useEffect(() => {
+    if (gameState?.currentPlayerId && lastCurrentPlayerId && 
+        gameState.currentPlayerId !== lastCurrentPlayerId) {
+      
+      const myPlayer = getMyPlayer();
+      const isNowMyTurn = gameState.currentPlayerId === myPlayer?.id;
+      const wasMyTurn = lastCurrentPlayerId === myPlayer?.id;
+      
+      // If it's now my turn (opponent just moved) or I just moved, trigger fast refresh
+      if (isNowMyTurn && !wasMyTurn) {
+        console.log('🚀 Opponent action detected - triggering fast refresh');
+        if (socket && gameId) {
+          socket.joinGame(gameId); // Immediate refresh
+        }
+      }
+    }
+    
+    // Update tracking
+    if (gameState?.currentPlayerId) {
+      setLastCurrentPlayerId(gameState.currentPlayerId);
+    }
+  }, [gameState?.currentPlayerId, lastCurrentPlayerId, gameId, socket, getMyPlayer]);
 
 
   const handleCardClick = (cardId: string) => {

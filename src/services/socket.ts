@@ -87,13 +87,13 @@ class SocketService {
       clearInterval(this.refreshInterval);
     }
     
-    // Refresh game state every 15 seconds as backup
+    // Refresh game state every 3 seconds for more real-time feel
     this.refreshInterval = setInterval(() => {
       if (this.currentGameId === gameId) {
         console.log('🔄 Periodic refresh: Checking for game updates');
         this.joinGameViaAPI(gameId);
       }
-    }, 15000);
+    }, 3000);
   }
 
   // REST API for joining games
@@ -286,6 +286,24 @@ class SocketService {
           console.log('🔄 Post-move refresh: Loading fresh state from event-sourced backend');
           this.joinGameViaAPI(move.gameId!);
         }, 500);
+        
+        // Trigger immediate refresh for opponent by reducing next poll interval
+        if (this.refreshInterval) {
+          clearInterval(this.refreshInterval);
+          // Set up faster polling for next few seconds after move
+          let fastPollCount = 0;
+          const fastPollInterval = setInterval(() => {
+            if (this.currentGameId === move.gameId && fastPollCount < 3) {
+              console.log('🚀 Fast refresh: Immediate post-move update check');
+              this.joinGameViaAPI(move.gameId!);
+              fastPollCount++;
+            } else {
+              clearInterval(fastPollInterval);
+              // Resume normal 3-second polling
+              this.setupPeriodicRefresh(move.gameId!);
+            }
+          }, 1000); // Poll every 1 second for 3 times, then back to normal
+        }
         
         // REMOVED: Frontend AI trigger backup for debugging
         // Let's rely entirely on backend to identify any remaining issues
