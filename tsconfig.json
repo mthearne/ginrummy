@@ -46,6 +46,8 @@
     "__tests__/**/*",
     "**/*.test.*",
     "**/*.spec.*",
+    "**/setup.ts",
+    "packages/common/tests/**/*",
     "playwright.config.ts",
     "playwright-report/**",
     "test-results/**"
