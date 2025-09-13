@@ -47,6 +47,7 @@ export default function Game() {
   const [showFlyingAnimal, setShowFlyingAnimal] = useState(false);
   const [showRoundResults, setShowRoundResults] = useState(false);
   const [roundResultsDismissed, setRoundResultsDismissed] = useState(false);
+  const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [roundResultsData, setRoundResultsData] = useState<{
     knockerPlayerId: string;
     knockerMelds: Meld[];
@@ -488,7 +489,9 @@ export default function Game() {
     });
 
     const handleMarkReady = async () => {
-      if (!gameId || !user || myReadyStatus) return;
+      if (!gameId || !user || myReadyStatus || isMarkingReady) return;
+      
+      setIsMarkingReady(true);
       
       // Generate UUID using browser crypto API or fallback
       const requestId = window.crypto?.randomUUID?.() || 
@@ -540,6 +543,8 @@ export default function Game() {
             }
           }
         }
+      } finally {
+        setIsMarkingReady(false);
       }
     };
 
@@ -622,9 +627,21 @@ export default function Game() {
                 {!myReadyStatus && (
                   <button
                     onClick={handleMarkReady}
-                    className="btn btn-primary text-lg px-8 py-3"
+                    disabled={isMarkingReady}
+                    className={`btn btn-primary text-lg px-8 py-3 transition-all duration-300 ${
+                      isMarkingReady 
+                        ? 'transform scale-95 opacity-75' 
+                        : 'hover:scale-105 active:scale-95'
+                    }`}
                   >
-                    I'm Ready!
+                    {isMarkingReady ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Getting Ready...</span>
+                      </div>
+                    ) : (
+                      "I'm Ready!"
+                    )}
                   </button>
                 )}
                 
