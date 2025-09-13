@@ -249,20 +249,11 @@ function generateKnockEventData(action: any, gameState: any, userId: string): an
   const meldedCardIds = new Set(knockerMelds.flatMap((meld: any) => meld.cards.map((card: any) => card.id)));
   const knockerDeadwoodCards = knockerHandAfterDiscard.filter((card: any) => !meldedCardIds.has(card.id));
   
-  // Calculate deadwood values
+  // Calculate knocker's deadwood value
   const knockerDeadwoodValue = action.deadwoodValue || 0;
-  const opponentDeadwood = opponent.deadwood || 0;
   
-  // Basic scoring: if knocker has lower deadwood, they score the difference
-  let knockerScore = 0;
-  let opponentScore = 0;
-  
-  if (knockerDeadwoodValue < opponentDeadwood) {
-    knockerScore = opponentDeadwood - knockerDeadwoodValue;
-  } else if (opponentDeadwood < knockerDeadwoodValue) {
-    // Undercut: opponent scores the difference plus 25 bonus
-    opponentScore = (knockerDeadwoodValue - opponentDeadwood) + 25;
-  }
+  // NOTE: Scoring is now handled by the event-sourced game engine
+  // The engine will properly calculate scores including layoffs
   
   return {
     playerId: userId,
@@ -274,11 +265,8 @@ function generateKnockEventData(action: any, gameState: any, userId: string): an
     opponentHand: opponent.hand,
     knockerMelds: knockerMelds,
     opponentMelds: opponentMelds,
-    deadwoodValue: knockerDeadwoodValue,
-    scores: {
-      knocker: knockerScore,
-      opponent: opponentScore
-    }
+    deadwoodValue: knockerDeadwoodValue
+    // NOTE: scores removed - now calculated by event-sourced engine
   };
 }
 
