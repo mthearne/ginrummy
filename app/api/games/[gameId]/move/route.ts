@@ -8,6 +8,7 @@ import { EventStore } from '../../../../../src/services/eventStore';
 import { ReplayService } from '../../../../../src/services/replay';
 import { createNotification } from '../../../../../src/utils/notifications';
 import { createDeck, shuffleDeck } from '../../../../../packages/common/src/utils/cards';
+import { calculateScoreWithLayOffs } from '../../../../../packages/common/src/utils/scoring';
 import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
@@ -252,8 +253,17 @@ function generateKnockEventData(action: any, gameState: any, userId: string): an
   // Calculate knocker's deadwood value
   const knockerDeadwoodValue = action.deadwoodValue || 0;
   
-  // NOTE: Scoring is now handled by the event-sourced game engine
-  // The engine will properly calculate scores including layoffs
+  // Calculate scores using proper scoring function
+  
+  // Calculate scores with proper layoff handling
+  // Note: Initial scoring without layoffs - layoffs will be applied during layoff phase
+  const scores = calculateScoreWithLayOffs(
+    knockerHandAfterDiscard,
+    knockerMelds,
+    opponent.hand,
+    opponentMelds,
+    [] // Empty layoffs for initial calculation - will be updated during layoff phase
+  );
   
   return {
     playerId: userId,
@@ -265,8 +275,11 @@ function generateKnockEventData(action: any, gameState: any, userId: string): an
     opponentHand: opponent.hand,
     knockerMelds: knockerMelds,
     opponentMelds: opponentMelds,
-    deadwoodValue: knockerDeadwoodValue
-    // NOTE: scores removed - now calculated by event-sourced engine
+    deadwoodValue: knockerDeadwoodValue,
+    scores: {
+      knocker: scores.knockerScore,
+      opponent: scores.opponentScore
+    }
   };
 }
 
@@ -289,11 +302,41 @@ function generateGinEventData(action: any, gameState: any, userId: string): any 
   if (action.cardToDiscard && !cardToDiscard) {
     throw new Error('Discard card not in hand');
   }
+
+  // Get opponent for scoring
+  const opponent = gameState.players.find((p: any) => p.id !== userId);
+  if (!opponent) {
+    throw new Error('Opponent not found');
+  }
+
+  // Calculate hand after discard for gin scoring
+  const handAfterDiscard = cardToDiscard 
+    ? player.hand.filter((c: any) => c.id !== cardToDiscard.id)
+    : player.hand;
+
+  // For gin, calculate opponent's deadwood for scoring
+  const ginnerMelds = action.melds || [];
+  const opponentMelds = opponent.melds || [];
   
+  // Use proper gin scoring - ginner gets opponent's deadwood + 25 bonus
+  const scores = calculateScoreWithLayOffs(
+    handAfterDiscard,
+    ginnerMelds,
+    opponent.hand,
+    opponentMelds,
+    [] // No layoffs allowed in gin
+  );
+
   return {
     playerId: userId,
     cardDiscarded: cardToDiscard,
-    newDiscardPile: cardToDiscard ? [cardToDiscard, ...gameState.discardPile] : gameState.discardPile
+    newDiscardPile: cardToDiscard ? [cardToDiscard, ...gameState.discardPile] : gameState.discardPile,
+    ginnerMelds: ginnerMelds,
+    opponentMelds: opponentMelds,
+    scores: {
+      ginner: scores.knockerScore, // Ginner gets the "knocker" score since they initiated
+      opponent: scores.opponentScore
+    }
   };
 }
 
