@@ -17,7 +17,9 @@ interface RoundWinnerDisplayProps {
   knockerName: string;
   opponentName: string;
   gameState: GameState;
+  currentPlayerId?: string;
   onContinue: () => void;
+  onRefreshGameState?: () => void;
 }
 
 export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
@@ -25,10 +27,13 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
   knockerName,
   opponentName,
   gameState,
+  currentPlayerId,
   onContinue,
+  onRefreshGameState,
 }) => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [animationPhase, setAnimationPhase] = useState<'enter' | 'celebrate' | 'ready'>('enter');
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [isStartingNewRound, setIsStartingNewRound] = useState(false);
 
   const winner = scoreData.knockerScore > scoreData.opponentScore ? 'knocker' : 
@@ -40,6 +45,15 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
   const gameHasEnded = gameState.gameOver || gameState.status === 'FINISHED' || 
     gameState.players.some(player => player.score >= 100);
 
+  // Debug logging for game end detection
+  console.log('🏁 Game End Check:', {
+    gameOver: gameState.gameOver,
+    status: gameState.status,
+    playerScores: gameState.players.map(p => ({ id: p.id, username: p.username, score: p.score })),
+    gameHasEnded,
+    scoreData: scoreData
+  });
+
   useEffect(() => {
     // Animation sequence
     const timer1 = setTimeout(() => {
@@ -50,13 +64,74 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
     const timer2 = setTimeout(() => {
       setShowConfetti(false);
       setAnimationPhase('ready');
+      // Start countdown for next round (only if game hasn't ended)
+      if (!gameHasEnded) {
+        setCountdownSeconds(10); // 10 second countdown
+      }
     }, 3000);
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
     };
-  }, []);
+  }, [gameHasEnded]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (countdownSeconds === null) return;
+
+    if (countdownSeconds === 0) {
+      // Start new round automatically and close modal immediately
+      handleStartNewRound();
+      // Close modal right away - don't wait for game state change
+      onContinue();
+      return;
+    }
+
+    const countdownTimer = setTimeout(() => {
+      setCountdownSeconds(prev => prev! - 1);
+    }, 1000);
+
+    return () => clearTimeout(countdownTimer);
+  }, [countdownSeconds]);
+
+  const handleStartNewRound = async () => {
+    if (gameHasEnded) {
+      onContinue();
+      return;
+    }
+
+    setIsStartingNewRound(true);
+    try {
+      // Use existing move API with START_NEW_ROUND type
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`/api/games/${gameState.id}/move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          type: 'START_NEW_ROUND',
+          playerId: currentPlayerId || 'system'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start next round');
+      }
+
+      console.log('✅ Started next round automatically');
+      
+      // Trigger game state refresh
+      if (onRefreshGameState) {
+        onRefreshGameState();
+      }
+    } catch (error) {
+      console.error('❌ Failed to start next round:', error);
+      setIsStartingNewRound(false);
+    }
+  };
 
   const getWinnerMessage = () => {
     if (scoreData.isGin) {
@@ -210,35 +285,69 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
         )}
       </div>
 
+      {/* Countdown Display - only show if waiting for next round */}
+      {!gameHasEnded && countdownSeconds !== null && (
+        <div className={`text-center space-y-4 transition-all duration-1000 ${
+          animationPhase === 'ready' ? 'opacity-100' : 'opacity-0'
+        }`}>
+          <div className="flex flex-col items-center space-y-3">
+            <h4 className="text-lg font-semibold text-gray-800">Next Round Starting In</h4>
+            
+            <div className="flex items-center justify-center">
+              <div className={`text-7xl font-bold rounded-full w-32 h-32 flex items-center justify-center transition-all duration-300 border-4 ${
+                countdownSeconds <= 3 
+                  ? 'bg-red-100 text-red-600 border-red-300 animate-pulse scale-110' 
+                  : countdownSeconds <= 5
+                  ? 'bg-yellow-100 text-yellow-600 border-yellow-300'
+                  : 'bg-blue-100 text-blue-600 border-blue-300'
+              }`}>
+                {countdownSeconds}
+              </div>
+            </div>
+            
+            <div className="text-sm text-gray-600">
+              {countdownSeconds > 5 ? 'Review your results and get ready...' : 
+               countdownSeconds > 1 ? 'Next round starting soon!' : 'Starting now...'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Continue Button */}
       <div className={`pt-4 transition-all duration-1000 ${
         animationPhase === 'ready' ? 'opacity-100 transform scale-100' : 'opacity-0 transform scale-75'
       }`}>
-        <button
-          onClick={() => {
-            setIsStartingNewRound(true);
-            onContinue();
-          }}
-          disabled={isStartingNewRound}
-          className={`px-8 py-4 font-bold text-white rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 ${
-            isStartingNewRound ? 'opacity-75 cursor-not-allowed' : ''
-          } ${
-            winner === 'knocker' && scoreData.isGin ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700' :
-            winner === 'opponent' && scoreData.isUndercut ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700' :
-            winner === 'knocker' ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700' :
-            winner === 'opponent' ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700' :
-            'bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700'
-          }`}
-        >
-          {isStartingNewRound ? (
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              <span>Starting New Round...</span>
-            </div>
-          ) : (
-            gameHasEnded ? 'Return to Lobby' : 'Continue Game'
-          )}
-        </button>
+        {/* Only show button for game end or manual override */}
+        {gameHasEnded && (
+          <button
+            onClick={onContinue}
+            className="px-8 py-4 font-bold text-white rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+          >
+            Return to Lobby
+          </button>
+        )}
+        
+        {/* Manual override button for countdown (optional) */}
+        {!gameHasEnded && countdownSeconds !== null && countdownSeconds > 1 && (
+          <button
+            onClick={handleStartNewRound}
+            disabled={isStartingNewRound}
+            className={`px-6 py-3 font-medium text-white rounded-lg shadow transform transition-all duration-300 hover:scale-105 ${
+              isStartingNewRound 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+            }`}
+          >
+            {isStartingNewRound ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Starting...</span>
+              </div>
+            ) : (
+              'Start Now'
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

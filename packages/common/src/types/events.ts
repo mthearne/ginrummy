@@ -26,6 +26,8 @@ export enum EventType {
   LAYOFF_PHASE_STARTED = 'LAYOFF_PHASE_STARTED',
   AI_LAYOFF_DECISION = 'AI_LAYOFF_DECISION',
   LAYOFF_COMPLETED = 'LAYOFF_COMPLETED',
+  PLAYER_READY_NEXT_ROUND = 'PLAYER_READY_NEXT_ROUND',
+  ROUND_STARTED = 'ROUND_STARTED',
   
   // Game ending
   GAME_FINISHED = 'GAME_FINISHED',
@@ -268,6 +270,23 @@ export interface LayoffCompletedEventData {
   };
 }
 
+export interface PlayerReadyNextRoundEventData {
+  playerId: string;
+  ready: boolean;
+}
+
+export interface RoundStartedEventData {
+  roundNumber: number;
+  startedBy: string;
+  newDeal?: {
+    player1Hand: Card[];
+    player2Hand: Card[];
+    topDiscardCard: Card;
+    stockSize: number;
+    stockPile: Card[];
+  };
+}
+
 // Union type for all event data
 export type GameEventData = 
   | GameCreatedEventData
@@ -287,6 +306,8 @@ export type GameEventData =
   | LayoffPhaseStartedEventData
   | AILayoffDecisionEventData
   | LayoffCompletedEventData
+  | PlayerReadyNextRoundEventData
+  | RoundStartedEventData
   | GameFinishedEventData
   | GameCancelledEventData
   | AIThinkingStartedEventData

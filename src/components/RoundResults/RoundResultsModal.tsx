@@ -16,6 +16,7 @@ interface RoundResultsModalProps {
   layOffs?: Array<{ cards: Card[]; targetMeld: Meld }>; // Optional - will be calculated dynamically
   currentPlayerId?: string; // ID of the player viewing the modal
   onContinue: () => void;
+  onRefreshGameState?: () => void; // Callback to refresh game state
 }
 
 type RoundPhase = 'reveal' | 'layoff' | 'scoring' | 'celebration';
@@ -29,6 +30,7 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   layOffs: providedLayOffs,
   currentPlayerId,
   onContinue,
+  onRefreshGameState,
 }) => {
   const [phase, setPhase] = useState<RoundPhase>('reveal');
   const [appliedLayOffs, setAppliedLayOffs] = useState<Array<{ cards: Card[]; targetMeld: Meld }>>([]);
@@ -55,13 +57,29 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
 
   // Calculate scores with current lay-offs
   // Use the knocker's hand as-is since it should already be after discard
-  const scoreData = calculateScoreWithLayOffs(
+  let scoreData = calculateScoreWithLayOffs(
     knocker.hand,
     knockerMelds,
     opponent.hand,
     opponent.melds,
     appliedLayOffs
   );
+
+  // If the game state has final round scores (from layoff completion), use those instead
+  if (gameState.roundScores && (phase === 'celebration' || gameState.phase === 'round_over')) {
+    console.log('🎯 Using final round scores from game state:', gameState.roundScores);
+    
+    const knockerFinalScore = gameState.roundScores.knocker || 0;
+    const opponentFinalScore = gameState.roundScores.opponent || 0;
+    
+    scoreData = {
+      ...scoreData,
+      knockerScore: knockerFinalScore,
+      opponentScore: opponentFinalScore
+    };
+    
+    console.log('🎯 Updated scoreData with final scores:', scoreData);
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -130,6 +148,14 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
     }
   }, [gameState.phase, phase, isOpen, gameState.lastLayOffs]);
 
+  // Auto-close modal when new round starts (only when phase changes to active gameplay phases)
+  useEffect(() => {
+    if (isOpen && (gameState.phase === 'draw' || gameState.phase === 'upcard_decision' || gameState.phase === 'discard')) {
+      console.log('🎭 Modal: New round detected (active phase), closing modal');
+      onClose();
+    }
+  }, [gameState.phase, isOpen, onClose]);
+
   const handleLayOffComplete = async (layOffs: Array<{ cards: Card[]; targetMeld: Meld }>) => {
     console.log('🎭 Modal: Player completed layoffs, sending to API');
     
@@ -155,18 +181,31 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       setAppliedLayOffs(layOffs);
       setPhase('scoring');
       
+      // Refresh game state to get final scores and game over status
+      if (onRefreshGameState) {
+        console.log('🔄 Refreshing game state after layoff completion');
+        onRefreshGameState();
+      }
+      
       // Show score breakdown after a short delay
       setTimeout(() => setShowScoreBreakdown(true), 500);
       
-      // Move to celebration after score animation
-      setTimeout(() => setPhase('celebration'), 3500);
+      // Move to celebration after score animation (with extra delay for refresh)
+      setTimeout(() => setPhase('celebration'), 4000);
     } catch (error) {
       console.error('🎭 Modal: Failed to submit layoffs:', error);
       // Still update UI even if API call fails for better UX
       setAppliedLayOffs(layOffs);
       setPhase('scoring');
+      
+      // Still try to refresh game state
+      if (onRefreshGameState) {
+        console.log('🔄 Refreshing game state after layoff error (fallback)');
+        onRefreshGameState();
+      }
+      
       setTimeout(() => setShowScoreBreakdown(true), 500);
-      setTimeout(() => setPhase('celebration'), 3500);
+      setTimeout(() => setPhase('celebration'), 4000);
     }
   };
 
@@ -358,7 +397,9 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
               knockerName={knocker.username}
               opponentName={opponent.username}
               gameState={gameState}
+              currentPlayerId={currentPlayerId}
               onContinue={handleContinue}
+              onRefreshGameState={onRefreshGameState}
             />
           </div>
         )}

@@ -87,6 +87,7 @@ export interface PlayerState {
   melds: Meld[];
   lastDrawnCardId?: string; // ID of the most recently drawn card for UI highlighting
   isReady?: boolean; // Whether player is ready to start the game
+  isReadyForNextRound?: boolean; // Whether player is ready to continue to next round
 }
 
 export interface GameState {

@@ -23,6 +23,7 @@ export const ScoreCalculator: React.FC<ScoreCalculatorProps> = ({
   phase,
 }) => {
   const [animationStep, setAnimationStep] = useState(0);
+  const [hasAnimated, setHasAnimated] = useState(false);
   const [displayNumbers, setDisplayNumbers] = useState({
     knockerDeadwood: 0,
     opponentDeadwoodBefore: 0,
@@ -33,68 +34,23 @@ export const ScoreCalculator: React.FC<ScoreCalculatorProps> = ({
   });
 
   useEffect(() => {
-    if (showBreakdown) {
-      // Animate number counting
-      const animateNumbers = async () => {
-        // Step 1: Show initial deadwood
-        await animateNumber('knockerDeadwood', scoreData.knockerDeadwood, 800);
-        setAnimationStep(1);
-        
-        await animateNumber('opponentDeadwoodBefore', scoreData.opponentDeadwoodBefore, 800);
-        setAnimationStep(2);
-        
-        // Step 2: Show lay-off reduction if any
-        if (scoreData.layOffValue > 0) {
-          await animateNumber('layOffValue', scoreData.layOffValue, 600);
-          setAnimationStep(3);
-          
-          await animateNumber('opponentDeadwoodAfter', scoreData.opponentDeadwoodAfter, 800);
-          setAnimationStep(4);
-        }
-        
-        // Step 3: Calculate final scores
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setAnimationStep(5);
-        
-        await animateNumber('finalKnockerScore', scoreData.knockerScore, 1000);
-        await animateNumber('finalOpponentScore', scoreData.opponentScore, 1000);
-        setAnimationStep(6);
-      };
-
-      animateNumbers();
+    if (showBreakdown && !hasAnimated) {
+      // Skip animation and show final state immediately
+      setDisplayNumbers({
+        knockerDeadwood: scoreData.knockerDeadwood,
+        opponentDeadwoodBefore: scoreData.opponentDeadwoodBefore,
+        opponentDeadwoodAfter: scoreData.opponentDeadwoodAfter,
+        layOffValue: scoreData.layOffValue,
+        finalKnockerScore: scoreData.knockerScore,
+        finalOpponentScore: scoreData.opponentScore,
+      });
+      
+      // Set all animation steps to complete
+      setAnimationStep(6);
+      setHasAnimated(true);
     }
-  }, [showBreakdown, scoreData]);
+  }, [showBreakdown, hasAnimated]);
 
-  const animateNumber = (key: keyof typeof displayNumbers, target: number, duration: number): Promise<void> => {
-    return new Promise((resolve) => {
-      const start = displayNumbers[key];
-      const difference = target - start;
-      const startTime = Date.now();
-
-      const updateNumber = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const current = start + (difference * easeOutCubic(progress));
-
-        setDisplayNumbers(prev => ({
-          ...prev,
-          [key]: Math.round(current)
-        }));
-
-        if (progress < 1) {
-          requestAnimationFrame(updateNumber);
-        } else {
-          resolve();
-        }
-      };
-
-      requestAnimationFrame(updateNumber);
-    });
-  };
-
-  const easeOutCubic = (t: number): number => {
-    return 1 - Math.pow(1 - t, 3);
-  };
 
   if (!showBreakdown) {
     return (

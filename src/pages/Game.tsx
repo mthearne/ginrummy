@@ -87,12 +87,27 @@ export default function Game() {
 
   // Show round results when game is in layoff or round_over phase (e.g., after refresh)
   useEffect(() => {
-    if (gameState && (gameState.phase === 'layoff' || gameState.phase === 'round_over') && !showRoundResults && !roundResultsDismissed) {
+    // Only run this check if we're not already processing or showing results
+    if (showRoundResults) return;
+    
+    const shouldShowModal = gameState && 
+      (gameState.phase === 'layoff' || gameState.phase === 'round_over') && 
+      !roundResultsDismissed;
+    
+    console.log('🎭 Modal Check:', {
+      hasGameState: !!gameState,
+      phase: gameState?.phase,
+      showRoundResults,
+      roundResultsDismissed,
+      shouldShow: shouldShowModal
+    });
+    
+    if (shouldShowModal) {
       const myPlayer = getMyPlayer();
       const opponent = getOpponent();
       
       if (myPlayer && opponent) {
-        console.log(`Game in ${gameState.phase} phase, showing round results modal`);
+        console.log(`✅ Game in ${gameState.phase} phase, showing round results modal`);
         
         // Determine knocker based on game state
         const myDeadwood = myPlayer.deadwood || 0;
@@ -122,12 +137,12 @@ export default function Game() {
         setShowRoundResults(true);
       }
     }
-  }, [gameState, showRoundResults, roundResultsDismissed, getMyPlayer, getOpponent]);
+  }, [gameState?.phase, gameState?.id, showRoundResults, roundResultsDismissed]);
 
-  // Reset round results dismissed flag when new round starts
+  // Reset round results dismissed flag only when starting a new round
   useEffect(() => {
     if (gameState && gameState.phase === 'upcard_decision' && roundResultsDismissed) {
-      console.log('New round started, resetting round results dismissed flag');
+      console.log('🔄 New round started, resetting round results dismissed flag');
       setRoundResultsDismissed(false);
     }
   }, [gameState?.phase, roundResultsDismissed]);
@@ -426,6 +441,7 @@ export default function Game() {
   };
 
   const handleCloseRoundResults = () => {
+    console.log('🎭 handleCloseRoundResults called');
     setShowRoundResults(false);
     setRoundResultsData(null);
     setRoundResultsDismissed(true);
@@ -1216,6 +1232,7 @@ export default function Game() {
           layOffs={roundResultsData.layOffs}
           currentPlayerId={getMyPlayer()?.id}
           onContinue={handleContinueAfterRoundResults}
+          onRefreshGameState={() => socket && gameId && socket.joinGame(gameId)}
         />
       )}
 

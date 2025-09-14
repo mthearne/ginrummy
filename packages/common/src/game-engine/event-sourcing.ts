@@ -146,6 +146,12 @@ export class EventSourcingEngine {
       case EventType.LAYOFF_COMPLETED:
         return this.applyLayoffCompleted(event);
         
+      case EventType.PLAYER_READY_NEXT_ROUND:
+        return this.applyPlayerReadyNextRound(event);
+        
+      case EventType.ROUND_STARTED:
+        return this.applyRoundStarted(event);
+        
       default:
         console.warn(`⚠️ EventSourcing: Unhandled event type: ${event.eventType}`);
         return this.currentState;
@@ -768,6 +774,74 @@ export class EventSourcingEngine {
     return this.currentState!;
   }
 
+  private applyPlayerReadyNextRound(event: GameEvent): GameState {
+    const data = event.eventData as any; // PlayerReadyNextRoundEventData
+    
+    console.log(`🎯 EventSourcing: Player ${data.playerId} ready for next round`);
+    console.log(`🎯 EventSourcing: Current players before update:`, this.currentState!.players.map(p => ({ id: p.id, username: p.username, isReadyForNextRound: p.isReadyForNextRound })));
+    
+    // Mark player as ready for next round
+    const player = this.currentState!.players.find(p => p.id === data.playerId);
+    if (player) {
+      player.isReadyForNextRound = data.ready;
+      console.log(`✅ EventSourcing: Player ${data.playerId} marked as ${data.ready ? 'ready' : 'not ready'} for next round`);
+      console.log(`✅ EventSourcing: Players after update:`, this.currentState!.players.map(p => ({ id: p.id, username: p.username, isReadyForNextRound: p.isReadyForNextRound })));
+    } else {
+      console.error(`❌ EventSourcing: Player ${data.playerId} not found in game state`);
+      console.error(`❌ EventSourcing: Available players:`, this.currentState!.players.map(p => p.id));
+    }
+    
+    return this.currentState!;
+  }
+
+  private applyRoundStarted(event: GameEvent): GameState {
+    const data = event.eventData as any; // RoundStartedEventData
+    
+    console.log(`🚀 EventSourcing: Starting new round ${data.roundNumber}`);
+    
+    // Reset all player ready states
+    this.currentState!.players.forEach(player => {
+      player.isReadyForNextRound = false;
+      player.hasKnocked = false;
+      player.hasGin = false;
+      player.melds = [];
+    });
+    
+    // Update round number and reset phase
+    this.currentState!.roundNumber = data.roundNumber;
+    this.currentState!.phase = GamePhase.Draw; // Start new round in draw phase
+    
+    // Deal new cards if provided
+    if (data.newDeal) {
+      const { createDeck, shuffleDeck } = require('../utils/cards');
+      const deck = shuffleDeck(createDeck());
+      
+      // Deal 10 cards to each player
+      const player1Hand = deck.splice(0, 10);
+      const player2Hand = deck.splice(0, 10);
+      const topDiscardCard = deck.splice(0, 1)[0];
+      
+      this.currentState!.players[0].hand = player1Hand;
+      this.currentState!.players[1].hand = player2Hand;
+      this.currentState!.discardPile = [topDiscardCard];
+      this.currentState!.stockPile = deck;
+      this.currentState!.stockPileCount = deck.length;
+      
+      // Set first player as current
+      this.currentState!.currentPlayerId = this.currentState!.players[0].id;
+      
+      console.log(`🃏 EventSourcing: New round dealt - ${player1Hand.length} cards to player 1, ${player2Hand.length} cards to player 2`);
+    }
+    
+    // Clear round result data
+    this.currentState!.lastKnocker = undefined;
+    this.currentState!.lastKnockerMelds = undefined;
+    this.currentState!.lastLayOffs = undefined;
+    this.currentState!.roundScores = undefined;
+    
+    return this.currentState!;
+  }
+
   private createEmptyPlayerState(playerId: string, username: string): PlayerState {
     return {
       id: playerId,
@@ -780,6 +854,7 @@ export class EventSourcingEngine {
       deadwood: 0,
       melds: [],
       isReady: false,
+      isReadyForNextRound: false,
     };
   }
 
