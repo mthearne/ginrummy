@@ -107,7 +107,7 @@ export async function POST(
     // Check if game should be finished after layoff completion
     const updatedState = await ReplayService.rebuildState(gameId);
     
-    if (updatedState.state.gameOver && updatedState.state.status === 'FINISHED') {
+    if (updatedState.state.gameOver) {
       console.log('🏁 LayoffAPI: Game finished detected, creating GAME_FINISHED event');
       
       // Find winner and loser

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
+import { EventStore } from '../../../../../src/services/eventStore';
+import { updatePlayerElos } from '../../../../../src/utils/elo';
 
 export async function POST(
   request: NextRequest,
@@ -124,6 +126,53 @@ export async function POST(
         }
       }
     });
+
+    // Process ELO updates and create GAME_FINISHED event if game was active and has a winner
+    if (updatedGame.status === 'FINISHED' && updatedGame.winnerId && game.status === 'ACTIVE') {
+      try {
+        console.log(`🏃 LeaveAPI: Player left active game, processing forfeit win for ${updatedGame.winnerId}`);
+        
+        // Determine winner and loser
+        const winnerId = updatedGame.winnerId;
+        const loserId = winnerId === updatedGame.player1Id ? updatedGame.player2Id : updatedGame.player1Id;
+        
+        if (loserId && !updatedGame.vsAI) {
+          // Update ELO ratings
+          const eloChanges = await updatePlayerElos(winnerId, loserId, gameId);
+          console.log(`✅ LeaveAPI: ELO updated - Winner: +${eloChanges.winner}, Loser: ${eloChanges.loser}`);
+          
+          // Create GAME_FINISHED event
+          const winner = winnerId === updatedGame.player1Id ? updatedGame.player1 : updatedGame.player2;
+          const loser = loserId === updatedGame.player1Id ? updatedGame.player1 : updatedGame.player2;
+          
+          if (winner && loser) {
+            const gameFinishedEventData = {
+              gameId: gameId,
+              winnerId: winner.id,
+              winnerScore: 0, // No actual game score for forfeit
+              loserId: loser.id,
+              loserScore: 0,
+              endReason: 'QUIT' as const,
+              duration: Date.now() - (updatedGame.createdAt?.getTime() || Date.now()) // Approximate duration
+            };
+
+            await EventStore.appendEvent(
+              gameId,
+              null, // requestId
+              0, // expectedVersion - using 0 since game state may not exist yet
+              'GAME_FINISHED',
+              gameFinishedEventData,
+              decoded.userId
+            );
+
+            console.log(`🏆 LeaveAPI: GAME_FINISHED event created for forfeit win`);
+          }
+        }
+      } catch (error) {
+        console.error('❌ LeaveAPI: Failed to process forfeit win ELO/events:', error);
+        // Don't fail the leave request if ELO processing fails
+      }
+    }
 
     return NextResponse.json({
       message: 'Successfully left game',

@@ -10,6 +10,76 @@ This document provides a systematic plan to analyze all event handlers in the Ev
 - **12 Missing Handlers** - Need implementation planning  
 - **1 Critical Gap** - ROUND_ENDED handler missing despite full event definition
 
+## Missing Event Handlers (Complete List)
+
+### ❌ **CRITICAL MISSING**: Core Game Flow
+1. **ROUND_ENDED** 
+   - **Status**: Event type defined, full data interface exists, **NO HANDLER**
+   - **Impact**: CRITICAL - Round completion logic scattered across other handlers
+   - **Event Data**: `RoundEndedEventData` interface complete
+   - **Priority**: HIGH - Central to round end flow
+
+### ❌ **Turn Actions Missing** 
+2. **LAY_OFF**
+   - **Status**: Event type defined, **NO HANDLER**
+   - **Impact**: LOW - System uses bulk `LAYOFF_COMPLETED` instead
+   - **Current Workaround**: Individual layoffs processed as batch via `LAYOFF_COMPLETED`
+   - **Priority**: LOW - Working alternative exists
+
+### ❌ **Round Management Missing**
+3. **LAYOFF_PHASE_STARTED**
+   - **Status**: Event type defined, **NO HANDLER** 
+   - **Impact**: MEDIUM - Layoff phase transitions happen in other handlers
+   - **Event Data**: `LayoffPhaseStartedEventData` interface exists
+   - **Priority**: MEDIUM - Affects round flow clarity
+
+### ❌ **Game Lifecycle Missing**
+4. **PLAYER_LEFT**
+   - **Status**: Event type defined, **NO HANDLER**
+   - **Impact**: MEDIUM - Player disconnections/quits not event-sourced
+   - **Event Data**: `PlayerLeftEventData` interface exists
+   - **Priority**: MEDIUM - Important for PvP games
+
+### ❌ **Game Ending Missing**
+5. **GAME_CANCELLED**
+   - **Status**: Event type defined, **NO HANDLER**
+   - **Impact**: LOW - Game cancellations handled outside event system
+   - **Event Data**: `GameCancelledEventData` interface exists  
+   - **Priority**: LOW - Edge case handling
+
+### ❌ **AI Events Missing** (2 handlers)
+6. **AI_THINKING_STARTED**
+   - **Status**: Event type defined, **NO HANDLER**
+   - **Impact**: LOW - AI thinking states handled in frontend
+   - **Event Data**: `AIThinkingStartedEventData` interface exists
+   - **Priority**: LOW - UI enhancement only
+
+7. **AI_MOVE_COMPLETED**
+   - **Status**: Event type defined, **NO HANDLER** 
+   - **Impact**: LOW - AI moves create regular move events instead
+   - **Event Data**: `AIMoveCompletedEventData` interface exists
+   - **Priority**: LOW - Wrapped by regular events
+
+### ❌ **System Events Missing** (2 handlers)
+8. **STATE_SNAPSHOT_CREATED**
+   - **Status**: Event type defined, **NO HANDLER**
+   - **Impact**: LOW - Snapshots not currently used
+   - **Event Data**: `StateSnapshotCreatedEventData` interface exists
+   - **Priority**: LOW - Performance optimization feature
+
+9. **ERROR_RECOVERED**
+   - **Status**: Event type defined, **NO HANDLER**
+   - **Impact**: LOW - Error recovery handled by existing validation
+   - **Event Data**: `ErrorRecoveredEventData` interface exists
+   - **Priority**: LOW - System resilience feature
+
+### **Handler Gap Analysis**
+- **Total Event Types Defined**: 30 events
+- **Handlers Implemented**: 18 events (60%)
+- **Handlers Missing**: 12 events (40%)
+- **Critical Missing**: 1 event (ROUND_ENDED)
+- **Working Without**: 11 events (alternative mechanisms exist)
+
 ## Analysis Framework
 
 ### For Each Implemented Handler, Analyze:
@@ -339,6 +409,31 @@ Focus on performance and edge cases:
 - **Documentation**: 1 day (consolidation and review)
 
 **Total Estimated Time**: 5-8 days for comprehensive analysis
+
+---
+
+## Quick Reference: Missing Handlers
+
+### HIGH PRIORITY (Fix Immediately)
+- ❌ **ROUND_ENDED** - Critical gap in round completion flow
+
+### MEDIUM PRIORITY (Consider Implementation)  
+- ❌ **LAYOFF_PHASE_STARTED** - Round flow clarity
+- ❌ **PLAYER_LEFT** - PvP game lifecycle management
+
+### LOW PRIORITY (Working Alternatives Exist)
+- ❌ **LAY_OFF** (has LAYOFF_COMPLETED)
+- ❌ **GAME_CANCELLED** (handled outside events)
+- ❌ **AI_THINKING_STARTED** (frontend handled)
+- ❌ **AI_MOVE_COMPLETED** (regular events used)
+- ❌ **STATE_SNAPSHOT_CREATED** (not used)
+- ❌ **ERROR_RECOVERED** (validation handles)
+
+### HANDLERS WITH IMPLEMENTATIONS ✅ (18 total)
+**Game Lifecycle**: GAME_CREATED, GAME_STARTED, PLAYER_JOINED, PLAYER_READY  
+**Turn Actions**: TAKE_UPCARD, PASS_UPCARD, DRAW_FROM_STOCK, DRAW_FROM_DISCARD, DISCARD_CARD, KNOCK, GIN  
+**Round Management**: START_NEW_ROUND, AI_LAYOFF_DECISION, LAYOFF_COMPLETED, PLAYER_READY_NEXT_ROUND, ROUND_STARTED  
+**Game Ending**: GAME_FINISHED
 
 ---
 
