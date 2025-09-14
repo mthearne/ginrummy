@@ -461,8 +461,11 @@ export class EventSourcingEngine {
     if (data.deadwoodValue !== undefined) {
       knocker.deadwood = data.deadwoodValue;
     }
+    // Don't add scores to player totals yet - wait for LAYOFF_COMPLETED
+    // Store initial scores for display only
     if (data.scores?.knocker !== undefined) {
-      knocker.score += data.scores.knocker;
+      // Store for display but don't add to player total yet
+      (knocker as any).initialRoundScore = data.scores.knocker;
     }
     
     // Store additional display data if available
@@ -485,7 +488,8 @@ export class EventSourcingEngine {
         opponent.melds = data.opponentMelds;
       }
       if (data.scores?.opponent !== undefined) {
-        opponent.score += data.scores.opponent;
+        // Store for display but don't add to player total yet
+        (opponent as any).initialRoundScore = data.scores.opponent;
       }
     }
 
@@ -723,11 +727,19 @@ export class EventSourcingEngine {
       const opponent = this.currentState!.players.find(p => !p.hasKnocked);
       
       if (knocker && opponent) {
-        // Update round scores
+        console.log(`🎯 EventSourcing: Applying final scores - knocker: ${data.finalScores.knocker}, opponent: ${data.finalScores.opponent}`);
+        
+        // Add final scores to player totals
+        knocker.score += data.finalScores.knocker;
+        opponent.score += data.finalScores.opponent;
+        
+        // Update round scores for display
         this.currentState!.roundScores = {
           knocker: data.finalScores.knocker,
           opponent: data.finalScores.opponent
         };
+        
+        console.log(`🎯 EventSourcing: Updated player totals - knocker: ${knocker.score}, opponent: ${opponent.score}`);
       }
     }
     

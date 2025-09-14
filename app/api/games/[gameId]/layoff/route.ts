@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { EventStore } from '../../../../../src/services/eventStore';
 import { ReplayService } from '../../../../../src/services/replay';
+import { calculateScoreWithLayOffs } from '../../../../../packages/common/src/utils/scoring';
 
 const prisma = new PrismaClient();
 
@@ -59,11 +60,37 @@ export async function POST(
       return NextResponse.json({ error: 'Game not in layoff phase' }, { status: 400 });
     }
 
+    // Calculate final scores with layoffs applied
+    const knocker = currentState.state.players.find(p => p.hasKnocked);
+    const opponent = currentState.state.players.find(p => !p.hasKnocked);
+    
+    let finalScores: { knocker: number; opponent: number } | null = null;
+    if (knocker && opponent) {
+      console.log(`🎯 LayoffAPI: Calculating final scores with ${layOffs.length} layoffs`);
+      
+      // Calculate scores with layoffs applied
+      const scores = calculateScoreWithLayOffs(
+        knocker.hand,
+        knocker.melds || [],
+        opponent.hand,
+        opponent.melds || [],
+        layOffs as any // Type cast to fix suit type mismatch
+      );
+      
+      finalScores = {
+        knocker: scores.knockerScore,
+        opponent: scores.opponentScore
+      };
+      
+      console.log(`🎯 LayoffAPI: Final scores calculated:`, finalScores);
+    }
+
     // Create layoff completion event
     const eventData = {
       playerId: userId,
       layOffs: layOffs,
-      completed: true
+      completed: true,
+      finalScores: finalScores
     };
 
     await EventStore.appendEvent(
