@@ -14,11 +14,12 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const socket = useSocket();
 
   useEffect(() => {
-    loadFriends();
+    loadFriends(true);
   }, []);
 
   // Periodic refresh for friend-related updates (since Socket.IO events are no longer available)
@@ -36,9 +37,13 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
     };
   }, [socket.isConnected()]);
 
-  const loadFriends = async () => {
+  const loadFriends = async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       const data = await FriendsService.getFriends();
       setFriends(data.friends || []);
       setSentRequests(data.sentRequests || []);
@@ -50,7 +55,11 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
       setSentRequests([]);
       setReceivedRequests([]);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
   };
 
@@ -116,7 +125,15 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
   return (
     <div className="card">
       <div className="card-body">
-        <h2 className="text-xl font-semibold mb-4">Friends</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Friends</h2>
+          {refreshing && (
+            <div className="flex items-center text-sm text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
+              Refreshing...
+            </div>
+          )}
+        </div>
         
         {/* Tabs */}
         <div className="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
