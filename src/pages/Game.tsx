@@ -10,6 +10,7 @@ import { TurnHistory } from '../components/game/TurnHistory';
 import { GameChat } from '../components/GameChat';
 import Confetti from '../components/ui/Confetti';
 import FlyingAnimal from '../components/ui/FlyingAnimal';
+import { useMeldSwitching } from '../hooks/useMeldSwitching';
 import AIThinkingOverlay from '../components/game/AIThinkingOverlay';
 import { MoveType, GamePhase, Card, Meld, GameState } from '@gin-rummy/common';
 import { RoundResultsModal } from '../components/RoundResults/RoundResultsModal';
@@ -54,6 +55,17 @@ export default function Game() {
     layOffs: Array<{ cards: Card[]; targetMeld: Meld }>;
   } | null>(null);
 
+  // Meld switching functionality
+  const meldSwitching = useMeldSwitching(getMyPlayer()?.hand || []);
+
+  // Initialize melds when hand changes
+  useEffect(() => {
+    const currentPlayer = getMyPlayer();
+    if (currentPlayer?.hand && currentPlayer.hand.length > 0) {
+      meldSwitching.initializeMelds();
+    }
+  }, [getMyPlayer()?.hand, meldSwitching.initializeMelds]);
+
   useEffect(() => {
     console.log(`[NAV DEBUG] Game page effect - gameId: ${gameId}, user: ${user?.username}`);
     if (!gameId) {
@@ -91,7 +103,7 @@ export default function Game() {
     if (showRoundResults) return;
     
     const shouldShowModal = gameState && 
-      (gameState.phase === 'layoff' || gameState.phase === 'round_over') && 
+      (gameState.phase === 'layoff' || gameState.phase === 'round_over' || gameState.phase === 'game_over' || gameState.gameOver) && 
       !roundResultsDismissed;
     
     console.log('🎭 Modal Check:', {
@@ -139,13 +151,26 @@ export default function Game() {
     }
   }, [gameState?.phase, gameState?.id, showRoundResults, roundResultsDismissed]);
 
-  // Reset round results dismissed flag only when starting a new round
+  // Reset round results dismissed flag when game state loads or new round starts
   useEffect(() => {
-    if (gameState && gameState.phase === 'upcard_decision' && roundResultsDismissed) {
-      console.log('🔄 New round started, resetting round results dismissed flag');
+    if (gameState) {
+      // Only reset dismissed flag when starting new round (not for game over)
+      if (gameState.phase === 'upcard_decision' && roundResultsDismissed) {
+        console.log('🔄 New round started, resetting round results dismissed flag');
+        setRoundResultsDismissed(false);
+      }
+    }
+  }, [gameState?.phase, gameState?.id, roundResultsDismissed]);
+
+  // Reset dismissed flag only once when game state first loads with round/game over
+  useEffect(() => {
+    if (gameState && !showRoundResults && 
+        (gameState.phase === 'round_over' || gameState.phase === 'game_over' || gameState.gameOver) && 
+        roundResultsDismissed) {
+      console.log('🔄 Game state initially loaded with round/game over phase, resetting round results dismissed flag');
       setRoundResultsDismissed(false);
     }
-  }, [gameState?.phase, roundResultsDismissed]);
+  }, [gameState?.id]); // Only depend on gameId to run once per game load
 
   // Track phase changes to show AI actions and celebrations
   useEffect(() => {
@@ -360,11 +385,14 @@ export default function Game() {
     const myPlayer = getMyPlayer();
     if (!myPlayer?.id) return;
     
+    // Use player-chosen melds from meld switching system
+    const playerChosenMelds = meldSwitching.currentState?.melds || myPlayer?.melds || [];
+    
     socket.makeMove({
       type: MoveType.Knock,
       playerId: myPlayer.id,
       cardId: selectedCards[0],
-      melds: myPlayer?.melds || [],
+      melds: playerChosenMelds,
       gameId: gameId,
     });
     clearSelection();
@@ -375,11 +403,14 @@ export default function Game() {
     const myPlayer = getMyPlayer();
     if (!myPlayer?.id) return;
     
+    // Use player-chosen melds from meld switching system
+    const playerChosenMelds = meldSwitching.currentState?.melds || myPlayer?.melds || [];
+    
     socket.makeMove({
       type: MoveType.Gin,
       playerId: myPlayer.id,
       cardId: selectedCards[0],
-      melds: myPlayer?.melds || [],
+      melds: playerChosenMelds,
       gameId: gameId,
     });
     clearSelection();
@@ -522,7 +553,11 @@ export default function Game() {
     });
 
     const handleMarkReady = async () => {
-      if (!gameId || !user || myReadyStatus || isMarkingReady) return;
+      console.log(`🔍 FRONTEND: handleMarkReady called`, { gameId, user: user?.username, myReadyStatus, isMarkingReady });
+      if (!gameId || !user || myReadyStatus || isMarkingReady) {
+        console.log(`🚫 FRONTEND: Ready button blocked - gameId:${!!gameId}, user:${!!user}, myReadyStatus:${myReadyStatus}, isMarkingReady:${isMarkingReady}`);
+        return;
+      }
       
       setIsMarkingReady(true);
       
@@ -537,7 +572,7 @@ export default function Game() {
       const expectedVersion = useGameStore.getState().getCurrentStreamVersion();
       
       try {
-        console.log('🚦 Marking ready with:', { requestId, expectedVersion, gameId });
+        console.log('🚦 FRONTEND: Making API call to markPlayerReady:', { requestId, expectedVersion, gameId });
         
         const response = await gamesAPI.markPlayerReady(gameId, requestId, expectedVersion);
         console.log('✅ Marked ready successfully:', response.data);
@@ -753,7 +788,15 @@ export default function Game() {
 
   // Helper function to get meld info for a card
   const getCardMeldInfo = (cardId: string, melds: any[]) => {
-    for (const meld of melds || []) {
+    // Use player-chosen melds from meld switching system for the current player's cards
+    const currentPlayer = getMyPlayer();
+    const isMyCard = currentPlayer?.hand?.some((card: Card) => card.id === cardId);
+    
+    const meldsToCheck = isMyCard 
+      ? (meldSwitching.currentState?.melds || currentPlayer?.melds || [])
+      : (melds || []);
+    
+    for (const meld of meldsToCheck) {
       const cardInMeld = meld.cards?.find((c: any) => c.id === cardId);
       if (cardInMeld) {
         return { isInMeld: true, meldType: meld.type };
@@ -764,15 +807,17 @@ export default function Game() {
 
   // Helper function to calculate deadwood after discarding a card
   const getDeadwoodAfterDiscard = (cardId: string): number => {
-    if (!myPlayer?.hand || !cardId) return myPlayer?.deadwood || 0;
+    const currentPlayer = getMyPlayer();
+    if (!currentPlayer?.hand || !cardId) return meldSwitching.currentState?.deadwood ?? currentPlayer?.deadwood ?? 0;
     
     // Simulate hand without the selected card
-    const handWithoutCard = myPlayer.hand.filter((card: Card) => card.id !== cardId);
+    const handWithoutCard = currentPlayer.hand.filter((card: Card) => card.id !== cardId);
     
-    // For now, use current melds calculation - this could be enhanced to recalculate optimal melds
-    const meldsWithoutCard = myPlayer.melds?.filter((meld: Meld) => 
+    // Use player-chosen melds from meld switching system
+    const playerChosenMelds = meldSwitching.currentState?.melds || currentPlayer.melds || [];
+    const meldsWithoutCard = playerChosenMelds.filter((meld: Meld) => 
       !meld.cards.some((card: Card) => card.id === cardId)
-    ) || [];
+    );
     
     // Calculate deadwood with remaining melds
     const meldedCardIds = new Set(
@@ -903,8 +948,8 @@ export default function Game() {
 
             {/* Center Area */}
             <div className="bg-white rounded-lg p-4">
-              {gameState.phase === 'game_over' ? (
-                /* Game Over - Show Congratulations */
+              {(gameState.phase === 'game_over' || gameState.gameOver) && roundResultsDismissed ? (
+                /* Game Over - Show Congratulations (only after modal dismissed) */
                 <div className="text-center relative">
                   <div className="text-6xl mb-4">🎉</div>
                   <h2 className="text-3xl font-bold mb-6 text-purple-600">
@@ -1109,7 +1154,14 @@ export default function Game() {
                     );
                   })()}
                   <div className="text-sm text-gray-600">
-                    Score: {myPlayer?.score || 0} | Deadwood: <span className={`font-medium ${(myPlayer?.deadwood || 0) <= 10 ? 'text-green-600' : 'text-red-600'}`}>{myPlayer?.deadwood || 0}</span>
+                    {(() => {
+                      const currentDeadwood = meldSwitching.currentState?.deadwood ?? myPlayer?.deadwood ?? 0;
+                      return (
+                        <>
+                          Score: {myPlayer?.score || 0} | Deadwood: <span className={`font-medium ${currentDeadwood <= 10 ? 'text-green-600' : 'text-red-600'}`}>{currentDeadwood}</span>
+                        </>
+                      );
+                    })()}
                     {selectedCards.length === 1 && (
                       <span className="ml-2">
                         → After discard: <span className={`font-medium ${getDeadwoodAfterDiscard(selectedCards[0]) <= 10 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1117,7 +1169,7 @@ export default function Game() {
                         </span>
                       </span>
                     )}
-                    {selectedCards.length === 0 && (myPlayer?.deadwood || 0) <= 10 && (
+                    {selectedCards.length === 0 && (meldSwitching.currentState?.deadwood ?? myPlayer?.deadwood ?? 0) <= 10 && (
                       <span className="text-green-600 ml-1">✓ Can knock!</span>
                     )}
                   </div>
@@ -1168,6 +1220,8 @@ export default function Game() {
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={(e) => handleDrop(e, index)}
                       isDragOver={isDraggedOver}
+                      canSwitchMeld={meldSwitching.isCardSwitchable(card.id)}
+                      onMeldSwitch={() => meldSwitching.switchCardMeld(card.id)}
                     />
                   );
                 })}

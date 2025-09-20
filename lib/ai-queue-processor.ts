@@ -372,6 +372,10 @@ export class AIQueueProcessor {
 
       console.log(`🤖 AIQueue: AI layoff decision: ${shouldLayoff ? 'LAYOFF' : 'SKIP'}, available layoffs: ${availableLayoffs.length}`);
 
+      // Add delay for human player to review round results before AI processes layoffs
+      console.log('🤖 AIQueue: Waiting 5 seconds for human player to review round results...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
       // Create and process the AI layoff decision action
       const layoffAction = {
         type: EventType.AI_LAYOFF_DECISION as EventType.AI_LAYOFF_DECISION,

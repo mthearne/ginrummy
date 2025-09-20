@@ -14,25 +14,110 @@ export function calculateDeadwood(hand: Card[], melds: Meld[] = []): number {
 }
 
 /**
- * Find the optimal melds in a hand to minimize deadwood
+ * Find all possible meld combinations for a hand
  */
-export function findOptimalMelds(hand: Card[]): { melds: Meld[]; deadwood: number } {
-  const groups = findCardGroups(hand);
-  const melds: Meld[] = [];
+export function findAllMeldCombinations(hand: Card[]): Array<{ melds: Meld[]; deadwood: number }> {
+  const combinations: Array<{ melds: Meld[]; deadwood: number }> = [];
+  const cardGroups = findCardGroups(hand);
   
-  for (const group of groups) {
-    if (group.length >= 3) {
-      // Determine if it's a set or run
-      const isSet = group.every(card => card.rank === group[0].rank);
-      melds.push({
+  console.log(`🔍 findAllMeldCombinations: Found ${cardGroups.length} card groups:`, 
+    cardGroups.map(group => group.map(c => `${c.rank}${c.suit}`).join(',')));
+  console.log('🔍 findAllMeldCombinations: Full hand for debugging:', 
+    hand.map(c => `${c.rank}${c.suit}`).join(', '));
+  
+  // Generate all possible combinations of groups
+  function generateCombinations(groups: Card[][], currentMelds: Meld[], remainingCards: Card[]): void {
+    if (groups.length === 0) {
+      // Calculate deadwood for this combination
+      const deadwood = calculateDeadwood(hand, currentMelds);
+      combinations.push({ melds: [...currentMelds], deadwood });
+      return;
+    }
+    
+    const [firstGroup, ...restGroups] = groups;
+    
+    // Option 1: Don't use this group
+    generateCombinations(restGroups, currentMelds, remainingCards);
+    
+    // Option 2: Use this group if it doesn't conflict with existing melds
+    const groupCards = new Set(firstGroup.map(c => c.id));
+    const hasConflict = currentMelds.some(meld => 
+      meld.cards.some(card => groupCards.has(card.id))
+    );
+    
+    if (!hasConflict && firstGroup.length >= 3) {
+      const isSet = firstGroup.every(card => card.rank === firstGroup[0].rank);
+      const newMeld: Meld = {
         type: isSet ? 'set' : 'run',
-        cards: group,
-      });
+        cards: firstGroup,
+      };
+      
+      const newRemainingCards = remainingCards.filter(c => !groupCards.has(c.id));
+      generateCombinations(restGroups, [...currentMelds, newMeld], newRemainingCards);
     }
   }
   
-  const deadwood = calculateDeadwood(hand, melds);
-  return { melds, deadwood };
+  generateCombinations(cardGroups, [], hand);
+  
+  // Sort by deadwood (best first)
+  return combinations.sort((a, b) => a.deadwood - b.deadwood);
+}
+
+/**
+ * Find which melds a specific card can belong to
+ */
+export function findCardMeldOptions(card: Card, hand: Card[]): Array<{ meld: Meld; alternativeIndex: number }> {
+  const allCombinations = findAllMeldCombinations(hand);
+  const cardOptions: Array<{ meld: Meld; alternativeIndex: number }> = [];
+  
+  console.log(`🔍 findCardMeldOptions: Checking card ${card.rank}${card.suit} across ${allCombinations.length} combinations`);
+  
+  allCombinations.forEach((combination, index) => {
+    combination.melds.forEach(meld => {
+      if (meld.cards.some(c => c.id === card.id)) {
+        console.log(`🔍 findCardMeldOptions: Found ${card.rank}${card.suit} in ${meld.type}: ${meld.cards.map(c => `${c.rank}${c.suit}`).join(',')}`);
+        cardOptions.push({ meld, alternativeIndex: index });
+      }
+    });
+  });
+  
+  console.log(`🔍 findCardMeldOptions: Before deduplication, ${card.rank}${card.suit} has ${cardOptions.length} options`);
+  
+  // Remove duplicates (same meld structure)
+  const uniqueOptions = cardOptions.filter((option, index, array) => {
+    return array.findIndex(other => 
+      other.meld.type === option.meld.type &&
+      other.meld.cards.length === option.meld.cards.length &&
+      other.meld.cards.every(c => option.meld.cards.some(oc => oc.id === c.id))
+    ) === index;
+  });
+  
+  console.log(`🔍 findCardMeldOptions: After deduplication, ${card.rank}${card.suit} has ${uniqueOptions.length} options`);
+  
+  return uniqueOptions;
+}
+
+/**
+ * Switch a card to a different meld assignment
+ */
+export function switchCardMeld(hand: Card[], currentMelds: Meld[], cardId: string, targetMeldOption: { meld: Meld; alternativeIndex: number }): { melds: Meld[]; deadwood: number } {
+  const allCombinations = findAllMeldCombinations(hand);
+  const targetCombination = allCombinations[targetMeldOption.alternativeIndex];
+  
+  if (targetCombination) {
+    return targetCombination;
+  }
+  
+  // Fallback to current melds if switch fails
+  return { melds: currentMelds, deadwood: calculateDeadwood(hand, currentMelds) };
+}
+
+/**
+ * Find the optimal melds in a hand to minimize deadwood
+ */
+export function findOptimalMelds(hand: Card[]): { melds: Meld[]; deadwood: number } {
+  const combinations = findAllMeldCombinations(hand);
+  return combinations[0] || { melds: [], deadwood: calculateDeadwood(hand, []) };
 }
 
 /**

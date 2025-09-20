@@ -185,7 +185,6 @@ export function isValidRun(cards: Card[]): boolean {
  */
 export function findCardGroups(cards: Card[]): Card[][] {
   const groups: Card[][] = [];
-  const usedCards = new Set<string>();
   
   // Group by rank for sets
   const rankGroups = new Map<Rank, Card[]>();
@@ -201,14 +200,12 @@ export function findCardGroups(cards: Card[]): Card[][] {
     if (rankCards.length >= 3) {
       // Use all available cards of the same rank (up to 4 for a complete set)
       groups.push(rankCards);
-      rankCards.forEach(card => usedCards.add(card.id));
     }
   }
   
-  // Group by suit for runs
+  // Group by suit for runs (don't exclude cards used in sets - allow overlap)
   const suitGroups = new Map<Suit, Card[]>();
   for (const card of cards) {
-    if (usedCards.has(card.id)) continue;
     if (!suitGroups.has(card.suit)) {
       suitGroups.set(card.suit, []);
     }

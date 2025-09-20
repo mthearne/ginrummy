@@ -1,3 +1,4 @@
+import React from 'react';
 import { Card as CardType } from '@gin-rummy/common';
 import { formatCard, clsx } from '../../utils/helpers';
 
@@ -16,6 +17,8 @@ interface CardProps {
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   isDragOver?: boolean;
+  canSwitchMeld?: boolean; // Indicates if card has multiple meld options
+  onMeldSwitch?: () => void; // Called when user wants to switch meld assignment
 }
 
 export function Card({ 
@@ -32,7 +35,9 @@ export function Card({
   onDragEnd,
   onDragOver,
   onDrop,
-  isDragOver = false
+  isDragOver = false,
+  canSwitchMeld = false,
+  onMeldSwitch
 }: CardProps) {
   const { display, symbol, color } = formatCard(card);
 
@@ -90,6 +95,48 @@ export function Card({
     }
   };
 
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!disabled && canSwitchMeld && onMeldSwitch) {
+      onMeldSwitch();
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!disabled && canSwitchMeld && onMeldSwitch) {
+      onMeldSwitch();
+    }
+  };
+
+  // Touch handling for mobile double-tap using useRef to avoid stale closures
+  const touchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const touchCountRef = React.useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchCountRef.current++;
+    
+    if (touchCountRef.current === 1) {
+      touchTimeoutRef.current = setTimeout(() => {
+        touchCountRef.current = 0;
+      }, 300);
+    } else if (touchCountRef.current === 2) {
+      if (touchTimeoutRef.current) {
+        clearTimeout(touchTimeoutRef.current);
+        touchTimeoutRef.current = null;
+      }
+      touchCountRef.current = 0;
+      
+      if (!disabled && canSwitchMeld && onMeldSwitch) {
+        e.preventDefault();
+        e.stopPropagation();
+        onMeldSwitch();
+      }
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -120,6 +167,7 @@ export function Card({
         isInMeld && meldType === 'set' && 'ring-green-400',
         isNewlyDrawn && 'ring-2 ring-yellow-400 animate-pulse',
         isDragOver && 'ring-2 ring-purple-400 transform scale-105',
+        // Note: canSwitchMeld styling removed - use icon only, don't override border
         className
       )}
       draggable={draggable && !disabled}
@@ -129,6 +177,10 @@ export function Card({
       onDrop={handleDrop}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      title={canSwitchMeld ? "Right-click or double-tap to switch meld assignment" : undefined}
     >
       {isInMeld && (
         <div className={clsx(
@@ -136,6 +188,11 @@ export function Card({
           meldType === 'run' ? 'bg-blue-500' : 'bg-green-500'
         )}>
           {meldType === 'run' ? 'R' : 'S'}
+        </div>
+      )}
+      {canSwitchMeld && (
+        <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center text-white bg-orange-500 animate-pulse">
+          ⇄
         </div>
       )}
       <div className={`absolute top-1 left-1 ${symbolSizes.corner} font-bold leading-none`}>

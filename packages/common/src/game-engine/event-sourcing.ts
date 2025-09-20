@@ -10,7 +10,12 @@ import {
   GameStartedEventData,
   StartNewRoundEventData,
   GameFinishedEventData,
+  RoundEndedEventData,
   LayoffCompletedEventData,
+  PlayerLeftEventData,
+  GameCancelledEventData,
+  AIThinkingStartedEventData,
+  LayoffPhaseStartedEventData,
   isDrawFromStockEvent,
   isDrawFromDiscardEvent,
   isDiscardCardEvent,
@@ -151,6 +156,21 @@ export class EventSourcingEngine {
         
       case EventType.ROUND_STARTED:
         return this.applyRoundStarted(event);
+        
+      case EventType.ROUND_ENDED:
+        return this.applyRoundEnded(event);
+        
+      case EventType.PLAYER_LEFT:
+        return this.applyPlayerLeft(event);
+        
+      case EventType.GAME_CANCELLED:
+        return this.applyGameCancelled(event);
+        
+      case EventType.AI_THINKING_STARTED:
+        return this.applyAIThinkingStarted(event);
+        
+      case EventType.LAYOFF_PHASE_STARTED:
+        return this.applyLayoffPhaseStarted(event);
         
       default:
         console.warn(`⚠️ EventSourcing: Unhandled event type: ${event.eventType}`);
@@ -544,7 +564,9 @@ export class EventSourcingEngine {
     ginner.handSize = data.ginnerHand.length;
     ginner.melds = data.ginnerMelds;
     ginner.deadwood = 0;
+    console.log(`🎯 EventSourcing: GIN - Adding ${data.scores.ginner} points to ginner ${ginner.id} (was ${ginner.score})`);
     ginner.score += data.scores.ginner;
+    console.log(`🎯 EventSourcing: GIN - Ginner ${ginner.id} new score: ${ginner.score}`);
 
     // Set opponent state
     const opponent = this.currentState!.players.find(p => p.id !== data.playerId);
@@ -552,7 +574,9 @@ export class EventSourcingEngine {
       opponent.hand = data.opponentHand; // Expose opponent's hand for round over display
       opponent.handSize = data.opponentHand.length;
       opponent.melds = data.opponentMelds;
+      console.log(`🎯 EventSourcing: GIN - Adding ${data.scores.opponent} points to opponent ${opponent.id} (was ${opponent.score})`);
       opponent.score += data.scores.opponent;
+      console.log(`🎯 EventSourcing: GIN - Opponent ${opponent.id} new score: ${opponent.score}`);
     }
 
     // Set round scores
@@ -699,8 +723,21 @@ export class EventSourcingEngine {
       
       console.log(`🏆 EventSourcing: Winner is ${this.currentState!.winner} with ${maxScore} points`);
     } else {
+      // Apply final scores from initialRoundScore to actual score totals
+      this.currentState!.players.forEach(player => {
+        const initialScore = (player as any).initialRoundScore || 0;
+        if (initialScore > 0) {
+          console.log(`🎯 EventSourcing: AI_LAYOFF_DECISION - Adding ${initialScore} points to player ${player.id} (was ${player.score})`);
+          player.score += initialScore;
+          console.log(`🎯 EventSourcing: AI_LAYOFF_DECISION - Player ${player.id} new score: ${player.score}`);
+          // Clear the initial round score after applying it
+          (player as any).initialRoundScore = 0;
+        }
+      });
+      
       // Round over, but game continues
-      console.log(`🔄 EventSourcing: Round over, scores: ${playerScores.join(' - ')}, game continues`);
+      const updatedScores = this.currentState!.players.map(p => p.score);
+      console.log(`🔄 EventSourcing: Round over, scores: ${updatedScores.join(' - ')}, game continues`);
       this.currentState!.phase = GamePhase.RoundOver;
     }
     
@@ -842,6 +879,84 @@ export class EventSourcingEngine {
     return this.currentState!;
   }
 
+  private applyRoundEnded(event: GameEvent): GameState {
+    const data = event.eventData as RoundEndedEventData;
+    
+    console.log(`🏁 EventSourcing: Round ended - ${data.endType} by ${data.knockerId}`);
+    
+    // ROUND_ENDED is purely for audit trail - scores are already applied by KNOCK/GIN events
+    // We just store the round result information for display and history
+    this.currentState!.lastKnocker = data.knockerId;
+    this.currentState!.lastKnockerMelds = data.knockerMelds;
+    this.currentState!.roundScores = {
+      [data.knockerId]: data.scores.knocker,
+      [data.opponentId]: data.scores.opponent
+    };
+    
+    // Store round ending info without changing any game logic state
+    // The actual game state transitions are handled by the underlying KNOCK/GIN events
+    console.log(`📝 EventSourcing: Recorded round end details for audit trail`);
+    
+    return this.currentState!;
+  }
+
+  private applyPlayerLeft(event: GameEvent): GameState {
+    const data = event.eventData as PlayerLeftEventData;
+    
+    console.log(`👋 EventSourcing: Player ${data.playerId} left game - reason: ${data.reason}`);
+    
+    // PLAYER_LEFT is purely for audit trail - game ending logic is handled elsewhere
+    // We just record the departure for analytics and debugging
+    console.log(`📝 EventSourcing: Recorded player departure for audit trail`);
+    
+    return this.currentState!;
+  }
+
+  private applyGameCancelled(event: GameEvent): GameState {
+    const data = event.eventData as GameCancelledEventData;
+    
+    console.log(`🚫 EventSourcing: Game cancelled - reason: ${data.reason}${data.cancelledBy ? ` by ${data.cancelledBy}` : ''}`);
+    
+    // GAME_CANCELLED is purely for audit trail - game status changes are handled elsewhere
+    // We just record the cancellation for analytics and debugging
+    console.log(`📝 EventSourcing: Recorded game cancellation for audit trail`);
+    
+    return this.currentState!;
+  }
+
+  private applyAIThinkingStarted(event: GameEvent): GameState {
+    const data = event.eventData as AIThinkingStartedEventData;
+    
+    console.log(`🤖 EventSourcing: AI ${data.playerId} started thinking - estimated ${data.estimatedDuration}ms`);
+    
+    // AI_THINKING_STARTED is purely for audit trail and performance monitoring
+    // We just record the AI thinking process for analytics and debugging
+    if (data.thoughts && data.thoughts.length > 0) {
+      console.log(`💭 EventSourcing: AI thoughts: ${data.thoughts.slice(0, 2).join(', ')}${data.thoughts.length > 2 ? '...' : ''}`);
+    }
+    console.log(`📝 EventSourcing: Recorded AI thinking start for audit trail`);
+    
+    return this.currentState!;
+  }
+
+  private applyLayoffPhaseStarted(event: GameEvent): GameState {
+    const data = event.eventData as LayoffPhaseStartedEventData;
+    
+    console.log(`🎯 EventSourcing: Layoff phase started for game ${data.gameId}`);
+    console.log(`🔄 EventSourcing: Knocker: ${data.knockerId}, Opponent: ${data.opponentId}`);
+    
+    // LAYOFF_PHASE_STARTED is purely for audit trail - phase transitions are handled elsewhere
+    // We just record the layoff phase beginning and available opportunities
+    if (data.availableLayoffs && data.availableLayoffs.length > 0) {
+      console.log(`📊 EventSourcing: ${data.availableLayoffs.length} layoff opportunities available`);
+    } else {
+      console.log(`📊 EventSourcing: No layoff opportunities available`);
+    }
+    console.log(`📝 EventSourcing: Recorded layoff phase start for audit trail`);
+    
+    return this.currentState!;
+  }
+
   private createEmptyPlayerState(playerId: string, username: string): PlayerState {
     return {
       id: playerId,
@@ -860,14 +975,21 @@ export class EventSourcingEngine {
 
   /**
    * Update player's optimal melds and deadwood based on current hand
+   * Only recalculates if player hasn't explicitly set their melds
    */
-  private updatePlayerMeldsAndDeadwood(player: PlayerState): void {
+  private updatePlayerMeldsAndDeadwood(player: PlayerState, preserveExplicitMelds = false): void {
     if (player.hand.length === 0) {
       player.melds = [];
       player.deadwood = 0;
       return;
     }
 
+    // If preserveExplicitMelds is true and player has melds, only recalculate deadwood
+    if (preserveExplicitMelds && player.melds && player.melds.length > 0) {
+      player.deadwood = calculateDeadwood(player.hand, player.melds);
+      return;
+    }
+    
     const optimalResult = findOptimalMelds(player.hand);
     player.melds = optimalResult.melds;
     player.deadwood = optimalResult.deadwood;
