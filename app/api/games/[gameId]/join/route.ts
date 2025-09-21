@@ -244,7 +244,10 @@ export async function POST(
     }
 
     // Rebuild game state after join
-    const gameState = await ReplayService.rebuildFilteredState(params.gameId, user.id);
+    const [filteredState, fullStateResult] = await Promise.all([
+      ReplayService.rebuildFilteredState(params.gameId, user.id),
+      ReplayService.rebuildState(params.gameId)
+    ]);
 
     // Send real-time game streaming update to all players
     try {
@@ -254,9 +257,11 @@ export async function POST(
       await notifyPlayerJoined(params.gameId, { id: user.id, username: user.username }, [game.player1Id, user.id]);
       
       // Notify about updated game state
-      if (gameState) {
-        await notifyGameStateUpdated(params.gameId, gameState.state, [game.player1Id, user.id]);
-      }
+      await notifyGameStateUpdated(params.gameId, {
+        fullState: fullStateResult.state,
+        streamVersion: fullStateResult.version,
+        playerIds: [game.player1Id, user.id]
+      });
     } catch (streamingError) {
       console.error('⚠️ GameJoin: Failed to send streaming updates:', streamingError);
       // Don't fail the join if streaming fails
@@ -271,7 +276,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       streamVersion: appendResult.sequence,
-      gameState: gameState.state,
+      gameState: filteredState.state,
       metadata: {
         eventType: 'PLAYER_JOINED',
         playerId: user.id,

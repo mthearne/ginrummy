@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
 // Game stream events
 export interface GameStreamEvent {
-  type: 'game_state_updated' | 'player_joined' | 'player_left' | 'move_made' | 'turn_changed' | 'game_ended' | 'opponent_thinking' | 'game_connected' | 'ping';
+  type: 'game_state_updated' | 'player_state_updated' | 'player_joined' | 'player_left' | 'move_made' | 'turn_changed' | 'game_ended' | 'opponent_thinking' | 'game_connected' | 'ping';
   gameId?: string;
   data?: any;
   message?: string;

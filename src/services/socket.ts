@@ -1,4 +1,4 @@
-import { GameMove } from '@gin-rummy/common';
+import { GameMove, GameState } from '@gin-rummy/common';
 import { useGameStore } from '../store/game';
 import { useAuthStore } from '../store/auth';
 import { api, gamesAPI } from './api';
@@ -87,13 +87,13 @@ class SocketService {
       clearInterval(this.refreshInterval);
     }
     
-    // Refresh game state every 3 seconds for more real-time feel
+    // Refresh game state every 10 seconds as a safety net (primary updates come via streaming)
     this.refreshInterval = setInterval(() => {
       if (this.currentGameId === gameId) {
         console.log('🔄 Periodic refresh: Checking for game updates');
         this.joinGameViaAPI(gameId);
       }
-    }, 3000);
+    }, 10000);
   }
 
   // REST API for joining games
@@ -281,30 +281,6 @@ class SocketService {
         useGameStore.getState().setGameState(data.gameState);
         console.log('Move completed. Current player:', data.gameState.currentPlayerId, 'Phase:', data.gameState.phase);
         
-        // Immediate fresh state reload for consistency
-        setTimeout(() => {
-          console.log('🔄 Post-move refresh: Loading fresh state from event-sourced backend');
-          this.joinGameViaAPI(move.gameId!);
-        }, 500);
-        
-        // Trigger immediate refresh for opponent by reducing next poll interval
-        if (this.refreshInterval) {
-          clearInterval(this.refreshInterval);
-          // Set up faster polling for next few seconds after move
-          let fastPollCount = 0;
-          const fastPollInterval = setInterval(() => {
-            if (this.currentGameId === move.gameId && fastPollCount < 3) {
-              console.log('🚀 Fast refresh: Immediate post-move update check');
-              this.joinGameViaAPI(move.gameId!);
-              fastPollCount++;
-            } else {
-              clearInterval(fastPollInterval);
-              // Resume normal 3-second polling
-              this.setupPeriodicRefresh(move.gameId!);
-            }
-          }, 1000); // Poll every 1 second for 3 times, then back to normal
-        }
-        
         // REMOVED: Frontend AI trigger backup for debugging
         // Let's rely entirely on backend to identify any remaining issues
         console.log('🔍 Frontend AI trigger backup DISABLED - backend-only mode for debugging');
@@ -400,12 +376,38 @@ class SocketService {
     
     switch (event.type) {
       case 'game_state_updated':
-        console.log('🎮 Socket: Game state updated via stream - refreshing full state');
-        // Refresh full game state from server to ensure consistency
-        if (this.currentGameId) {
-          this.joinGameViaAPI(this.currentGameId);
-        }
+        console.log('🎮 Socket: Received summary game update via stream');
         break;
+
+      case 'player_state_updated': {
+        if (event.gameId && this.currentGameId && event.gameId !== this.currentGameId) {
+          console.log('🎮 Socket: Ignoring player_state_updated for different game:', event.gameId);
+          return;
+        }
+
+        const gameState = event.data?.gameState as GameState | undefined;
+        const streamVersion = event.data?.streamVersion as number | undefined;
+
+        if (gameState) {
+          console.log('🎮 Socket: Applying streamed player state update', {
+            phase: gameState.phase,
+            currentPlayerId: gameState.currentPlayerId,
+            streamVersion
+          });
+
+          useGameStore.getState().setGameState(gameState, streamVersion);
+          useGameStore.getState().setIsSubmittingMove(false);
+          useGameStore.getState().setConnected(true);
+
+          // Clear AI thinking if it's now our turn
+          const currentUserId = useAuthStore.getState().user?.id;
+          if (useGameStore.getState().isAIThinking && currentUserId && gameState.currentPlayerId === currentUserId) {
+            useGameStore.getState().setAIThinking(false, []);
+          }
+        }
+
+        break;
+      }
         
       case 'player_joined':
         console.log('🎮 Socket: Player joined via stream:', event.data?.player?.username);
@@ -428,11 +430,7 @@ class SocketService {
           }
         }
         
-        // Refresh game state to show the move
-        console.log('🎮 Socket: Refreshing game state after move via stream');
-        if (this.currentGameId) {
-          this.joinGameViaAPI(this.currentGameId);
-        }
+        // Player-specific state updates will arrive via `player_state_updated`
         break;
         
       case 'turn_changed':

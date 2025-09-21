@@ -1,7 +1,8 @@
 import { GameState } from '@gin-rummy/common';
+import { ReplayService } from '../services/replay';
 
 export interface GameStreamEvent {
-  type: 'game_state_updated' | 'player_joined' | 'player_left' | 'move_made' | 'turn_changed' | 'game_ended' | 'opponent_thinking' | 'game_connected' | 'ping';
+  type: 'game_state_updated' | 'player_state_updated' | 'player_joined' | 'player_left' | 'move_made' | 'turn_changed' | 'game_ended' | 'opponent_thinking' | 'game_connected' | 'ping';
   gameId?: string;
   data?: any;
   message?: string;
@@ -54,31 +55,68 @@ export async function sendGameEventToGame(gameId: string, event: GameStreamEvent
 /**
  * Notify players when game state is updated
  */
-export async function notifyGameStateUpdated(gameId: string, gameState: GameState, playerIds: string[]) {
-  return sendGameEventToGame(gameId, {
+export async function notifyGameStateUpdated(
+  gameId: string,
+  options: {
+    fullState?: GameState;
+    streamVersion?: number;
+    playerIds: string[];
+  }
+) {
+  const { fullState, playerIds } = options;
+  let state = fullState;
+  let effectiveVersion = options.streamVersion;
+
+  if (!state) {
+    const rebuild = await ReplayService.rebuildState(gameId);
+    state = rebuild.state;
+    if (effectiveVersion === undefined) {
+      effectiveVersion = rebuild.version;
+    }
+  }
+
+  if (effectiveVersion === undefined) {
+    effectiveVersion = 0;
+  }
+
+  await sendGameEventToGame(gameId, {
     type: 'game_state_updated',
     data: {
       gameState: {
-        id: gameState.id,
-        phase: gameState.phase,
-        currentPlayerId: gameState.currentPlayerId,
-        status: gameState.status,
-        // Only send safe data - no opponent cards
-        players: gameState.players?.map(p => ({
+        id: state.id,
+        phase: state.phase,
+        currentPlayerId: state.currentPlayerId,
+        status: state.status,
+        players: state.players?.map(p => ({
           id: p.id,
           username: p.username,
           handSize: p.hand?.length || 0
         })),
-        discardPile: gameState.discardPile,
-        stockSize: gameState.stockPileCount || 0,
-        roundNumber: gameState.roundNumber,
-        scores: gameState.roundScores || (gameState.players ? {
-          [gameState.players[0]?.id]: gameState.players[0]?.score || 0,
-          [gameState.players[1]?.id]: gameState.players[1]?.score || 0
-        } : undefined)
+        discardPile: state.discardPile,
+        stockSize: state.stockPileCount || 0,
+        roundNumber: state.roundNumber,
+        scores: state.roundScores || (state.players ? {
+          [state.players[0]?.id]: state.players[0]?.score || 0,
+          [state.players[1]?.id]: state.players[1]?.score || 0
+        } : undefined),
+        streamVersion: effectiveVersion
       }
     }
   }, playerIds);
+
+  await Promise.all(
+    playerIds.map(async (playerId) => {
+      const filteredState = ReplayService.filterStateForPlayer(state!, playerId);
+      return sendGameEventToUser(playerId, {
+        type: 'player_state_updated',
+        gameId,
+        data: {
+          gameState: filteredState,
+          streamVersion: effectiveVersion
+        }
+      });
+    })
+  );
 }
 
 /**

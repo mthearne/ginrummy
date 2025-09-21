@@ -20,6 +20,19 @@ export interface ReplayResult {
 
 export class ReplayService {
   /**
+   * Clone an existing state and apply player filtering without replaying events
+   */
+  static filterStateForPlayer(state: GameState, playerId: string, isSpectator: boolean = false): GameState {
+    const clonedState: GameState = JSON.parse(JSON.stringify(state));
+
+    if (isSpectator) {
+      return this.applySpectatorFilter(clonedState);
+    }
+
+    return this.applyPlayerFilter(clonedState, playerId);
+  }
+
+  /**
    * Rebuild complete game state from event stream
    * 
    * @param gameId - Game to rebuild

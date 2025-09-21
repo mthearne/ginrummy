@@ -655,7 +655,11 @@ export async function POST(
       }, allPlayerIds);
       
       // Notify about updated game state
-      await notifyGameStateUpdated(params.gameId, gameState, allPlayerIds);
+      await notifyGameStateUpdated(params.gameId, {
+        fullState: gameState,
+        streamVersion: newStreamVersion,
+        playerIds: allPlayerIds
+      });
       
       // If turn changed, notify about new turn
       if (gameState.currentPlayerId && gameState.currentPlayerId !== userId) {
