@@ -178,25 +178,22 @@ class SocketService {
 
   // REST API for making moves
   private async makeMoveViaAPI(move: GameMove) {
-    const storeSnapshot = useGameStore.getState();
-    const previousState = storeSnapshot.gameState
-      ? (JSON.parse(JSON.stringify(storeSnapshot.gameState)) as GameState)
+    const storeBeforeMove = useGameStore.getState();
+    const previousState = storeBeforeMove.gameState
+      ? (JSON.parse(JSON.stringify(storeBeforeMove.gameState)) as GameState)
       : null;
-    const previousVersion = storeSnapshot.streamVersion ?? 0;
+    const previousVersion = storeBeforeMove.streamVersion ?? 0;
+
+    const { setIsSubmittingMove, generateRequestId } = useGameStore.getState();
+    const requestId = generateRequestId();
+    const expectedVersion = previousVersion;
+
     const optimisticApplied = this.applyOptimisticMove(move, previousVersion);
 
-    const { setIsSubmittingMove, getCurrentStreamVersion, generateRequestId } = useGameStore.getState();
     setIsSubmittingMove(true);
     
     try {
-      // Generate requestId for idempotency and get current stream version for concurrency control
-      const requestId = generateRequestId();
-      const expectedVersion = getCurrentStreamVersion();
-      
-      console.log('Making move via REST API:', move, {
-        requestId,
-        expectedVersion
-      });
+      console.log('Making move via REST API:', move, { requestId, expectedVersion });
       
       const currentGameState = useGameStore.getState().gameState;
       if (currentGameState) {
