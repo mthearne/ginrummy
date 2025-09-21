@@ -1,4 +1,4 @@
-import { GameMove, GameState } from '@gin-rummy/common';
+import { Card, GameMove, GameState, MoveType } from '@gin-rummy/common';
 import { useGameStore } from '../store/game';
 import { useAuthStore } from '../store/auth';
 import { api, gamesAPI } from './api';
@@ -178,6 +178,13 @@ class SocketService {
 
   // REST API for making moves
   private async makeMoveViaAPI(move: GameMove) {
+    const storeSnapshot = useGameStore.getState();
+    const previousState = storeSnapshot.gameState
+      ? (JSON.parse(JSON.stringify(storeSnapshot.gameState)) as GameState)
+      : null;
+    const previousVersion = storeSnapshot.streamVersion ?? 0;
+    const optimisticApplied = this.applyOptimisticMove(move, previousVersion);
+
     const { setIsSubmittingMove, getCurrentStreamVersion, generateRequestId } = useGameStore.getState();
     setIsSubmittingMove(true);
     
@@ -311,6 +318,9 @@ class SocketService {
 
     } catch (error) {
       console.error('Failed to make move via API:', error);
+      if (optimisticApplied && previousState) {
+        useGameStore.getState().setGameState(previousState, previousVersion);
+      }
       
       // Handle version conflict errors (409)
       if (error.response?.data?.code === 'VERSION_CONFLICT') {
@@ -350,6 +360,95 @@ class SocketService {
     } finally {
       setIsSubmittingMove(false);
     }
+  }
+
+  private applyOptimisticMove(move: GameMove, previousVersion: number): boolean {
+    const store = useGameStore.getState();
+    const currentState = store.gameState as GameState | null;
+
+    if (!currentState || !currentState.players || !move.playerId) {
+      return false;
+    }
+
+    const clonedState = JSON.parse(JSON.stringify(currentState)) as GameState;
+    const player = clonedState.players.find((p) => p.id === move.playerId);
+    const opponent = clonedState.players.find((p) => p.id !== move.playerId);
+
+    if (!player) {
+      return false;
+    }
+
+    const pushToDiscard = (card?: Card) => {
+      if (!card) return;
+      clonedState.discardPile = clonedState.discardPile ? [card, ...clonedState.discardPile] : [card];
+    };
+
+    switch (move.type) {
+      case MoveType.DrawStock: {
+        if (!clonedState.stockPile || clonedState.stockPile.length === 0) return false;
+        const drawnCard = clonedState.stockPile.shift();
+        if (drawnCard) {
+          player.hand = player.hand ? [...player.hand, drawnCard] : [drawnCard];
+          player.handSize = player.hand.length;
+          player.lastDrawnCardId = drawnCard.id;
+          clonedState.stockPileCount = clonedState.stockPile.length;
+          clonedState.phase = 'discard';
+          clonedState.currentPlayerId = move.playerId;
+        }
+        break;
+      }
+      case MoveType.DrawDiscard: {
+        if (!clonedState.discardPile || clonedState.discardPile.length === 0) return false;
+        const drawnCard = clonedState.discardPile.shift();
+        if (drawnCard) {
+          player.hand = player.hand ? [...player.hand, drawnCard] : [drawnCard];
+          player.handSize = player.hand.length;
+          player.lastDrawnCardId = drawnCard.id;
+          clonedState.phase = 'discard';
+          clonedState.currentPlayerId = move.playerId;
+        }
+        break;
+      }
+      case MoveType.TakeUpcard: {
+        if (!clonedState.discardPile || clonedState.discardPile.length === 0) return false;
+        const upcard = clonedState.discardPile.shift();
+        if (upcard) {
+          player.hand = player.hand ? [...player.hand, upcard] : [upcard];
+          player.handSize = player.hand.length;
+          player.lastDrawnCardId = upcard.id;
+          clonedState.phase = 'discard';
+          clonedState.currentPlayerId = move.playerId;
+        }
+        break;
+      }
+      case MoveType.Discard: {
+        if (!move.cardId || !player.hand) return false;
+        const cardIndex = player.hand.findIndex((c) => c.id === move.cardId);
+        if (cardIndex === -1) return false;
+        const [discarded] = player.hand.splice(cardIndex, 1);
+        player.handSize = player.hand.length;
+        player.lastDrawnCardId = undefined;
+        pushToDiscard(discarded);
+        if (opponent) {
+          clonedState.currentPlayerId = opponent.id;
+        }
+        clonedState.phase = 'draw';
+        clonedState.turnId = (clonedState.turnId ?? 0) + 1;
+        break;
+      }
+      case MoveType.PassUpcard: {
+        if (opponent) {
+          clonedState.currentPlayerId = opponent.id;
+        }
+        break;
+      }
+      default:
+        return false;
+    }
+
+    const nextVersion = previousVersion + 1;
+    useGameStore.getState().setGameState(clonedState, nextVersion);
+    return true;
   }
 
   sendChatMessage(gameId: string, message: string) {
