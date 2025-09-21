@@ -245,8 +245,8 @@
 - Client issues: Browser developer console
 
 **For Gameplay Issues:**
-- Reference: `pvp_implementation_plan.md`
-- Test Scripts: `test-*.cjs` files
+- Reference: `../plans/PVP_IMPLEMENTATION_PLAN.md`
+- Test Scripts: `scripts/manual-tests/test-*.cjs`
 - Event logs: Database `game_events` table
 
 ---

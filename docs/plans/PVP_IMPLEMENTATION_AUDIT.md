@@ -130,7 +130,7 @@ Comparing implemented features against the original PvP Implementation Plan to e
 - **Status:** Enhanced beyond original plan
 
 **🧪 Testing Coverage:**
-- ✅ `test-pvp-notifications.cjs` validates join flow
+- ✅ `scripts/manual-tests/test-pvp-notifications.cjs` validates join flow
 - ✅ Concurrent joins tested
 - ✅ Game state synchronization verified
 
@@ -212,10 +212,10 @@ Comparing implemented features against the original PvP Implementation Plan to e
 - ✅ Spectator functionality
 
 ### **📝 Test Scripts Created:**
-1. ✅ `test-pvp-notifications.cjs` - **9/9 tests passing**
-2. ✅ `test-game-streaming.cjs` - **Comprehensive streaming validation**  
-3. ✅ `test-spectator.cjs` - **Spectator system validation**
-4. ✅ `test-elo-system.cjs` - **ELO rating system testing**
+1. ✅ `scripts/manual-tests/test-pvp-notifications.cjs` - **9/9 tests passing**
+2. ✅ `scripts/manual-tests/test-game-streaming.cjs` - **Comprehensive streaming validation**  
+3. ✅ `scripts/manual-tests/test-spectator.cjs` - **Spectator system validation**
+4. ✅ `scripts/manual-tests/test-elo-system.cjs` - **ELO rating system testing**
 
 ---
 
