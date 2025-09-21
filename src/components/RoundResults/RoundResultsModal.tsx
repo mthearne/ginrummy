@@ -66,12 +66,13 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   );
 
   // If the game state has final round scores (from layoff completion), use those instead
-  if (gameState.roundScores && (phase === 'celebration' || gameState.phase === 'round_over')) {
+  if (gameState.roundScores && (phase === 'celebration' || gameState.phase === 'round_over' || gameState.phase === 'game_over')) {
     console.log('🎯 Using final round scores from game state:', gameState.roundScores);
     
     const knockerFinalScore = gameState.roundScores.knocker || 0;
     const opponentFinalScore = gameState.roundScores.opponent || 0;
     
+    // Preserve the layoff breakdown details but use final scores
     scoreData = {
       ...scoreData,
       knockerScore: knockerFinalScore,
@@ -120,8 +121,8 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   useEffect(() => {
     console.log('🎭 Modal: Auto-advance check - isOpen:', isOpen, 'gamePhase:', gameState.phase, 'modalPhase:', phase);
     
-    if (isOpen && gameState.phase === 'round_over' && phase === 'layoff') {
-      console.log('🎭 Modal: Game transitioned to round_over, auto-advancing modal from layoff to scoring');
+    if (isOpen && (gameState.phase === 'round_over' || gameState.phase === 'game_over') && phase === 'layoff') {
+      console.log(`🎭 Modal: Game transitioned to ${gameState.phase}, auto-advancing modal from layoff to scoring`);
       
       // Use any layoffs from the game state if available
       if (gameState.lastLayOffs && gameState.lastLayOffs.length > 0) {

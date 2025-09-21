@@ -136,6 +136,22 @@ export async function POST(
 
         console.log(`🏆 LayoffAPI: GAME_FINISHED event created for winner ${winner.id}`);
         
+        // Update ELO ratings for PvP games
+        if (!updatedState.state.vsAI) {
+          try {
+            console.log('🎯 LayoffAPI: Game completed, processing ELO updates');
+            const { updatePlayerElos } = await import('../../../../../src/utils/elo');
+            const eloChanges = await updatePlayerElos(winner.id, loser.id, gameId);
+            console.log('✅ LayoffAPI: ELO ratings updated successfully');
+            console.log(`📊 LayoffAPI: ELO changes - Winner: +${eloChanges.winner.change}, Loser: ${eloChanges.loser.change}`);
+          } catch (eloError) {
+            console.error('❌ LayoffAPI: Failed to update ELO ratings:', eloError);
+            // Don't fail the whole request if ELO update fails
+          }
+        } else {
+          console.log('🤖 LayoffAPI: Skipping ELO update for AI game');
+        }
+        
         // Update the games table to mark as finished
         await prisma.game.update({
           where: { id: gameId },

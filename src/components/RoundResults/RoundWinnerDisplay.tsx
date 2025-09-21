@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { GameState } from '../../../packages/common/src/types/game';
 
 interface ScoreData {
@@ -31,6 +32,7 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
   onContinue,
   onRefreshGameState,
 }) => {
+  const router = useRouter();
   const [showConfetti, setShowConfetti] = useState(false);
   const [animationPhase, setAnimationPhase] = useState<'enter' | 'celebrate' | 'ready'>('enter');
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
@@ -95,9 +97,15 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
     return () => clearTimeout(countdownTimer);
   }, [countdownSeconds]);
 
+  const handleReturnToLobby = () => {
+    console.log('🚪 Returning to lobby from game over modal');
+    onContinue(); // Close the modal first
+    router.push('/lobby'); // Navigate to lobby
+  };
+
   const handleStartNewRound = async () => {
     if (gameHasEnded) {
-      onContinue();
+      handleReturnToLobby();
       return;
     }
 
@@ -134,41 +142,44 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
   };
 
   const getWinnerMessage = () => {
+    const winText = gameHasEnded ? 'wins the game!' : 'wins the round!';
+    const tieText = gameHasEnded ? 'Game ends in a tie!' : 'Both players scored equally!';
+    
     if (scoreData.isGin) {
       return {
-        primary: '🎯 GIN VICTORY!',
-        secondary: `${knockerName} achieved Gin with zero deadwood!`,
+        primary: gameHasEnded ? '🏆 GAME VICTORY!' : '🎯 GIN VICTORY!',
+        secondary: `${knockerName} achieved Gin with zero deadwood${gameHasEnded ? ' and wins the game!' : '!'}`,
         color: 'text-yellow-500'
       };
     }
     
     if (scoreData.isUndercut) {
       return {
-        primary: '⚡ UNDERCUT!',
-        secondary: `${opponentName} defended successfully and wins!`,
+        primary: gameHasEnded ? '🏆 GAME VICTORY!' : '⚡ UNDERCUT!',
+        secondary: `${opponentName} defended successfully and ${winText}`,
         color: 'text-purple-500'
       };
     }
     
     if (winner === 'knocker') {
       return {
-        primary: '👊 KNOCK VICTORY!',
-        secondary: `${knockerName} wins the round!`,
+        primary: gameHasEnded ? '🏆 GAME VICTORY!' : '👊 KNOCK VICTORY!',
+        secondary: `${knockerName} ${winText}`,
         color: 'text-blue-500'
       };
     }
     
     if (winner === 'opponent') {
       return {
-        primary: '🛡️ DEFENSE WINS!',
-        secondary: `${opponentName} wins the round!`,
+        primary: gameHasEnded ? '🏆 GAME VICTORY!' : '🛡️ DEFENSE WINS!',
+        secondary: `${opponentName} ${winText}`,
         color: 'text-purple-500'
       };
     }
     
     return {
-      primary: '🤝 TIE ROUND!',
-      secondary: 'Both players scored equally!',
+      primary: gameHasEnded ? '🤝 TIE GAME!' : '🤝 TIE ROUND!',
+      secondary: tieText,
       color: 'text-gray-500'
     };
   };
@@ -320,7 +331,7 @@ export const RoundWinnerDisplay: React.FC<RoundWinnerDisplayProps> = ({
         {/* Only show button for game end or manual override */}
         {gameHasEnded && (
           <button
-            onClick={onContinue}
+            onClick={handleReturnToLobby}
             className="px-8 py-4 font-bold text-white rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
           >
             Return to Lobby
