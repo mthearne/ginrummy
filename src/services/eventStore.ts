@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import { createHash, randomUUID } from 'crypto';
+import { GameState } from '@gin-rummy/common';
 
 const prisma = new PrismaClient();
-import { createHash } from 'crypto';
 
 /**
  * EventStore - Core service for multiplayer concurrency control
@@ -284,15 +285,75 @@ export class EventStore {
    * Get the latest snapshot for a game (future: for performance optimization)
    */
   static async getLatestSnapshot(gameId: string) {
-    // TODO: Implement snapshot loading when we add the snapshot system
-    return null;
+    const snapshot = await prisma.gameSnapshot.findFirst({
+      where: { gameId },
+      orderBy: { sequenceNumber: 'desc' }
+    });
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      sequenceNumber: snapshot.sequenceNumber,
+      state: snapshot.gameState as GameState,
+      stateHash: snapshot.stateHash,
+      createdAt: snapshot.createdAt,
+      createdBy: snapshot.createdBy
+    };
   }
 
   /**
-   * Save a snapshot of game state (future: for performance optimization)
+   * Save or update a snapshot of the game state for faster replays
    */
-  static async saveSnapshot(gameId: string, version: number, state: any) {
-    // TODO: Implement snapshot saving when we add the snapshot system
-    console.log(`📸 EventStore: Snapshot saving not yet implemented for game ${gameId} at version ${version}`);
+  static async saveSnapshot(gameId: string, version: number, state: GameState) {
+    try {
+      const stateJson = JSON.stringify(state);
+      const stateHash = createHash('sha256').update(stateJson).digest('hex');
+
+      await prisma.gameSnapshot.upsert({
+        where: {
+          gameId_sequenceNumber: {
+            gameId,
+            sequenceNumber: version
+          }
+        },
+        update: {
+          gameState: state,
+          stateHash,
+          createdBy: 'SYSTEM'
+        },
+        create: {
+          id: randomUUID(),
+          gameId,
+          sequenceNumber: version,
+          gameState: state,
+          stateHash,
+          createdBy: 'SYSTEM'
+        }
+      });
+
+      console.log(`📸 EventStore: Snapshot saved for game ${gameId} at version ${version}`);
+
+      const retention = Number(process.env.GAME_SNAPSHOT_RETENTION || 5);
+      const keepCount = Number.isFinite(retention) && retention > 0 ? Math.floor(retention) : 5;
+
+      const snapshotsToDelete = await prisma.gameSnapshot.findMany({
+        where: { gameId },
+        orderBy: { sequenceNumber: 'desc' },
+        skip: keepCount,
+        select: { id: true },
+      });
+
+      if (snapshotsToDelete.length > 0) {
+        await prisma.gameSnapshot.deleteMany({
+          where: { id: { in: snapshotsToDelete.map((snapshot) => snapshot.id) } },
+        });
+        console.log(`📸 EventStore: Pruned ${snapshotsToDelete.length} old snapshots for game ${gameId}`);
+      }
+    } catch (error) {
+      console.error(`📸 EventStore: Failed to save snapshot for game ${gameId} at version ${version}`, error);
+    }
   }
 }

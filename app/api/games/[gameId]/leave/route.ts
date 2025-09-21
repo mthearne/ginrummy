@@ -3,6 +3,9 @@ import { verifyAccessToken } from '../../../../../src/utils/jwt';
 import { prisma } from '../../../../../src/utils/database';
 import { EventStore } from '../../../../../src/services/eventStore';
 import { updatePlayerElos } from '../../../../../src/utils/elo';
+import { ReplayService } from '../../../../../src/services/replay';
+import { maybeCaptureSnapshot } from '../../../../../src/services/snapshot';
+import { randomUUID } from 'crypto';
 
 export async function POST(
   request: NextRequest,
@@ -156,14 +159,26 @@ export async function POST(
               duration: Date.now() - (updatedGame.createdAt?.getTime() || Date.now()) // Approximate duration
             };
 
-            await EventStore.appendEvent(
+            const currentVersion = await EventStore.getCurrentVersion(gameId);
+            const finishedResult = await EventStore.appendEvent(
               gameId,
-              null, // requestId
-              0, // expectedVersion - using 0 since game state may not exist yet
+              randomUUID(),
+              currentVersion,
               'GAME_FINISHED',
               gameFinishedEventData,
               decoded.userId
             );
+
+            if (finishedResult.success) {
+              const finalState = await ReplayService.rebuildState(gameId);
+              await maybeCaptureSnapshot(gameId, finishedResult.sequence, {
+                eventType: 'GAME_FINISHED',
+                force: true,
+                state: finalState.state
+              });
+            } else {
+              console.error('❌ LeaveAPI: Failed to create GAME_FINISHED event during leave:', finishedResult.error);
+            }
 
             console.log(`🏆 LeaveAPI: GAME_FINISHED event created for forfeit win`);
           }

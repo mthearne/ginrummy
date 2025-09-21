@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { verifyAuth } from '../../../../../lib/auth';
 import { EventStore } from '../../../../../src/services/eventStore';
 import { ReplayService } from '../../../../../src/services/replay';
+import { maybeCaptureSnapshot } from '../../../../../src/services/snapshot';
 
 /**
  * POST /api/games/[gameId]/ready
@@ -130,7 +132,7 @@ export async function POST(
         // Start the initial game
         const gameStartResult = await EventStore.appendEvent(
           gameId,
-          null, // requestId
+          randomUUID(),
           latestState.version, // Use the current version after all PLAYER_READY events
           'GAME_STARTED',
           {
@@ -150,8 +152,14 @@ export async function POST(
         );
 
         if (gameStartResult.success) {
-          console.log(`🎮 ReadyAPI: Initial game started successfully with event sequence ${gameStartResult.newVersion}`);
+          console.log(`🎮 ReadyAPI: Initial game started successfully with event sequence ${gameStartResult.sequence}`);
           fs.appendFileSync('/tmp/ready-debug.log', `${new Date().toISOString()} - GAME_STARTED EVENT CREATED SUCCESSFULLY for ${gameId}\n`);
+
+          const startedState = await ReplayService.rebuildState(gameId);
+          await maybeCaptureSnapshot(gameId, gameStartResult.sequence, {
+            eventType: 'GAME_STARTED',
+            state: startedState.state
+          });
           
           // Update database record to sync with event store
           try {
@@ -160,7 +168,7 @@ export async function POST(
               where: { id: gameId },
               data: { 
                 status: 'ACTIVE',
-                streamVersion: gameStartResult.newVersion 
+                streamVersion: gameStartResult.sequence 
               }
             });
             console.log(`✅ ReadyAPI: Database status synced to ACTIVE`);
@@ -188,12 +196,13 @@ export async function POST(
         
         const newRoundResult = await EventStore.appendEvent(
           gameId,
-          null, // requestId
-          appendResult.newVersion, // Use the version after the PLAYER_READY event was appended
-          'ROUND_STARTED',
+          randomUUID(),
+          appendResult.sequence,
+          'START_NEW_ROUND',
           {
+            playerId: user.id,
+            gameId,
             roundNumber: (updatedState.state.roundNumber || 1) + 1,
-            startedBy: 'system',
             newDeal: {
               player1Hand,
               player2Hand,
@@ -202,11 +211,16 @@ export async function POST(
               stockPile: deck
             }
           },
-          'system'
+          user.id
         );
 
         if (newRoundResult.success) {
           console.log(`🎮 ReadyAPI: New round started automatically`);
+          const newRoundState = await ReplayService.rebuildState(gameId);
+          await maybeCaptureSnapshot(gameId, newRoundResult.sequence, {
+            eventType: 'START_NEW_ROUND',
+            state: newRoundState.state
+          });
         } else {
           console.error('❌ ReadyAPI: Failed to start new round:', newRoundResult.error);
         }

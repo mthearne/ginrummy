@@ -7,6 +7,7 @@ import { createNotification } from '../../../../../src/utils/notifications';
 import { EventSourcedGinRummyGame } from '../../../../../packages/common/src/game-engine/event-sourced-gin-rummy';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { maybeCaptureSnapshot } from '../../../../../src/services/snapshot';
 
 const prisma = new PrismaClient();
 
@@ -141,6 +142,10 @@ export async function POST(
       );
     }
 
+    await maybeCaptureSnapshot(params.gameId, appendResult.sequence, {
+      eventType: 'PLAYER_JOINED'
+    });
+
     console.log('✅ GameJoin: PLAYER_JOINED event created, now creating GAME_STARTED event');
 
     // Now create GAME_STARTED event to deal cards and begin gameplay
@@ -189,6 +194,11 @@ export async function POST(
       // Game is still joinable, but won't have proper card dealing
     } else {
       console.log('✅ GameJoin: GAME_STARTED event created successfully');
+      const startedState = await ReplayService.rebuildState(params.gameId);
+      await maybeCaptureSnapshot(params.gameId, gameStartResult.sequence, {
+        eventType: 'GAME_STARTED',
+        state: startedState.state
+      });
     }
 
     // Update game record to reflect new player

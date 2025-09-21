@@ -19,12 +19,12 @@ This document provides a systematic plan to analyze all event handlers in the Ev
    - **Event Data**: `RoundEndedEventData` interface complete
    - **Priority**: HIGH - Central to round end flow
 
-### ❌ **Turn Actions Missing** 
+### ✅ **Turn Actions Implemented** 
 2. **LAY_OFF**
-   - **Status**: Event type defined, **NO HANDLER**
-   - **Impact**: LOW - System uses bulk `LAYOFF_COMPLETED` instead
-   - **Current Workaround**: Individual layoffs processed as batch via `LAYOFF_COMPLETED`
-   - **Priority**: LOW - Working alternative exists
+   - **Status**: Handler implemented. Emitted before `LAYOFF_COMPLETED` to capture per-meld layoff details
+   - **Impact**: Medium - Improves turn history / analytics for layoff phase
+   - **Current Behaviour**: Works alongside `LAYOFF_COMPLETED` for final scoring
+   - **Priority**: ✅ Resolved
 
 ### ❌ **Round Management Missing**
 3. **LAYOFF_PHASE_STARTED**
@@ -33,41 +33,47 @@ This document provides a systematic plan to analyze all event handlers in the Ev
    - **Event Data**: `LayoffPhaseStartedEventData` interface exists
    - **Priority**: MEDIUM - Affects round flow clarity
 
+### ✅ **Round Management Implemented**
+4. **ROUND_ENDED**
+   - **Status**: Handler implemented. Emitted after layoff completion to log round summary
+   - **Impact**: MEDIUM - Provides round history and analytics
+   - **Priority**: ✅ Resolved
+
 ### ❌ **Game Lifecycle Missing**
-4. **PLAYER_LEFT**
+5. **PLAYER_LEFT**
    - **Status**: Event type defined, **NO HANDLER**
    - **Impact**: MEDIUM - Player disconnections/quits not event-sourced
    - **Event Data**: `PlayerLeftEventData` interface exists
    - **Priority**: MEDIUM - Important for PvP games
 
 ### ❌ **Game Ending Missing**
-5. **GAME_CANCELLED**
+6. **GAME_CANCELLED**
    - **Status**: Event type defined, **NO HANDLER**
    - **Impact**: LOW - Game cancellations handled outside event system
    - **Event Data**: `GameCancelledEventData` interface exists  
    - **Priority**: LOW - Edge case handling
 
 ### ❌ **AI Events Missing** (2 handlers)
-6. **AI_THINKING_STARTED**
+7. **AI_THINKING_STARTED**
    - **Status**: Event type defined, **NO HANDLER**
    - **Impact**: LOW - AI thinking states handled in frontend
    - **Event Data**: `AIThinkingStartedEventData` interface exists
    - **Priority**: LOW - UI enhancement only
 
-7. **AI_MOVE_COMPLETED**
+8. **AI_MOVE_COMPLETED**
    - **Status**: Event type defined, **NO HANDLER** 
    - **Impact**: LOW - AI moves create regular move events instead
    - **Event Data**: `AIMoveCompletedEventData` interface exists
    - **Priority**: LOW - Wrapped by regular events
 
 ### ❌ **System Events Missing** (2 handlers)
-8. **STATE_SNAPSHOT_CREATED**
+9. **STATE_SNAPSHOT_CREATED**
    - **Status**: Event type defined, **NO HANDLER**
    - **Impact**: LOW - Snapshots not currently used
    - **Event Data**: `StateSnapshotCreatedEventData` interface exists
    - **Priority**: LOW - Performance optimization feature
 
-9. **ERROR_RECOVERED**
+10. **ERROR_RECOVERED**
    - **Status**: Event type defined, **NO HANDLER**
    - **Impact**: LOW - Error recovery handled by existing validation
    - **Event Data**: `ErrorRecoveredEventData` interface exists
@@ -75,9 +81,9 @@ This document provides a systematic plan to analyze all event handlers in the Ev
 
 ### **Handler Gap Analysis**
 - **Total Event Types Defined**: 30 events
-- **Handlers Implemented**: 18 events (60%)
-- **Handlers Missing**: 12 events (40%)
-- **Critical Missing**: 1 event (ROUND_ENDED)
+- **Handlers Implemented**: 20 events (67%)
+- **Handlers Missing**: 10 events (33%)
+- **Critical Missing**: 0 events
 - **Working Without**: 11 events (alternative mechanisms exist)
 
 ## Analysis Framework

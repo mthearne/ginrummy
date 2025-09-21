@@ -30,19 +30,25 @@ export class ReplayService {
     console.log(`🔄 ReplayService: Rebuilding state for game ${gameId}${upToVersion ? ` up to version ${upToVersion}` : ''}`);
 
     try {
-      // TODO: In Phase 3, load from latest snapshot first for performance
-      // const snapshot = await EventStore.getLatestSnapshot(gameId);
-      
-      // For now, always rebuild from scratch
-      const events = upToVersion 
-        ? await EventStore.getEventsRange(gameId, 0, upToVersion)
-        : await EventStore.getAllEvents(gameId);
+      const latestSnapshot = await EventStore.getLatestSnapshot(gameId);
+      let baseState: GameState | undefined;
+      let startingVersion = 0;
 
-      console.log(`📚 ReplayService: Loaded ${events.length} events for replay`);
+      if (latestSnapshot && (!upToVersion || latestSnapshot.sequenceNumber <= upToVersion)) {
+        baseState = latestSnapshot.state;
+        startingVersion = latestSnapshot.sequenceNumber;
+        console.log(`📸 ReplayService: Using snapshot at version ${startingVersion} for game ${gameId}`);
+      }
 
-      if (events.length === 0) {
+      const events = upToVersion
+        ? await EventStore.getEventsRange(gameId, startingVersion, upToVersion)
+        : await EventStore.getEventsSince(gameId, startingVersion);
+
+      if (!baseState && events.length === 0) {
         throw new Error(`No events found for game ${gameId}`);
       }
+
+      console.log(`📚 ReplayService: Loaded ${events.length} events after version ${startingVersion}`);
 
       // Convert our EventStore format to the format expected by EventSourcingEngine
       const gameEvents: GameEvent[] = events.map(event => ({
@@ -60,12 +66,12 @@ export class ReplayService {
       }));
 
       // Use existing event sourcing engine to rebuild state
-      const engine = new EventSourcingEngine(gameId, gameEvents);
+      const engine = new EventSourcingEngine(gameId, gameEvents, baseState, startingVersion);
       const finalState = engine.replayEvents();
       
-      const finalVersion = events.length > 0 
-        ? Math.max(...events.map(e => e.sequenceNumber))
-        : 0;
+      const finalVersion = events.length > 0
+        ? events[events.length - 1].sequenceNumber
+        : startingVersion;
 
       console.log(`✅ ReplayService: Rebuilt state for game ${gameId} to version ${finalVersion}`);
       console.log(`🎯 ReplayService: Final state - Phase: ${finalState.phase}, Players: ${finalState.players.length}`);
@@ -126,9 +132,7 @@ export class ReplayService {
       }));
 
       // Apply tail events to base state  
-      const engine = new EventSourcingEngine(gameId, gameEvents);
-      // TODO: Need to check if EventSourcingEngine has setInitialState method
-      // For now, we'll do a full replay from events
+      const engine = new EventSourcingEngine(gameId, gameEvents, baseState, fromVersion);
       const updatedState = engine.replayEvents();
       
       const finalVersion = Math.max(...tailEvents.map(e => e.sequenceNumber));

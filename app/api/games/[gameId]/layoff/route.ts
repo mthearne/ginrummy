@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { EventStore } from '../../../../../src/services/eventStore';
 import { ReplayService } from '../../../../../src/services/replay';
 import { calculateScoreWithLayOffs } from '../../../../../packages/common/src/utils/scoring';
+import { getCardValue } from '../../../../../packages/common/src/utils/cards';
+import { maybeCaptureSnapshot } from '../../../../../src/services/snapshot';
 
 const prisma = new PrismaClient();
 
@@ -60,53 +63,117 @@ export async function POST(
       return NextResponse.json({ error: 'Game not in layoff phase' }, { status: 400 });
     }
 
-    // Calculate final scores with layoffs applied
     const knocker = currentState.state.players.find(p => p.hasKnocked);
     const opponent = currentState.state.players.find(p => !p.hasKnocked);
-    
-    let finalScores: { knocker: number; opponent: number } | null = null;
-    if (knocker && opponent) {
-      console.log(`🎯 LayoffAPI: Calculating final scores with ${layOffs.length} layoffs`);
-      
-      // Calculate scores with layoffs applied
-      const scores = calculateScoreWithLayOffs(
-        knocker.hand,
-        knocker.melds || [],
-        opponent.hand,
-        opponent.melds || [],
-        layOffs as any // Type cast to fix suit type mismatch
-      );
-      
-      finalScores = {
-        knocker: scores.knockerScore,
-        opponent: scores.opponentScore
+
+    const scoreSnapshot = knocker && opponent
+      ? calculateScoreWithLayOffs(
+          knocker.hand,
+          knocker.melds || [],
+          opponent.hand,
+          opponent.melds || [],
+          layOffs as any
+        )
+      : null;
+
+    let expectedVersion = currentState.version;
+
+    // Emit granular layoff events for turn history
+    for (const layoff of layOffs) {
+      const layoffEventData = {
+        playerId: userId,
+        cardsLayedOff: layoff.cards,
+        targetMeld: layoff.targetMeld,
+        deadwoodReduction: layoff.cards.reduce((total, card) => total + getCardValue(card), 0)
       };
-      
-      console.log(`🎯 LayoffAPI: Final scores calculated:`, finalScores);
+
+      const layoffResult = await EventStore.appendEvent(
+        gameId,
+        randomUUID(),
+        expectedVersion,
+        'LAY_OFF',
+        layoffEventData,
+        userId
+      );
+
+      if (!layoffResult.success) {
+        console.error('❌ LayoffAPI: Failed to append LAY_OFF event:', layoffResult.error);
+        return NextResponse.json({ error: 'Failed to record layoff action' }, { status: 500 });
+      }
+
+      expectedVersion = layoffResult.sequence;
     }
 
-    // Create layoff completion event
-    const eventData = {
+    const layoffCompletedData = {
+      gameId,
       playerId: userId,
-      layOffs: layOffs,
-      completed: true,
-      finalScores: finalScores
+      layoffs: layOffs,
+      scoreAdjustment: scoreSnapshot?.layOffValue ?? 0,
+      finalScores: scoreSnapshot
+        ? { knocker: scoreSnapshot.knockerScore, opponent: scoreSnapshot.opponentScore }
+        : { knocker: 0, opponent: 0 }
     };
 
-    await EventStore.appendEvent(
+    const layoffCompletedResult = await EventStore.appendEvent(
       gameId,
-      null, // requestId
-      currentState.version, // expectedVersion
+      randomUUID(),
+      expectedVersion,
       'LAYOFF_COMPLETED',
-      eventData,
+      layoffCompletedData,
       userId
     );
 
+    if (!layoffCompletedResult.success) {
+      console.error('❌ LayoffAPI: Failed to append LAYOFF_COMPLETED event:', layoffCompletedResult.error);
+      return NextResponse.json({ error: 'Failed to finalize layoffs' }, { status: 500 });
+    }
+
+    expectedVersion = layoffCompletedResult.sequence;
     console.log(`✅ LayoffAPI: Layoff completed for player ${userId} with ${layOffs.length} layoffs`);
 
-    // Check if game should be finished after layoff completion
     const updatedState = await ReplayService.rebuildState(gameId);
-    
+
+    // Record round summary for analytics/history
+    if (knocker && opponent && scoreSnapshot) {
+      const roundEndedResult = await EventStore.appendEvent(
+        gameId,
+        randomUUID(),
+        expectedVersion,
+        'ROUND_ENDED',
+        {
+          gameId,
+          endType: scoreSnapshot.isGin ? 'GIN' : 'KNOCK',
+          knockerId: knocker.id,
+          knockerMelds: knocker.melds || [],
+          opponentId: opponent.id,
+          opponentMelds: opponent.melds || [],
+          scores: {
+            knocker: scoreSnapshot.knockerScore,
+            opponent: scoreSnapshot.opponentScore
+          }
+        },
+        knocker.id
+      );
+
+      if (!roundEndedResult.success) {
+        console.error('❌ LayoffAPI: Failed to append ROUND_ENDED event:', roundEndedResult.error);
+        return NextResponse.json({ error: 'Failed to record round summary' }, { status: 500 });
+      }
+
+      expectedVersion = roundEndedResult.sequence;
+      await maybeCaptureSnapshot(gameId, expectedVersion, {
+        eventType: 'ROUND_ENDED',
+        force: true,
+        state: updatedState.state
+      });
+    } else {
+      await maybeCaptureSnapshot(gameId, expectedVersion, {
+        eventType: 'LAYOFF_COMPLETED',
+        state: updatedState.state
+      });
+    }
+
+    // Check if game should be finished after layoff completion
     if (updatedState.state.gameOver) {
       console.log('🏁 LayoffAPI: Game finished detected, creating GAME_FINISHED event');
       
@@ -122,17 +189,30 @@ export async function POST(
           loserId: loser.id,
           loserScore: loser.score,
           endReason: 'KNOCK' as const, // Assuming knock since we're in layoff phase
-          duration: Date.now() - Date.now() // TODO: Use actual game start time
+          duration: 0
         };
 
-        await EventStore.appendEvent(
+        const finishedResult = await EventStore.appendEvent(
           gameId,
-          null, // requestId
-          updatedState.version, // expectedVersion
+          randomUUID(),
+          expectedVersion,
           'GAME_FINISHED',
           gameFinishedEventData,
           userId
         );
+
+        if (!finishedResult.success) {
+          console.error('❌ LayoffAPI: Failed to append GAME_FINISHED event:', finishedResult.error);
+          return NextResponse.json({ error: 'Failed to finalize game' }, { status: 500 });
+        }
+
+        expectedVersion = finishedResult.sequence;
+        const finalState = await ReplayService.rebuildState(gameId);
+        await maybeCaptureSnapshot(gameId, expectedVersion, {
+          eventType: 'GAME_FINISHED',
+          force: true,
+          state: finalState.state
+        });
 
         console.log(`🏆 LayoffAPI: GAME_FINISHED event created for winner ${winner.id}`);
         
@@ -165,9 +245,12 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      layOffs: layOffs,
+      layOffs,
+      finalScores: scoreSnapshot
+        ? { knocker: scoreSnapshot.knockerScore, opponent: scoreSnapshot.opponentScore }
+        : { knocker: 0, opponent: 0 },
       message: 'Layoff completed successfully'
     });
 

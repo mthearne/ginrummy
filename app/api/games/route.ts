@@ -6,6 +6,7 @@ import { verifyAuth } from '../../../lib/auth';
 import { eventLogger } from '../../../lib/event-logger';
 import { EventStore } from '../../../src/services/eventStore';
 import { ReplayService } from '../../../src/services/replay';
+import { maybeCaptureSnapshot } from '../../../src/services/snapshot';
 import crypto from 'crypto';
 import { z } from 'zod';
 
@@ -155,6 +156,13 @@ export async function POST(request: NextRequest) {
       players: gameState.players?.length,
       vsAI: gameState.vsAI,
       streamVersion
+    });
+
+    const fullState = await ReplayService.rebuildState(result.gameId);
+    await maybeCaptureSnapshot(result.gameId, fullState.version, {
+      eventType: 'GAME_CREATED',
+      force: true,
+      state: fullState.state
     });
 
     // Log successful game creation

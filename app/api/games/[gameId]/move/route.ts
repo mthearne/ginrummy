@@ -10,6 +10,7 @@ import { createNotification } from '../../../../../src/utils/notifications';
 import { createDeck, shuffleDeck } from '../../../../../packages/common/src/utils/cards';
 import { calculateScoreWithLayOffs } from '../../../../../packages/common/src/utils/scoring';
 import { v4 as uuidv4 } from 'uuid';
+import { maybeCaptureSnapshot } from '../../../../../src/services/snapshot';
 
 const prisma = new PrismaClient();
 const turnController = new TurnController(prisma);
@@ -583,6 +584,10 @@ export async function POST(
       streamVersion: newStreamVersion,
     });
 
+    await maybeCaptureSnapshot(params.gameId, appendResult.sequence, {
+      eventType: backendAction.type
+    });
+
     // STEP 6: Generate turn history entry for this move
     const player = gameState.players.find((p: any) => p.id === userId);
     const turnHistoryEntry = createTurnHistoryEntry({
@@ -848,4 +853,3 @@ function generateAIThoughts(gameState: any, aiPlayer: any): string[] {
   
   return thoughts;
 }
-

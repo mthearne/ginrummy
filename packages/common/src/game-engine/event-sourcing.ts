@@ -11,6 +11,7 @@ import {
   StartNewRoundEventData,
   GameFinishedEventData,
   RoundEndedEventData,
+  LayoffEventData,
   LayoffCompletedEventData,
   PlayerLeftEventData,
   GameCancelledEventData,
@@ -36,10 +37,14 @@ export class EventSourcingEngine {
   private gameId: string;
   private events: GameEvent[] = [];
   private currentState: GameState | null = null;
+  private initialState?: GameState;
+  private startingSequence: number;
 
-  constructor(gameId: string, events: GameEvent[] = []) {
+  constructor(gameId: string, events: GameEvent[] = [], initialState?: GameState, startingSequence: number = 0) {
     this.gameId = gameId;
     this.events = events.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+    this.initialState = initialState ? this.cloneState(initialState) : undefined;
+    this.startingSequence = startingSequence;
   }
 
   /**
@@ -58,9 +63,14 @@ export class EventSourcingEngine {
     if (sequenceValidation.recovered) {
       console.log(`🔧 EventSourcing: Recovered ${sequenceValidation.recoveredCount} event sequence issues`);
     }
-    
-    // Start with empty state
-    this.currentState = this.createInitialState();
+
+    if (this.events.length === 0 && this.initialState) {
+      this.currentState = this.cloneState(this.initialState);
+      return this.currentState;
+    }
+
+    // Start with snapshot state when available, otherwise create a fresh state
+    this.currentState = this.initialState ? this.cloneState(this.initialState) : this.createInitialState();
     
     // Apply each event in sequence
     for (const event of this.events) {
@@ -138,6 +148,9 @@ export class EventSourcingEngine {
       case EventType.GIN:
         if (!isGinEvent(event)) throw new Error('Invalid event data for GIN');
         return this.applyGin(event);
+
+      case EventType.LAY_OFF:
+        return this.applyLayOff(event);
         
       case EventType.START_NEW_ROUND:
         return this.applyStartNewRound(event);
@@ -195,6 +208,10 @@ export class EventSourcingEngine {
   }
 
   // Private event application methods
+
+  private cloneState(state: GameState): GameState {
+    return JSON.parse(JSON.stringify(state));
+  }
 
   private createInitialState(): GameState {
     return {
@@ -744,6 +761,39 @@ export class EventSourcingEngine {
     return this.currentState!;
   }
 
+  private applyLayOff(event: GameEvent): GameState {
+    const data = event.eventData as LayoffEventData;
+
+    if (!this.currentState) {
+      throw new Error('EventSourcing: Cannot apply layoff without current state');
+    }
+
+    if (!this.currentState.lastLayOffs) {
+      this.currentState.lastLayOffs = [];
+    }
+
+    this.currentState.lastLayOffs.push({
+      cards: data.cardsLayedOff,
+      targetMeld: data.targetMeld
+    });
+
+    if (data.playerId) {
+      const player = this.currentState.players.find(p => p.id === data.playerId);
+      if (player) {
+        data.cardsLayedOff.forEach(card => {
+          const index = player.hand.findIndex(handCard => handCard.id === card.id);
+          if (index >= 0) {
+            player.hand.splice(index, 1);
+          }
+        });
+        player.handSize = player.hand.length;
+        player.deadwood = calculateDeadwood(player.hand, player.melds || []);
+      }
+    }
+
+    return this.currentState!;
+  }
+
   private applyLayoffCompleted(event: GameEvent): GameState {
     const data = event.eventData as any; // LayoffCompletedEventData
     
@@ -873,7 +923,7 @@ export class EventSourcingEngine {
     // Clear round result data
     this.currentState!.lastKnocker = undefined;
     this.currentState!.lastKnockerMelds = undefined;
-    this.currentState!.lastLayOffs = undefined;
+    this.currentState!.lastLayOffs = [];
     this.currentState!.roundScores = undefined;
     
     return this.currentState!;
@@ -952,6 +1002,7 @@ export class EventSourcingEngine {
     } else {
       console.log(`📊 EventSourcing: No layoff opportunities available`);
     }
+    this.currentState!.lastLayOffs = [];
     console.log(`📝 EventSourcing: Recorded layoff phase start for audit trail`);
     
     return this.currentState!;
@@ -1096,8 +1147,9 @@ export class EventSourcingEngine {
 
     // EDGE CASE: Missing sequence numbers (gaps)
     const sortedEvents = [...this.events].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+    const offset = this.startingSequence;
     for (let i = 0; i < sortedEvents.length; i++) {
-      const expectedSeq = i + 1;
+      const expectedSeq = offset + i + 1;
       const actualSeq = sortedEvents[i].sequenceNumber;
       
       if (actualSeq !== expectedSeq) {

@@ -26,6 +26,10 @@ Add these environment variables in your Vercel dashboard:
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token expiration |
 | `NODE_ENV` | `production` | Environment mode |
 | `PORT` | `3001` | Server port |
+| `GAME_SNAPSHOT_ENABLED` | `true` | Set to `false` to disable snapshot capture entirely |
+| `GAME_SNAPSHOT_INTERVAL` | `25` | Number of events between automatic state snapshots |
+| `GAME_SNAPSHOT_FORCE_EVENTS` | `GAME_STARTED,ROUND_ENDED,GAME_FINISHED` | Comma-separated list of event types that always trigger snapshots |
+| `GAME_SNAPSHOT_RETENTION` | `5` | Maximum snapshots per game to keep (older ones are pruned) |
 
 ### Database Setup
 

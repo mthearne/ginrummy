@@ -4,6 +4,7 @@ import { EventSourcingEngine } from '../packages/common/src/game-engine/event-so
 import { EventSourcedGinRummyGame } from '../packages/common/src/game-engine/event-sourced-gin-rummy';
 import { GameState, GamePhase } from '@gin-rummy/common';
 import crypto from 'crypto';
+import { maybeCaptureSnapshot } from '../src/services/snapshot';
 
 /**
  * TurnController - Database-First Atomic Turn Management
@@ -219,6 +220,13 @@ export class TurnController {
         isolationLevel: 'Serializable', // Highest isolation level for consistency
         timeout: 10000, // 10 second timeout
       });
+
+      if (result.success) {
+        await maybeCaptureSnapshot(gameId, result.event.sequenceNumber, {
+          eventType: result.event.eventType,
+          state: result.gameState
+        });
+      }
 
       return result;
 
