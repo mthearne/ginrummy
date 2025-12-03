@@ -1,20 +1,21 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useGameStore } from '../store/game';
-import { useAuthStore } from '../store/auth';
-import { useAuthGuard } from '../hooks/useAuthGuard';
-import { useSocket } from '../services/socket';
-import { Card as CardComponent } from '../components/ui/Card';
-import { FriendInvitation } from '../components/FriendInvitation';
-import { TurnHistory } from '../components/game/TurnHistory';
-import { GameChat } from '../components/GameChat';
-import Confetti from '../components/ui/Confetti';
-import FlyingAnimal from '../components/ui/FlyingAnimal';
-import { useMeldSwitching } from '../hooks/useMeldSwitching';
-import AIThinkingOverlay from '../components/game/AIThinkingOverlay';
+import { useGameStore } from '../../store/game';
+import { useAuthStore } from '../../store/auth';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { useSocket } from '../../services/socket';
+import { Card as CardComponent } from '../ui/Card';
+import { FriendInvitation } from '../FriendInvitation';
+import { TurnHistory } from '../game/TurnHistory';
+import { GameChat } from '../GameChat';
+import Confetti from '../ui/Confetti';
+import FlyingAnimal from '../ui/FlyingAnimal';
+import { useMeldSwitching } from '../../hooks/useMeldSwitching';
+import AIThinkingOverlay from '../game/AIThinkingOverlay';
 import { MoveType, GamePhase, Card, Meld, GameState } from '@gin-rummy/common';
-import { RoundResultsModal } from '../components/RoundResults/RoundResultsModal';
-import { gamesAPI } from '../services/api';
+import { RoundResultsModal } from '../RoundResults/RoundResultsModal';
+import { gamesAPI } from '../../services/api';
+import WaitingRoom from '../game/WaitingRoom';
 
 export default function Game() {
   const params = useParams<{ gameId: string }>();
@@ -47,7 +48,6 @@ export default function Game() {
   const [showFlyingAnimal, setShowFlyingAnimal] = useState(false);
   const [showRoundResults, setShowRoundResults] = useState(false);
   const [roundResultsDismissed, setRoundResultsDismissed] = useState(false);
-  const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [lastCurrentPlayerId, setLastCurrentPlayerId] = useState<string | null>(null);
   const [roundResultsData, setRoundResultsData] = useState<{
     knockerPlayerId: string;
@@ -67,14 +67,11 @@ export default function Game() {
   }, [getMyPlayer()?.hand, meldSwitching.initializeMelds]);
 
   useEffect(() => {
-    console.log(`[NAV DEBUG] Game page effect - gameId: ${gameId}, user: ${user?.username}`);
     if (!gameId) {
-      console.log(`[NAV DEBUG] Missing gameId, redirecting to lobby`);
       router.push('/lobby');
       return;
     }
     if (!user) {
-      console.log(`[NAV DEBUG] User not authenticated, useAuthGuard will handle redirect`);
       return;
     }
 
@@ -82,12 +79,10 @@ export default function Game() {
     useGameStore.getState().setCurrentGame(String(gameId));
     
     // 2) Always load/join, even if we think we have state (prevents stale carryover)
-    console.log(`[NAV DEBUG] Loading game state via REST API: ${gameId}`);
     socket.joinGame(String(gameId));
 
     return () => {
       // Clean reset on unmount so lobby shows no stale state
-      console.log(`[NAV DEBUG] Component unmounting for game: ${gameId}, resetting game state`);
       socket.leaveGame(String(gameId));
       useGameStore.getState().resetGame();
     };
@@ -106,21 +101,11 @@ export default function Game() {
       (gameState.phase === 'layoff' || gameState.phase === 'round_over' || gameState.phase === 'game_over' || gameState.gameOver) && 
       !roundResultsDismissed;
     
-    console.log('🎭 Modal Check:', {
-      hasGameState: !!gameState,
-      phase: gameState?.phase,
-      showRoundResults,
-      roundResultsDismissed,
-      shouldShow: shouldShowModal
-    });
-    
     if (shouldShowModal) {
       const myPlayer = getMyPlayer();
       const opponent = getOpponent();
       
       if (myPlayer && opponent) {
-        console.log(`✅ Game in ${gameState.phase} phase, showing round results modal`);
-        
         // Determine knocker based on game state
         const myDeadwood = myPlayer.deadwood || 0;
         const opponentDeadwood = opponent.deadwood || 0;
@@ -156,7 +141,6 @@ export default function Game() {
     if (gameState) {
       // Only reset dismissed flag when starting new round (not for game over)
       if (gameState.phase === 'upcard_decision' && roundResultsDismissed) {
-        console.log('🔄 New round started, resetting round results dismissed flag');
         setRoundResultsDismissed(false);
       }
     }
@@ -167,7 +151,6 @@ export default function Game() {
     if (gameState && !showRoundResults && 
         (gameState.phase === 'round_over' || gameState.phase === 'game_over' || gameState.gameOver) && 
         roundResultsDismissed) {
-      console.log('🔄 Game state initially loaded with round/game over phase, resetting round results dismissed flag');
       setRoundResultsDismissed(false);
     }
   }, [gameState?.id]); // Only depend on gameId to run once per game load
@@ -185,10 +168,6 @@ export default function Game() {
         
         if (myPlayer && opponent) {
           // Use actual game state data for round results
-          console.log('Round over - setting up results with real game state data:', {
-            myPlayer: { id: myPlayer.id, deadwood: myPlayer.deadwood, melds: myPlayer.melds?.length },
-            opponent: { id: opponent.id, deadwood: opponent.deadwood, melds: opponent.melds?.length }
-          });
           
           // The knocker should be determined by the backend, but for now use available data
           // Look for who has the lower deadwood or who has melds to determine knocker
@@ -253,7 +232,6 @@ export default function Game() {
       
       if (!handOrder.length) {
         // First time initialization
-        console.log('Initial hand order setup:', currentCardIds);
         setHandOrder(currentCardIds);
       } else {
         // Check for new cards and add them to the end while preserving existing order
@@ -262,7 +240,6 @@ export default function Game() {
         
         if (newCards.length > 0 || existingCards.length !== handOrder.length) {
           const newOrder = [...existingCards, ...newCards];
-          console.log('Adding new cards to end of hand:', newCards, 'New order:', newOrder);
           setHandOrder(newOrder);
         }
       }
@@ -280,7 +257,6 @@ export default function Game() {
       
       // If it's now my turn (opponent just moved) or I just moved, trigger fast refresh
       if (isNowMyTurn && !wasMyTurn) {
-        console.log('🚀 Opponent action detected - triggering fast refresh');
         if (socket && gameId) {
           socket.joinGame(gameId); // Immediate refresh
         }
@@ -333,7 +309,6 @@ export default function Game() {
         newOrder.splice(currentIndex, 1);
         newOrder.splice(dropIndex, 0, draggedCardId);
         setHandOrder(newOrder);
-        console.log('Reordered cards:', newOrder);
       }
     }
     
@@ -441,28 +416,14 @@ export default function Game() {
   };
 
   const handleStartNewRound = () => {
-    console.log('handleStartNewRound called', {
-      gameId,
-      userId: user?.id,
-      socketConnected: socket?.isConnected()
-    });
-    
     if (!gameId || !user) {
-      console.error('Missing gameId or user for starting new round', { gameId, user: user?.id });
       return;
     }
     
     const myPlayer = getMyPlayer();
     if (!myPlayer?.id) {
-      console.error('No player found for starting new round');
       return;
     }
-    
-    console.log('Sending StartNewRound move', {
-      type: MoveType.StartNewRound,
-      playerId: myPlayer.id,
-      gameId: gameId,
-    });
     
     socket.makeMove({
       type: MoveType.StartNewRound,
@@ -472,284 +433,37 @@ export default function Game() {
   };
 
   const handleCloseRoundResults = () => {
-    console.log('🎭 handleCloseRoundResults called');
     setShowRoundResults(false);
     setRoundResultsData(null);
     setRoundResultsDismissed(true);
   };
 
   const handleContinueAfterRoundResults = () => {
-    console.log('Continue after round results clicked', {
-      gameState: gameState?.phase,
-      gameOver: gameState?.gameOver,
-      roundScores: gameState?.roundScores
-    });
-    
     handleCloseRoundResults();
     
     // Start new round if game isn't over (handle both layoff and round_over phases)
     if (gameState && (gameState.phase === 'layoff' || gameState.phase === 'round_over') && !gameState.gameOver) {
-      console.log('Starting new round...');
       handleStartNewRound();
     } else if (gameState?.gameOver || gameState?.phase === 'game_over') {
-      console.log('Game is over, not starting new round');
       // Game over - let the regular game over UI take over
     } else {
-      console.log('Conditions not met for new round:', {
-        hasGameState: !!gameState,
-        phase: gameState?.phase,
-        gameOver: gameState?.gameOver
-      });
       // Fallback: try to start new round anyway
       handleStartNewRound();
     }
   };
 
 
-  // Debug logging before waiting screen check
-  console.log('🔍 Game State Debug:', {
-    hasWaitingState: !!waitingState,
-    hasGameState: !!gameState,
-    gameStatus: gameState?.status,
-    playersLength: gameState?.players?.length,
-    shouldShowWaiting: !!(waitingState || (gameState && gameState.status === 'WAITING' && gameState.players && gameState.players.length >= 1))
-  });
-
   // Show waiting screen for PvP games (either waiting for second player OR waiting for ready status)
   if (waitingState || (gameState && gameState.status === 'WAITING' && gameState.players && gameState.players.length >= 1)) {
-    console.log('✅ Entering waiting screen mode');
-    
-    const currentGameState = gameState || null;
-    const players = currentGameState?.players || [];
-    const myPlayer = getMyPlayer();
-    const opponent = getOpponent();
-    const hasSecondPlayer = players.length === 2;
-    const myReadyStatus = myPlayer?.isReady || false;
-    const opponentReadyStatus = opponent?.isReady || false;
-    const bothPlayersReady = hasSecondPlayer && myReadyStatus && opponentReadyStatus;
-    
-    // Debug logging
-    const otherPlayer = players.find(p => p.id !== user?.id && p.id !== 'waiting-for-player');
-    console.log('🔍 Waiting Screen Debug:', {
-      playersCount: players.length,
-      players: players.map(p => ({ id: p.id, username: p.username, isReady: p.isReady })),
-      hasWaitingPlayer: players.some(p => p.id === 'waiting-for-player'),
-      shouldShowInvite: gameId && (players.length < 2 || players.some(p => p.id === 'waiting-for-player')),
-      gameId: gameId,
-      gameStatus: currentGameState?.status,
-      vsAI: currentGameState?.vsAI,
-      myPlayer: myPlayer ? { id: myPlayer.id, username: myPlayer.username } : null,
-      opponent: opponent ? { id: opponent.id, username: opponent.username } : null,
-      otherPlayer: otherPlayer ? { id: otherPlayer.id, username: otherPlayer.username } : null,
-      user: user ? { id: user.id, username: user.username } : null,
-      hasSecondPlayer,
-      opponentFallbackChain: {
-        opponentUsername: opponent?.username,
-        otherPlayerUsername: otherPlayer?.username,
-        finalResult: hasSecondPlayer 
-          ? (opponent?.username || otherPlayer?.username || 'Opponent')
-          : 'Waiting...'
-      }
-    });
-
-    const handleMarkReady = async () => {
-      console.log(`🔍 FRONTEND: handleMarkReady called`, { gameId, user: user?.username, myReadyStatus, isMarkingReady });
-      if (!gameId || !user || myReadyStatus || isMarkingReady) {
-        console.log(`🚫 FRONTEND: Ready button blocked - gameId:${!!gameId}, user:${!!user}, myReadyStatus:${myReadyStatus}, isMarkingReady:${isMarkingReady}`);
-        return;
-      }
-      
-      setIsMarkingReady(true);
-      
-      // Generate UUID using browser crypto API or fallback
-      const requestId = window.crypto?.randomUUID?.() || 
-                       'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                         const r = Math.random() * 16 | 0;
-                         const v = c == 'x' ? r : (r & 0x3 | 0x8);
-                         return v.toString(16);
-                       });
-      
-      const expectedVersion = useGameStore.getState().getCurrentStreamVersion();
-      
-      try {
-        console.log('🚦 FRONTEND: Making API call to markPlayerReady:', { requestId, expectedVersion, gameId });
-        
-        const response = await gamesAPI.markPlayerReady(gameId, requestId, expectedVersion);
-        console.log('✅ Marked ready successfully:', response.data);
-        
-        // The socket service will handle the state updates
-        if (response.data.gameStarted) {
-          console.log('🎮 Game started, waiting for state update...');
-        }
-      } catch (error) {
-        console.error('❌ Failed to mark ready:', error);
-        
-        // Handle version conflict errors
-        if (error.response?.status === 409) {
-          console.log('🔄 Version conflict, refreshing game state...');
-          
-          // Check if it's a version mismatch
-          if (error.response?.data?.code === 'STATE_VERSION_MISMATCH') {
-            const serverVersion = error.response.data.serverVersion;
-            const clientVersion = expectedVersion;
-            console.log(`📊 Version mismatch - client: ${clientVersion}, server: ${serverVersion}`);
-            
-            // Update to server version
-            useGameStore.getState().setStreamVersion(serverVersion);
-            
-            // Trigger a refresh of the game state
-            const socket = useSocket();
-            if (socket && gameId) {
-              socket.joinGame(gameId);
-            }
-          } else {
-            // For other 409 errors, just refresh the game state
-            console.log('📊 409 error without version info, refreshing game state');
-            const socket = useSocket();
-            if (socket && gameId) {
-              socket.joinGame(gameId);
-            }
-          }
-        }
-      } finally {
-        setIsMarkingReady(false);
-      }
-    };
-
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 max-w-3xl w-full">
-          <div className="text-center mb-8">
-            <div className="text-6xl mb-4">🎯</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              {hasSecondPlayer ? 'Game Lobby' : 'Waiting for Opponent'}
-            </h2>
-            <p className="text-gray-600">
-              {hasSecondPlayer 
-                ? 'Both players must click Ready to start the game!'
-                : 'Invite a friend or wait for someone to join from the lobby.'
-              }
-            </p>
-          </div>
-
-          {/* Players Status */}
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
-            {/* Current Player (You) */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-lg">{myPlayer?.username || user?.username || 'Player'}</h3>
-                  <p className="text-sm text-gray-600">You</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {hasSecondPlayer ? (
-                    <>
-                      <span className={`text-sm font-medium ${
-                        myReadyStatus ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {myReadyStatus ? '✓ Ready' : 'Not Ready'}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-sm text-green-600">✓ Waiting</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Opponent */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-lg">
-                    {hasSecondPlayer 
-                      ? ((opponent?.username && opponent.username.trim()) || players.find(p => p.id !== user?.id && p.id !== 'waiting-for-player')?.username || 'Opponent')
-                      : 'Waiting...'}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    {hasSecondPlayer ? 'Opponent' : 'Open slot'}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {hasSecondPlayer ? (
-                    <span className={`text-sm font-medium ${
-                      opponentReadyStatus ? 'text-green-600' : 'text-gray-500'
-                    }`}>
-                      {opponentReadyStatus ? '✓ Ready' : 'Not Ready'}
-                    </span>
-                  ) : (
-                    <div className="flex items-center space-x-1 text-gray-500">
-                      <div className="loading w-4 h-4" />
-                      <span className="text-sm">Waiting</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="text-center space-y-4">
-            {hasSecondPlayer && (
-              <div className="space-y-3">
-                {!myReadyStatus && (
-                  <button
-                    onClick={handleMarkReady}
-                    disabled={isMarkingReady}
-                    className={`btn btn-primary text-lg px-8 py-3 transition-all duration-300 ${
-                      isMarkingReady 
-                        ? 'transform scale-95 opacity-75' 
-                        : 'hover:scale-105 active:scale-95'
-                    }`}
-                  >
-                    {isMarkingReady ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Getting Ready...</span>
-                      </div>
-                    ) : (
-                      "I'm Ready!"
-                    )}
-                  </button>
-                )}
-                
-                {myReadyStatus && !opponentReadyStatus && (
-                  <div className="flex items-center justify-center space-x-2 text-green-600">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="font-medium">You're ready! Waiting for opponent...</span>
-                  </div>
-                )}
-
-                {bothPlayersReady && (
-                  <div className="flex items-center justify-center space-x-2 text-blue-600">
-                    <div className="loading w-5 h-5" />
-                    <span className="font-medium">Both players ready! Starting game...</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="pt-4 border-t">
-              {(() => {
-                const shouldShow = gameId && (players.length < 2 || players.some(p => p.id === 'waiting-for-player'));
-                console.log('🔍 Friend Invitation Render Check:', { shouldShow, gameId: !!gameId, playersLength: players.length, hasWaitingPlayer: players.some(p => p.id === 'waiting-for-player') });
-                return shouldShow;
-              })() && (
-                <div className="mb-4">
-                  <FriendInvitation gameId={gameId!} />
-                </div>
-              )}
-              
-              <button
-                onClick={() => router.push('/lobby')}
-                className="btn btn-secondary"
-              >
-                Back to Lobby
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <WaitingRoom
+        gameId={gameId!}
+        user={user}
+        gameState={gameState as GameState}
+        waitingState={waitingState}
+        getMyPlayer={getMyPlayer}
+        getOpponent={getOpponent}
+      />
     );
   }
 
@@ -1188,7 +902,6 @@ export default function Game() {
                       newOrder.splice(currentIndex, 1);
                       newOrder.push(draggedCard);
                       setHandOrder(newOrder);
-                      console.log('Dropped on container, moved to end:', newOrder);
                     }
                   }
                   setDraggedCard(null);

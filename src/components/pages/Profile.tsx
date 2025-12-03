@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { usersAPI } from '../services/api';
+import { usersAPI } from '../../services/api';
 import { UserProfile } from '@gin-rummy/common';
-import { formatRelativeTime, getEloColor, getEloRank } from '../utils/helpers';
-import { useAuthStore } from '../store/auth';
+import { formatRelativeTime, getEloColor, getEloRank } from '../../utils/helpers';
+import { useAuthStore } from '../../store/auth';
 
 interface UserStats {
   gamesPlayed: number;

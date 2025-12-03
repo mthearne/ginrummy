@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../src/store/auth';
-import Login from '../../src/pages/Login';
+import Login from '../../src/components/pages/Login';
 
 // Force dynamic rendering to avoid React Router prerender issues
 export const dynamic = 'force-dynamic';

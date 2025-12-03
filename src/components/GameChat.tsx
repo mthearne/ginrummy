@@ -42,7 +42,6 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
       const chatMessages = await ChatService.getMessages(opponentId, 50, 0);
       setMessages(chatMessages);
     } catch (error) {
-      console.error('Failed to load messages:', error);
     } finally {
       setLoading(false);
     }
@@ -76,10 +75,7 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
       // Force reload messages to ensure consistency
       setTimeout(loadMessages, 1000);
       
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      
+    } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
       alert(`Failed to send message: ${errorMessage}`);
     } finally {
@@ -93,7 +89,6 @@ export function GameChat({ opponentId, opponentUsername }: GameChatProps) {
     try {
       await ChatService.markAsRead(opponentId);
     } catch (error) {
-      console.error('Failed to mark messages as read:', error);
     }
   };
 

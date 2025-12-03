@@ -30,6 +30,7 @@ interface GameStore {
   currentGameId: string | null;
   gameState: Partial<GameState> | null;
   streamVersion: number; // NEW: Stream version for optimistic concurrency
+  pendingOptimisticVersion: number | null; // Track expected version after optimistic updates
   waitingState: GameWaitingInfo | null;
   selectedCards: string[];
   chatMessages: ChatMessage[];
@@ -44,6 +45,7 @@ interface GameStore {
   setCurrentGame: (gameId: string) => void;
   setGameState: (state: Partial<GameState>, streamVersion?: number) => void;
   setStreamVersion: (version: number) => void; // NEW: Stream version setter
+  setPendingOptimisticVersion: (version: number | null) => void;
   setWaitingState: (waitingState: GameWaitingInfo) => void;
   setIsSubmittingMove: (submitting: boolean) => void;
   selectCard: (cardId: string) => void;
@@ -70,6 +72,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   currentGameId: null,
   gameState: null,
   streamVersion: 0, // Initialize stream version
+  pendingOptimisticVersion: null,
   waitingState: null,
   selectedCards: [],
   chatMessages: [],
@@ -88,6 +91,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentGameId: gameId,
         gameState: null,
         streamVersion: 0, // Reset stream version
+        pendingOptimisticVersion: null,
         waitingState: null,
         selectedCards: [],
         chatMessages: [],
@@ -109,19 +113,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
       console.warn('Ignored gameState for different gameId:', gameState.id, '!=', state.currentGameId);
       return;
     }
-    
+
+    const incomingVersion = typeof streamVersion === 'number' ? streamVersion : null;
+    const currentVersion = state.streamVersion ?? 0;
+    const pendingVersion = state.pendingOptimisticVersion;
+
+    if (incomingVersion !== null) {
+      if (incomingVersion < currentVersion) {
+        console.log('Ignored stale gameState update with lower streamVersion:', incomingVersion, '<', currentVersion);
+        return;
+      }
+
+      if (typeof pendingVersion === 'number' && incomingVersion < pendingVersion) {
+        console.log('Ignored gameState update older than pending optimistic version:', incomingVersion, '<', pendingVersion);
+        return;
+      }
+    } else if (typeof pendingVersion === 'number') {
+      console.log('Ignored versionless gameState update while optimistic move pending');
+      return;
+    }
+
     // Clear turn history when starting a new round (but not on initial load)
     const wasRoundOver = state.gameState?.phase === 'round_over';
     const isNewRound = wasRoundOver && gameState?.phase === 'upcard_decision';
     const isInitialLoad = !state.gameState; // First time loading the game
-    
+
     const updates: any = { gameState, waitingState: null, gameError: null };
-    
+
     // Update stream version if provided
-    if (typeof streamVersion === 'number') {
-      updates.streamVersion = streamVersion;
+    if (incomingVersion !== null) {
+      updates.streamVersion = incomingVersion;
     }
-    
+
+    if (typeof pendingVersion === 'number' && incomingVersion !== null && incomingVersion >= pendingVersion) {
+      updates.pendingOptimisticVersion = null;
+    }
+
     // Only clear turn history if it's a new round transition, not on initial load
     if (isNewRound && !isInitialLoad) {
       console.log('New round detected, clearing turn history');
@@ -131,7 +158,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(updates);
   },
 
-  setStreamVersion: (streamVersion) => set({ streamVersion }),
+  setStreamVersion: (streamVersion) => {
+    const state = get();
+    const updates: any = { streamVersion };
+    if (typeof state.pendingOptimisticVersion === 'number' && streamVersion >= state.pendingOptimisticVersion) {
+      updates.pendingOptimisticVersion = null;
+    }
+    set(updates);
+  },
+
+  setPendingOptimisticVersion: (pendingOptimisticVersion) => set({ pendingOptimisticVersion }),
   
   setWaitingState: (waitingState) => {
     const state = get();
@@ -180,6 +216,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     currentGameId: null,
     gameState: null,
     streamVersion: 0, // Reset stream version
+    pendingOptimisticVersion: null,
     waitingState: null,
     selectedCards: [],
     chatMessages: [],

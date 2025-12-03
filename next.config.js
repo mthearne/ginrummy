@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@gin-rummy/common'],
+  transpilePackages: ['@gin-rummy/common', 'rate-limiter-flexible'],
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
   experimental: {
     missingSuspenseWithCSRBailout: false,

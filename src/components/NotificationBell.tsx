@@ -61,7 +61,6 @@ export function NotificationBell() {
       await FriendsService.acceptFriendRequest(notification.data.friendshipId);
       await markAsRead(notification.id); // Mark as read instead of removing
     } catch (error) {
-      console.error('Failed to accept friend request:', error);
     } finally {
       setActionLoading(null);
     }
@@ -75,7 +74,6 @@ export function NotificationBell() {
       await FriendsService.declineFriendRequest(notification.data.friendshipId);
       await markAsRead(notification.id); // Mark as read instead of removing
     } catch (error) {
-      console.error('Failed to decline friend request:', error);
     } finally {
       setActionLoading(null);
     }
@@ -91,7 +89,6 @@ export function NotificationBell() {
       // Navigate to the game
       router.push(`/game/${result.gameId}`);
     } catch (error) {
-      console.error('Failed to accept game invitation:', error);
     } finally {
       setActionLoading(null);
     }
@@ -105,7 +102,6 @@ export function NotificationBell() {
       await FriendsService.declineInvitation(notification.data.invitationId);
       await markAsRead(notification.id);
     } catch (error) {
-      console.error('Failed to decline game invitation:', error);
     } finally {
       setActionLoading(null);
     }
@@ -116,7 +112,6 @@ export function NotificationBell() {
       setClearLoading(true);
       await clearAll();
     } catch (error) {
-      console.error('Failed to clear notifications:', error);
     } finally {
       setClearLoading(false);
     }

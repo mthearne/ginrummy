@@ -11,7 +11,7 @@ import {
   StartNewRoundEventData,
   GameFinishedEventData,
   RoundEndedEventData,
-  LayoffEventData,
+  LayOffEventData,
   LayoffCompletedEventData,
   PlayerLeftEventData,
   GameCancelledEventData,
@@ -762,7 +762,7 @@ export class EventSourcingEngine {
   }
 
   private applyLayOff(event: GameEvent): GameState {
-    const data = event.eventData as LayoffEventData;
+    const data = event.eventData as LayOffEventData;
 
     if (!this.currentState) {
       throw new Error('EventSourcing: Cannot apply layoff without current state');

@@ -67,7 +67,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
 
   // If the game state has final round scores (from layoff completion), use those instead
   if (gameState.roundScores && (phase === 'celebration' || gameState.phase === 'round_over' || gameState.phase === 'game_over')) {
-    console.log('🎯 Using final round scores from game state:', gameState.roundScores);
     
     const knockerFinalScore = gameState.roundScores.knocker || 0;
     const opponentFinalScore = gameState.roundScores.opponent || 0;
@@ -79,7 +78,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       opponentScore: opponentFinalScore
     };
     
-    console.log('🎯 Updated scoreData with final scores:', scoreData);
   }
 
   useEffect(() => {
@@ -98,7 +96,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       
       // Fallback timer for AI games - if stuck in layoff phase too long, auto-advance
       const fallbackTimer = gameState.vsAI ? setTimeout(() => {
-        console.log('🎭 Modal: Fallback timer triggered - AI took too long, auto-advancing to scoring');
         if (phase === 'layoff') {
           setPhase('scoring');
           setTimeout(() => setShowScoreBreakdown(true), 500);
@@ -119,17 +116,13 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
 
   // Auto-advance when game phase changes from layoff to round_over (AI completed layoff decision)
   useEffect(() => {
-    console.log('🎭 Modal: Auto-advance check - isOpen:', isOpen, 'gamePhase:', gameState.phase, 'modalPhase:', phase);
     
     if (isOpen && (gameState.phase === 'round_over' || gameState.phase === 'game_over') && phase === 'layoff') {
-      console.log(`🎭 Modal: Game transitioned to ${gameState.phase}, auto-advancing modal from layoff to scoring`);
       
       // Use any layoffs from the game state if available
       if (gameState.lastLayOffs && gameState.lastLayOffs.length > 0) {
-        console.log('🎭 Modal: Applying layoffs from game state:', gameState.lastLayOffs);
         setAppliedLayOffs(gameState.lastLayOffs);
       } else {
-        console.log('🎭 Modal: No layoffs found in game state');
       }
       
       // Advance to scoring phase
@@ -137,13 +130,11 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       
       // Show score breakdown after a short delay
       setTimeout(() => {
-        console.log('🎭 Modal: Showing score breakdown');
         setShowScoreBreakdown(true);
       }, 500);
       
       // Move to celebration after score animation
       setTimeout(() => {
-        console.log('🎭 Modal: Moving to celebration phase');
         setPhase('celebration');
       }, 2500);
     }
@@ -152,13 +143,11 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   // Auto-close modal when new round starts (only when phase changes to active gameplay phases)
   useEffect(() => {
     if (isOpen && (gameState.phase === 'draw' || gameState.phase === 'upcard_decision' || gameState.phase === 'discard')) {
-      console.log('🎭 Modal: New round detected (active phase), closing modal');
       onClose();
     }
   }, [gameState.phase, isOpen, onClose]);
 
   const handleLayOffComplete = async (layOffs: Array<{ cards: Card[]; targetMeld: Meld }>) => {
-    console.log('🎭 Modal: Player completed layoffs, sending to API');
     
     try {
       // Call the layoff API endpoint to synchronize both players
@@ -176,7 +165,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
         throw new Error('Failed to submit layoffs');
       }
 
-      console.log('🎭 Modal: Layoffs submitted successfully');
       
       // Update local state and UI
       setAppliedLayOffs(layOffs);
@@ -184,7 +172,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       
       // Refresh game state to get final scores and game over status
       if (onRefreshGameState) {
-        console.log('🔄 Refreshing game state after layoff completion');
         onRefreshGameState();
       }
       
@@ -194,14 +181,12 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       // Move to celebration after score animation (with extra delay for refresh)
       setTimeout(() => setPhase('celebration'), 4000);
     } catch (error) {
-      console.error('🎭 Modal: Failed to submit layoffs:', error);
       // Still update UI even if API call fails for better UX
       setAppliedLayOffs(layOffs);
       setPhase('scoring');
       
       // Still try to refresh game state
       if (onRefreshGameState) {
-        console.log('🔄 Refreshing game state after layoff error (fallback)');
         onRefreshGameState();
       }
       
@@ -211,7 +196,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   };
 
   const handleSkipLayOff = async () => {
-    console.log('🎭 Modal: Player skipped layoffs, sending to API');
     
     try {
       // Call the layoff API endpoint with empty layoffs to synchronize both players
@@ -229,14 +213,12 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
         throw new Error('Failed to submit skip layoffs');
       }
 
-      console.log('🎭 Modal: Skip layoffs submitted successfully');
       
       // Update local state and UI
       setPhase('scoring');
       setTimeout(() => setShowScoreBreakdown(true), 500);
       setTimeout(() => setPhase('celebration'), 2000);
     } catch (error) {
-      console.error('🎭 Modal: Failed to submit skip layoffs:', error);
       // Still update UI even if API call fails for better UX
       setPhase('scoring');
       setTimeout(() => setShowScoreBreakdown(true), 500);
@@ -377,7 +359,6 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
             {gameState.vsAI && (
               <button
                 onClick={() => {
-                  console.log('🎭 Modal: Manual skip clicked, advancing to scoring');
                   setPhase('scoring');
                   setTimeout(() => setShowScoreBreakdown(true), 500);
                   setTimeout(() => setPhase('celebration'), 2500);

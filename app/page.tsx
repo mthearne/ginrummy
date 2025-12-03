@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../src/store/auth';
 import { useSocket } from '../src/hooks/useSocket';
-import Home from '../src/pages/Home';
+import Home from '../src/components/pages/Home';
 import { api } from '../src/services/api';
 
 // Force dynamic rendering to avoid React Router prerender issues

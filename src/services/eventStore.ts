@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { GameState } from '@gin-rummy/common';
 
@@ -145,17 +145,20 @@ export class EventStore {
         const newSequence = serverVersion + 1;
         console.log(`✅ EventStore: Creating event with sequence ${newSequence}`);
 
+        const serializedEventData = eventData as unknown as Prisma.InputJsonValue;
+        const eventMetadata: Prisma.InputJsonValue = {
+          timestamp: new Date().toISOString(),
+          requestId,
+        };
+
         const event = await tx.gameEvent.create({
           data: {
             gameId,
             playerId: userId || null,
             eventType: eventType as any, // Cast to EventType enum
             sequenceNumber: newSequence,
-            eventData,
-            metadata: {
-              timestamp: new Date().toISOString(),
-              requestId
-            },
+            eventData: serializedEventData,
+            metadata: eventMetadata,
             requestId,
             processed: true,
             processedAt: new Date()
@@ -297,7 +300,7 @@ export class EventStore {
     return {
       id: snapshot.id,
       sequenceNumber: snapshot.sequenceNumber,
-      state: snapshot.gameState as GameState,
+      state: snapshot.gameState as unknown as GameState,
       stateHash: snapshot.stateHash,
       createdAt: snapshot.createdAt,
       createdBy: snapshot.createdBy
@@ -311,6 +314,7 @@ export class EventStore {
     try {
       const stateJson = JSON.stringify(state);
       const stateHash = createHash('sha256').update(stateJson).digest('hex');
+      const serializedState = state as unknown as Prisma.InputJsonValue;
 
       await prisma.gameSnapshot.upsert({
         where: {
@@ -320,7 +324,7 @@ export class EventStore {
           }
         },
         update: {
-          gameState: state,
+          gameState: serializedState,
           stateHash,
           createdBy: 'SYSTEM'
         },
@@ -328,7 +332,7 @@ export class EventStore {
           id: randomUUID(),
           gameId,
           sequenceNumber: version,
-          gameState: state,
+          gameState: serializedState,
           stateHash,
           createdBy: 'SYSTEM'
         }

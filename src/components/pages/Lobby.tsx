@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import crypto from 'crypto';
-import { useLobbyStore } from '../store/lobby';
-import { useAuthGuard } from '../hooks/useAuthGuard';
-import { gamesAPI } from '../services/api';
-import { formatRelativeTime } from '../utils/helpers';
-import { FriendManager } from '../components/FriendManager';
-import { FriendChat } from '../components/chat/FriendChat';
-import { FriendsService, Friend } from '../services/friends';
-import { ChatService } from '../services/chat';
+import { useLobbyStore } from '../../store/lobby';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { gamesAPI } from '../../services/api';
+import { FriendManager } from '../FriendManager';
+import { FriendChat } from '../chat/FriendChat';
+import { FriendsService, Friend } from '../../services/friends';
+import { ChatService } from '../../services/chat';
+import { formatRelativeTime } from '../../utils/helpers';
 import { GameStatus } from '@gin-rummy/common';
 
 export default function Lobby() {

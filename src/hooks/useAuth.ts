@@ -76,7 +76,6 @@ export const useAuth = () => {
         await authAPI.logout(refreshToken);
       }
     } catch (err) {
-      console.error('Logout error:', err);
     }
 
     // Disconnect socket

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAuthGuard } from '../hooks/useAuthGuard';
-import { useSocket } from '../services/socket';
-import { Card as CardComponent } from '../components/ui/Card';
-import { TurnHistory } from '../components/game/TurnHistory';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
+import { useSocket } from '../../services/socket';
+import { Card as CardComponent } from '../ui/Card';
+import { TurnHistory } from '../game/TurnHistory';
 import { GamePhase, Card, GameState } from '@gin-rummy/common';
-import { gameStreamingService } from '../services/gameStreaming';
-import { api } from '../services/api';
+import { gameStreamingService } from '../../services/gameStreaming';
+import { api } from '../../services/api';
 
 interface SpectatorView extends GameState {
   isSpectating: boolean;

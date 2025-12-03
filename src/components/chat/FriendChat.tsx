@@ -47,7 +47,6 @@ export function FriendChat({ friends, initialSelectedUserId, onUnreadCountChange
       const data = await ChatService.getConversations();
       setConversations(data.conversations);
     } catch (error) {
-      console.error('Failed to load conversations:', error);
     } finally {
       setLoading(false);
     }
@@ -78,7 +77,6 @@ export function FriendChat({ friends, initialSelectedUserId, onUnreadCountChange
       
       setMessage('');
     } catch (error) {
-      console.error('Failed to send message:', error);
       alert('Failed to send message. Please try again.');
     } finally {
       setSending(false);
@@ -102,7 +100,6 @@ export function FriendChat({ friends, initialSelectedUserId, onUnreadCountChange
         onUnreadCountChange();
       }
     } catch (error) {
-      console.error('Failed to mark messages as read:', error);
     }
   };
 
@@ -149,7 +146,6 @@ export function FriendChat({ friends, initialSelectedUserId, onUnreadCountChange
           {selectedFriend && (
             <button
               onClick={() => {
-                console.log('Toggle clicked, current state:', chatMinimized);
                 setChatMinimized(!chatMinimized);
               }}
               className="btn btn-secondary btn-sm"

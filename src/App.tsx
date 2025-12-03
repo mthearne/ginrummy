@@ -2,12 +2,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth';
 import { useSocket } from './hooks/useSocket';
 import Layout from './components/layout/Layout';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Lobby from './pages/Lobby';
-import Game from './pages/Game';
-import Profile from './pages/Profile';
+import Home from './components/pages/Home';
+import Login from './components/pages/Login';
+import Register from './components/pages/Register';
+import Lobby from './components/pages/Lobby';
+import Game from './components/pages/Game';
+import Profile from './components/pages/Profile';
 
 function App() {
   const { user } = useAuthStore();

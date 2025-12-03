@@ -18,19 +18,14 @@ export function useMeldSwitching(hand: Card[]) {
   
   // Initialize or update meld state when hand changes
   const initializeMelds = useCallback(() => {
-    console.log('🔄 MeldSwitching: Initializing melds for hand:', hand.map(c => `${c.rank}${c.suit}`));
-    
     if (hand.length === 0) {
-      console.log('🔄 MeldSwitching: Empty hand, setting null state');
       setMeldState(null);
       return;
     }
 
     const allCombinations = findAllMeldCombinations(hand);
-    console.log('🔄 MeldSwitching: Found', allCombinations.length, 'meld combinations');
     
     if (allCombinations.length === 0) {
-      console.log('🔄 MeldSwitching: No valid combinations, setting empty melds');
       setMeldState({
         currentMelds: [],
         deadwood: calculateDeadwood(hand, []),
@@ -43,15 +38,11 @@ export function useMeldSwitching(hand: Card[]) {
     const switchableCards = new Set<string>();
     hand.forEach(card => {
       const options = findCardMeldOptions(card, hand);
-      console.log(`🔄 MeldSwitching: Card ${card.rank}${card.suit} has ${options.length} meld options`);
       if (options.length > 1) {
         switchableCards.add(card.id);
-        console.log(`✅ MeldSwitching: Card ${card.rank}${card.suit} is switchable!`);
       }
     });
 
-    console.log('🔄 MeldSwitching: Final switchable cards:', Array.from(switchableCards));
-    
     // Only use optimal melds if we don't have existing player choices
     setMeldState(prevState => {
       // If we have existing melds and the hand hasn't fundamentally changed, preserve them
@@ -62,7 +53,6 @@ export function useMeldSwitching(hand: Card[]) {
         const meldsStillValid = Array.from(existingCardIds).every(id => currentCardIds.has(id));
         
         if (meldsStillValid) {
-          console.log('🔄 MeldSwitching: Preserving existing player-chosen melds');
           return {
             currentMelds: prevState.currentMelds,
             deadwood: calculateDeadwood(hand, prevState.currentMelds),
@@ -73,7 +63,6 @@ export function useMeldSwitching(hand: Card[]) {
       
       // Use optimal combination for new hands or when existing melds are invalid
       const optimal = allCombinations[0];
-      console.log('🔄 MeldSwitching: Using optimal combination with', optimal.melds.length, 'melds, deadwood:', optimal.deadwood);
       
       return {
         currentMelds: optimal.melds,

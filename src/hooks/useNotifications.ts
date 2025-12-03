@@ -35,7 +35,6 @@ export function useNotifications() {
       
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
     }
   }, []);
 
@@ -49,7 +48,6 @@ export function useNotifications() {
       
       return result;
     } catch (error) {
-      console.error('Failed to clear notifications:', error);
       throw error;
     }
   }, []);
@@ -63,30 +61,24 @@ export function useNotifications() {
         
         // Get token and check if user is authenticated
         const token = localStorage.getItem('accessToken');
-        console.log('🔔 [HOOK] Initializing notifications, token present:', !!token);
         
         if (!token) {
-          console.warn('🔔 [HOOK] No access token found, skipping notification initialization');
           return;
         }
 
         try {
           // Test if token is valid by trying to load notifications
-          console.log('🔔 [HOOK] Testing token validity...');
           const existingNotifications = await NotificationService.getNotifications();
           setNotifications(existingNotifications);
           setUnreadCount(existingNotifications.filter(n => !n.read).length);
           
           // Token is valid, start notification polling
-          console.log('🔔 [HOOK] Token valid, connecting to notification service...');
           notificationService.connect(token);
           setIsConnected(true);
         } catch (authError) {
-          console.warn('🔔 [HOOK] Token validation failed, not starting notification polling:', authError.message);
           // Don't start notification polling if token is invalid
         }
       } catch (error) {
-        console.error('Failed to initialize notifications:', error);
       }
     };
 

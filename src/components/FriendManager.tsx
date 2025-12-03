@@ -28,7 +28,6 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
 
     // Poll for friend updates every 15 seconds
     const pollInterval = setInterval(() => {
-      console.log('Polling for friend updates in FriendManager...');
       loadFriends();
     }, 15000);
 
@@ -49,7 +48,6 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
       setSentRequests(data.sentRequests || []);
       setReceivedRequests(data.receivedRequests || []);
     } catch (error) {
-      console.error('Failed to load friends:', error);
       // Ensure arrays remain defined even on error
       setFriends([]);
       setSentRequests([]);
@@ -84,7 +82,6 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
       await FriendsService.acceptFriendRequest(friendshipId);
       await loadFriends();
     } catch (error) {
-      console.error('Failed to accept friend request:', error);
     } finally {
       setActionLoading(null);
     }
@@ -96,7 +93,6 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
       await FriendsService.declineFriendRequest(friendshipId);
       await loadFriends();
     } catch (error) {
-      console.error('Failed to decline friend request:', error);
     } finally {
       setActionLoading(null);
     }
@@ -110,7 +106,6 @@ export function FriendManager({ onStartChat }: FriendManagerProps) {
       await FriendsService.removeFriend(friendshipId);
       await loadFriends();
     } catch (error) {
-      console.error('Failed to remove friend:', error);
     } finally {
       setActionLoading(null);
     }

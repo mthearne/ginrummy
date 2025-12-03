@@ -1,4 +1,4 @@
-import { Card, GameMove, GameState, MoveType } from '@gin-rummy/common';
+import { Card, GameMove, GamePhase, GameState, MoveType } from '@gin-rummy/common';
 import { useGameStore } from '../store/game';
 import { useAuthStore } from '../store/auth';
 import { api, gamesAPI } from './api';
@@ -189,6 +189,9 @@ class SocketService {
     const expectedVersion = previousVersion;
 
     const optimisticApplied = this.applyOptimisticMove(move, previousVersion);
+    if (optimisticApplied) {
+      useGameStore.getState().setPendingOptimisticVersion(previousVersion + 1);
+    }
 
     setIsSubmittingMove(true);
     
@@ -222,11 +225,11 @@ class SocketService {
           streamVersion: data.streamVersion
         });
         
-        // Update stream version first
-        if (data.streamVersion) {
-          useGameStore.getState().setStreamVersion(data.streamVersion);
-        }
-        
+      const streamingConnected = gameStreamingService.isConnected();
+      if (typeof data.streamVersion === 'number') {
+        useGameStore.getState().setStreamVersion(data.streamVersion);
+      }
+
         // Add turn history entry if provided
         if (data.turnHistoryEntry) {
           console.log('🔍 Socket: Adding human turn history entry:', data.turnHistoryEntry);
@@ -282,8 +285,12 @@ class SocketService {
           console.log('🤖 AI Processing Debug:', data.debug);
         }
         
-        useGameStore.getState().setGameState(data.gameState);
-        console.log('Move completed. Current player:', data.gameState.currentPlayerId, 'Phase:', data.gameState.phase);
+        if (!streamingConnected) {
+          useGameStore.getState().setGameState(data.gameState, data.streamVersion);
+          console.log('Move completed via REST fallback. Current player:', data.gameState.currentPlayerId, 'Phase:', data.gameState.phase);
+        } else {
+          console.log('Move completed; awaiting streaming update for final state.');
+        }
         
         // REMOVED: Frontend AI trigger backup for debugging
         // Let's rely entirely on backend to identify any remaining issues
@@ -317,6 +324,9 @@ class SocketService {
       console.error('Failed to make move via API:', error);
       if (optimisticApplied && previousState) {
         useGameStore.getState().setGameState(previousState, previousVersion);
+      }
+      if (optimisticApplied) {
+        useGameStore.getState().setPendingOptimisticVersion(null);
       }
       
       // Handle version conflict errors (409)
@@ -389,7 +399,7 @@ class SocketService {
           player.handSize = player.hand.length;
           player.lastDrawnCardId = drawnCard.id;
           clonedState.stockPileCount = clonedState.stockPile.length;
-          clonedState.phase = 'discard';
+          clonedState.phase = GamePhase.Discard;
           clonedState.currentPlayerId = move.playerId;
         }
         break;
@@ -401,7 +411,7 @@ class SocketService {
           player.hand = player.hand ? [...player.hand, drawnCard] : [drawnCard];
           player.handSize = player.hand.length;
           player.lastDrawnCardId = drawnCard.id;
-          clonedState.phase = 'discard';
+          clonedState.phase = GamePhase.Discard;
           clonedState.currentPlayerId = move.playerId;
         }
         break;
@@ -413,7 +423,7 @@ class SocketService {
           player.hand = player.hand ? [...player.hand, upcard] : [upcard];
           player.handSize = player.hand.length;
           player.lastDrawnCardId = upcard.id;
-          clonedState.phase = 'discard';
+          clonedState.phase = GamePhase.Discard;
           clonedState.currentPlayerId = move.playerId;
         }
         break;
@@ -429,7 +439,7 @@ class SocketService {
         if (opponent) {
           clonedState.currentPlayerId = opponent.id;
         }
-        clonedState.phase = 'draw';
+        clonedState.phase = GamePhase.Draw;
         clonedState.turnId = (clonedState.turnId ?? 0) + 1;
         break;
       }
@@ -443,8 +453,7 @@ class SocketService {
         return false;
     }
 
-    const nextVersion = previousVersion + 1;
-    useGameStore.getState().setGameState(clonedState, nextVersion);
+    useGameStore.getState().setGameState(clonedState);
     return true;
   }
 

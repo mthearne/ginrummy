@@ -6,24 +6,23 @@ import { EventStore } from '../../../../../src/services/eventStore';
 import { ReplayService } from '../../../../../src/services/replay';
 import { calculateScoreWithLayOffs } from '../../../../../packages/common/src/utils/scoring';
 import { getCardValue } from '../../../../../packages/common/src/utils/cards';
+import { Card, Meld, Rank, Suit } from '../../../../../packages/common/src/types/game';
 import { maybeCaptureSnapshot } from '../../../../../src/services/snapshot';
 
 const prisma = new PrismaClient();
 
+const cardSchema = z.object({
+  id: z.string(),
+  rank: z.nativeEnum(Rank),
+  suit: z.nativeEnum(Suit)
+});
+
 const layoffRequestSchema = z.object({
   layOffs: z.array(z.object({
-    cards: z.array(z.object({
-      id: z.string(),
-      rank: z.string(),
-      suit: z.string()
-    })),
+    cards: z.array(cardSchema),
     targetMeld: z.object({
       type: z.enum(['set', 'run']),
-      cards: z.array(z.object({
-        id: z.string(),
-        rank: z.string(),
-        suit: z.string()
-      }))
+      cards: z.array(cardSchema)
     })
   }))
 });
@@ -56,7 +55,15 @@ export async function POST(
     }
 
     const { layOffs } = parseResult.data;
-    console.log(`🃏 LayoffAPI: Processing ${layOffs.length} layoffs`);
+    const normalizedLayoffs: Array<{ cards: Card[]; targetMeld: Meld }> = layOffs.map(layoff => ({
+      cards: layoff.cards.map<Card>(card => ({ ...card })),
+      targetMeld: {
+        type: layoff.targetMeld.type,
+        cards: layoff.targetMeld.cards.map<Card>(card => ({ ...card })),
+      }
+    }));
+
+    console.log(`🃏 LayoffAPI: Processing ${normalizedLayoffs.length} layoffs`);
     
     if (currentState.state.phase !== 'layoff') {
       console.log(`❌ LayoffAPI: Game not in layoff phase, current phase: ${currentState.state.phase}`);
@@ -72,14 +79,14 @@ export async function POST(
           knocker.melds || [],
           opponent.hand,
           opponent.melds || [],
-          layOffs as any
+          normalizedLayoffs
         )
       : null;
 
     let expectedVersion = currentState.version;
 
     // Emit granular layoff events for turn history
-    for (const layoff of layOffs) {
+    for (const layoff of normalizedLayoffs) {
       const layoffEventData = {
         playerId: userId,
         cardsLayedOff: layoff.cards,
@@ -107,7 +114,7 @@ export async function POST(
     const layoffCompletedData = {
       gameId,
       playerId: userId,
-      layoffs: layOffs,
+      layoffs: normalizedLayoffs,
       scoreAdjustment: scoreSnapshot?.layOffValue ?? 0,
       finalScores: scoreSnapshot
         ? { knocker: scoreSnapshot.knockerScore, opponent: scoreSnapshot.opponentScore }

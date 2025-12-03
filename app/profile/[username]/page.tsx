@@ -1,5 +1,5 @@
 'use client';
-import Profile from '../../../src/pages/Profile';
+import Profile from '../../../src/components/pages/Profile';
 
 // Force dynamic rendering to avoid React Router prerender issues
 export const dynamic = 'force-dynamic';

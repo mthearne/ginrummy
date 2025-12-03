@@ -12,7 +12,6 @@ export function useAuthGuard(redirectTo: string = '/login') {
 
   useEffect(() => {
     if (!user) {
-      console.log('User not authenticated, redirecting to:', redirectTo);
       router.push(redirectTo);
     }
   }, [user, router, redirectTo]);

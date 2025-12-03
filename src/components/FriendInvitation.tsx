@@ -24,7 +24,6 @@ export function FriendInvitation({ gameId }: FriendInvitationProps) {
 
     // Poll for friend updates every 10 seconds
     const pollInterval = setInterval(() => {
-      console.log('Polling for friend updates...');
       loadFriends();
     }, 10000);
 
@@ -38,7 +37,6 @@ export function FriendInvitation({ gameId }: FriendInvitationProps) {
       const data = await FriendsService.getFriends();
       setFriends(data.friends);
     } catch (error) {
-      console.error('Failed to load friends:', error);
     } finally {
       setLoading(false);
     }
@@ -46,14 +44,10 @@ export function FriendInvitation({ gameId }: FriendInvitationProps) {
 
   const sendInvitation = async (friendUsername: string) => {
     try {
-      console.log('🎮 [INVITE] Sending invitation to:', friendUsername, 'for game:', gameId);
       setSendingTo(friendUsername);
       await FriendsService.sendGameInvitation(gameId, friendUsername, message);
-      console.log('🎮 [INVITE] Invitation sent successfully to:', friendUsername);
       setInvitationSent(prev => [...prev, friendUsername]);
     } catch (error: any) {
-      console.error('🎮 [INVITE] Failed to send invitation:', error);
-      
       // Show user-friendly error message
       const errorMessage = error.response?.data?.error || 'Failed to send invitation';
       alert(errorMessage);
