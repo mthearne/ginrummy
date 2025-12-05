@@ -114,7 +114,7 @@ export class EventSourcedGinRummyGame {
    * Create initial game events for a new game
    */
   createInitialGameEvents(player1Id: string, player2Id: string, vsAI: boolean, player1Username?: string, player2Username?: string): GameEvent[] {
-    console.log('🎮 EventSourcedGame: createInitialGameEvents called with:', { player1Id, player2Id, vsAI, player1Username, player2Username });
+
     const events: GameEvent[] = [];
     
     // Create GAME_CREATED event
@@ -136,11 +136,9 @@ export class EventSourcedGinRummyGame {
       1
     );
     events.push(gameCreatedEvent);
-    console.log('🎮 EventSourcedGame: Added GAME_CREATED event. Events count:', events.length);
 
     // Only start the game immediately for AI games
     // For PvP games, wait for second player to join
-    console.log('🎮 EventSourcedGame: Checking vsAI condition:', vsAI);
     if (vsAI) {
       // Deal initial cards
       const player1Hand = this.deck.splice(0, 10);
@@ -168,14 +166,11 @@ export class EventSourcedGinRummyGame {
         2
       );
       events.push(gameStartedEvent);
-      console.log('🎮 EventSourcedGame: Added GAME_STARTED event for AI game. Events count:', events.length);
     } else {
-      console.log('🎮 EventSourcedGame: Skipped GAME_STARTED for PvP game (vsAI=false)');
     }
     // For PvP games, only return GAME_CREATED event
     // GAME_STARTED will be created when second player joins
 
-    console.log('🎮 EventSourcedGame: Returning', events.length, 'events');
     return events;
   }
 
@@ -628,11 +623,10 @@ export class EventSourcedGinRummyGame {
     // Must be same suit
     if (card.suit !== runCards[0].suit) return false;
 
-    // Sort run cards by rank value
-    const sortedRun = [...runCards].sort((a, b) => this.getRankValue(a.rank) - this.getRankValue(b.rank));
+    // runCards are assumed to be sorted
     const cardValue = this.getRankValue(card.rank);
-    const minValue = this.getRankValue(sortedRun[0].rank);
-    const maxValue = this.getRankValue(sortedRun[sortedRun.length - 1].rank);
+    const minValue = this.getRankValue(runCards[0].rank);
+    const maxValue = this.getRankValue(runCards[runCards.length - 1].rank);
 
     // Card can extend at either end of the run
     return cardValue === minValue - 1 || cardValue === maxValue + 1;
