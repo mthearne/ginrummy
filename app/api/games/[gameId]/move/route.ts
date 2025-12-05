@@ -385,7 +385,6 @@ export async function POST(
   { params }: { params: { gameId: string } }
 ) {
   const startTime = Date.now();
-  console.log(`🎮 Move: POST /api/games/${params.gameId}/move`);
 
   try {
     // STEP 1: Parse move data first to check if it's START_NEW_ROUND
@@ -393,7 +392,7 @@ export async function POST(
     try {
       moveData = await request.json();
     } catch (error) {
-      console.log('❌ Move: Invalid JSON in request body');
+      
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },
         { status: 400 }
@@ -409,7 +408,6 @@ export async function POST(
         console.log('⚠️ Move: Auth failed for START_NEW_ROUND, allowing for debug');
         userId = moveData.playerId; // Use playerId from the request instead of hardcoded value
       } else {
-        console.log('❌ Move: Authentication failed:', authResult.error);
         return NextResponse.json(
           { error: authResult.error },
           { status: 401 }
@@ -419,13 +417,10 @@ export async function POST(
       userId = authResult.user.id;
     }
 
-    console.log(`👤 Move: User ${userId} making move ${moveData.type}`);
-
     // Validate multiplayer fields
     const { requestId, expectedVersion, ...actionData } = moveData;
     
     if (!requestId || typeof requestId !== 'string') {
-      console.log('❌ Move: Missing or invalid requestId');
       return NextResponse.json(
         { error: 'requestId is required and must be a UUID string' },
         { status: 400 }
@@ -433,19 +428,11 @@ export async function POST(
     }
 
     if (typeof expectedVersion !== 'number' || expectedVersion < 0) {
-      console.log('❌ Move: Missing or invalid expectedVersion');
       return NextResponse.json(
         { error: 'expectedVersion is required and must be a non-negative number' },
         { status: 400 }
       );
     }
-
-    console.log('🔍 Move: Multiplayer request info:', {
-      requestId,
-      expectedVersion,
-      gameId: params.gameId,
-      playerId: userId,
-    });
 
     // Add gameId and playerId to the action
     const action = {
@@ -464,8 +451,6 @@ export async function POST(
     try {
       GameActionSchema.parse(action);
     } catch (validationError) {
-      console.log('❌ Move: Action validation failed:', validationError);
-      console.log('❌ Move: Action that failed validation:', JSON.stringify(action, null, 2));
       return NextResponse.json(
         { 
           error: 'Invalid move action',
@@ -494,22 +479,17 @@ export async function POST(
       ...((action.type === 'knock' || action.type === 'gin') && action.cardId ? { cardToDiscard: action.cardId } : {})
     };
 
-    console.log('🔄 Move: Converting move type:', action.type, '->', backendAction.type);
     
     // STEP 4: Get current game state and validate move
-    console.log('🔄 Move: Loading current game state for move validation...');
     const currentStateResult = await ReplayService.rebuildState(params.gameId);
     const currentGameState = currentStateResult.state;
     
     // STEP 5: Generate proper event data based on current game state
-    console.log('🔄 Move: Generating event data for move:', backendAction.type);
     let eventData;
     
     try {
       eventData = generateEventData(backendAction, currentGameState, userId);
-      console.log('📋 Move: Generated event data:', eventData);
     } catch (error) {
-      console.log('❌ Move: Event data generation failed:', error.message);
       return NextResponse.json(
         { 
           error: 'Invalid move: ' + error.message,
@@ -520,7 +500,6 @@ export async function POST(
     }
 
     // STEP 6: Append event using EventStore with concurrency control
-    console.log('🔄 Move: Appending event through EventStore...');
     const appendResult = await EventStore.appendEvent(
       params.gameId,
       requestId,
@@ -531,7 +510,6 @@ export async function POST(
     );
 
     if (!appendResult.success) {
-      console.log('❌ Move: Event append failed:', appendResult.error);
       
       // Handle version conflicts with specific messaging
       if (appendResult.error?.code === 'STATE_VERSION_MISMATCH') {
@@ -569,20 +547,11 @@ export async function POST(
     }
 
     // STEP 5: Rebuild game state from events after successful append
-    console.log('🔄 Move: Rebuilding game state from events...');
     const stateResult = await ReplayService.rebuildFilteredState(params.gameId, userId);
     const gameState = stateResult.state;
     const newStreamVersion = stateResult.version;
 
     const processingTime = Date.now() - startTime;
-    console.log(`✅ Move: Event appended successfully in ${processingTime}ms`, {
-      gameId: params.gameId,
-      eventType: backendAction.type,
-      sequenceNumber: appendResult.sequence,
-      newPhase: gameState.phase,
-      newCurrentPlayer: gameState.currentPlayerId,
-      streamVersion: newStreamVersion,
-    });
 
     await maybeCaptureSnapshot(params.gameId, appendResult.sequence, {
       eventType: backendAction.type
@@ -696,10 +665,7 @@ export async function POST(
     };
 
     // Trigger AI asynchronously if needed using the new queue processor
-    console.log(`🚨🚨 Move: Checking if AI should move - aiShouldMove: ${aiShouldMove}, phase: ${gameState.phase}, vsAI: ${gameState.vsAI}`);
-    
     if (aiShouldMove) {
-      console.log('🚨🚨🚨 Move: AI SHOULD MOVE - QUEUING WITH AI QUEUE PROCESSOR');
       responseData.metadata.aiTriggered = true;
       responseData.debug = { aiShouldThink: true };
       
@@ -711,13 +677,11 @@ export async function POST(
       
       // Queue AI move processing using the deterministic queue processor
       setImmediate(() => {
-        console.log('🚨🚨🚨 Move: About to call aiQueueProcessor.queueAIMove');
         aiQueueProcessor.queueAIMove(params.gameId).catch(error => {
           console.error('❌ Move: AI queue processing failed:', error);
         });
       });
     } else {
-      console.log('🚨 Move: AI should NOT move - skipping AI queue');
     }
 
     // STEP 9: Process ELO rating updates if game is completed

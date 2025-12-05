@@ -100,7 +100,6 @@ async function generateTurnHistoryFromEvents(prisma: PrismaClient, gameId: strin
         };
       });
 
-    console.log(`📝 StateAPI: Generated ${turnHistory.length} turn history entries from ${events.length} events`);
     return turnHistory;
   } catch (error) {
     console.error('❌ StateAPI: Failed to generate turn history:', error);
@@ -119,7 +118,6 @@ export async function GET(
   { params }: { params: { gameId: string } }
 ) {
   const { gameId } = params;
-  console.log(`🎮 StateAPI: GET /api/games/${gameId}/state`);
 
   try {
     // Verify authentication
@@ -133,7 +131,6 @@ export async function GET(
     }
 
     const userId = authResult.user.id;
-    console.log(`👤 StateAPI: Authenticated user ${userId}`);
 
     // Load game state using new EventStore + ReplayService (with player filtering)
     let result;
@@ -142,7 +139,6 @@ export async function GET(
     try {
       // Get current stream version
       streamVersion = await EventStore.getCurrentVersion(gameId);
-      console.log(`📊 StateAPI: Current stream version: ${streamVersion}`);
       
       // Rebuild game state with player filtering (hide opponent cards)
       const replayResult = await ReplayService.rebuildFilteredState(gameId, userId);
@@ -159,10 +155,8 @@ export async function GET(
       }
       
     } catch (error: any) {
-      console.log('❌ StateAPI: Failed to load game state with ReplayService:', error.message);
       
       // Fallback to old TurnController method for compatibility
-      console.log('🔄 StateAPI: Falling back to TurnController.loadGameState');
       result = await turnController.loadGameState(gameId, userId);
       streamVersion = 0; // Legacy - no stream version available
       
@@ -179,16 +173,8 @@ export async function GET(
     // Generate turn history from events for frontend compatibility
     const currentRoundTurnHistory = await generateTurnHistoryFromEvents(prisma, gameId);
 
-    console.log('✅ StateAPI: Game state loaded successfully', {
-      gameId,
-      phase: result.gameState.phase,
-      players: result.gameState.players?.length,
-      currentPlayer: result.gameState.currentPlayerId
-    });
-
     // Check if we need to trigger AI for layoff phase (when loading existing game)
     if (result.gameState.phase === 'layoff' && result.gameState.vsAI && !result.gameState.gameOver) {
-      console.log('🚨🚨🚨 StateAPI: Game is in layoff phase, triggering AI queue for layoff decision');
       
       // Import and trigger AI queue processor
       const { getAIQueueProcessor } = await import('../../../../../lib/ai-queue-processor');
@@ -196,7 +182,6 @@ export async function GET(
       
       // Trigger AI layoff processing asynchronously
       setImmediate(() => {
-        console.log('🚨🚨🚨 StateAPI: About to call aiQueueProcessor.queueAIMove for layoff');
         aiQueueProcessor.queueAIMove(gameId).catch(error => {
           console.error('❌ StateAPI: AI queue processing failed:', error);
         });
@@ -204,15 +189,7 @@ export async function GET(
     }
 
     // Check if game is in waiting state and should return waitingState instead of state
-    console.log('🔍 StateAPI: Checking waiting state condition:', {
-      status: result.gameState.status,
-      phase: result.gameState.phase,
-      playersLength: result.gameState.players?.length,
-      playersArray: result.gameState.players
-    });
-    
     if (result.gameState.status === 'WAITING') {
-      console.log('🎮 StateAPI: Game is in waiting status, returning full game state instead of waitingState for ready system');
       // For the new ready system, we return the full game state when WAITING
       // The frontend will handle showing the waiting/ready screen based on player count and ready status
     }
